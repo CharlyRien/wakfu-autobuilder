@@ -31,6 +31,20 @@ class I18nBundle(
         )
     }
 
+    /** Extraction guard: every requested locale must actually contain a nonblank name (no silent FR substitution). */
+    fun requireText(
+        namespace: Int,
+        id: Int,
+    ): I18nText {
+        val key = "content.$namespace.$id"
+        val values =
+            LANGS.associateWith { lang ->
+                byLang.getValue(lang)[key]?.takeIf { it.isNotBlank() }
+                    ?: error("Missing achievement name $key in the $lang i18n bundle")
+            }
+        return I18nText(values.getValue("fr"), values.getValue("en"), values.getValue("es"), values.getValue("pt"))
+    }
+
     companion object {
         val LANGS = listOf("fr", "en", "es", "pt")
 

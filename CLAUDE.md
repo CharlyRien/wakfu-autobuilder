@@ -24,4 +24,9 @@ it is imported below so both files stay in sync.
   guards completeness + placeholder parity in CI — run it after touching any `Tr` key or bundle.
   There is **no** generated i18n code. `docs/design-reference/` is the visual source of truth.
 - **Run `./gradlew ktlintFormat`** before finishing a change; CI style is strict.
+- **Release notes.** Every feat/fix/perf change adds a `changes/unreleased/` note in EN + FR
+  (`<slug>.properties`: `type`, `en`, `fr`; see CONTRIBUTING.md › Release notes). CI fails a PR
+  without one; the `no-changeset` label (maintainer) waives internal-only changes.
 - Don't commit/push unless asked; this repo's default branch is `main`.
+
+The GUI bundle guard iterates `Lang.entries`; new `Tr` keys must be added to every UTF-8 bundle with matching formatter tokens. Game names use `I18nText.localized`, and skill names use `skillLabel` (including HP).

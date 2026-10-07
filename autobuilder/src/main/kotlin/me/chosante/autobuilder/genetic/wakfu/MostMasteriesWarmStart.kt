@@ -2,6 +2,10 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.equipConflict
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.statGateViolations
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
@@ -9,8 +13,8 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.RESISTANCE_RANDOM_
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
-import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.assignRandomPoints
 
@@ -151,7 +155,14 @@ internal object MostMasteriesWarmStart {
         pool: List<Equipment>,
     ): BuildCombination? = greedyBuild(params, pool, maxDamageWeights(params))
 
-    /** Greedy build: best-valued item per slot (top-2 distinct-name rings, best weapon combo), then a ≤1-epic / ≤1-relic repair. */
+    /**
+     * Greedy build: best-valued item per slot (top-2 distinct-name rings, best weapon combo), then a ≤1-epic / ≤1-relic
+     * repair. Item EQUIP conditions: an item that needs others (a nation sword needs its zero-stat EPIC ring) is never
+     * picked on its own value; each such BUNDLE (the item and what it needs) is tried as a pre-pick instead, and the
+     * candidate the production scorer ([WakfuBestBuildFinderAlgorithm.rescore]) ranks first wins — the sword's +3 AP is
+     * often worth the epic slot its ring takes, which no per-item value sees. Rings that exclude each other are never paired,
+     * and a gated item whose stat gate the filled build breaks is swapped for an ungated one (the stat-gate repair).
+     */
     fun greedyBuild(
         params: WakfuBestBuildParams,
         pool: List<Equipment>,
@@ -160,6 +171,23 @@ internal object MostMasteriesWarmStart {
         if (params.forcedItems.isNotEmpty()) return null
         val weights = weightsOverride ?: weights(params.targetStats)
         if (weights.isEmpty()) return null
+        val byId = pool.associateBy { it.equipmentId }
+        val bundles =
+            pool
+                .filter { it.requiredItemIds.isNotEmpty() }
+                .mapNotNull { item -> listOf(item) + item.requiredItemIds.map { byId[it] ?: return@mapNotNull null } }
+        val free = pool.filter { it.requiredItemIds.isEmpty() }
+        val candidates = (listOf(emptyList<Equipment>()) + bundles).mapNotNull { greedyCandidate(params, free, weights, it) }
+        return candidates.singleOrNull() ?: candidates.maxByOrNull { WakfuBestBuildFinderAlgorithm.rescore(params, it) }
+    }
+
+    /** One greedy fill of [pool] around the [prePicks] (a bundle: they keep their slots), or null when it breaks a rule. */
+    private fun greedyCandidate(
+        params: WakfuBestBuildParams,
+        pool: List<Equipment>,
+        weights: Map<Characteristic, Double>,
+        prePicks: List<Equipment>,
+    ): BuildCombination? {
         // Remaining shortfall per REQUIRED (non-maximizable) target after the character's base stats —
         // consumed slot by slot as picks land, so later slots stop over-paying for an already-met target.
         val base = params.character.baseCharacteristicValues
@@ -182,26 +210,31 @@ internal object MostMasteriesWarmStart {
         }
 
         fun itemValue(equip: Equipment) = itemValue(equip, weights, remaining)
+
         val byType: Map<ItemType, List<Equipment>> = pool.groupBy { it.itemType }
 
         // Sequential slot fill, re-ranking against the LIVE shortfalls: once a required target (AP, MP…)
         // is covered, later slots stop over-paying for it and go back to mastery. Weapons resolve as a
-        // combo (2H vs 1H + off-hand); rings take the top two distinct-name picks.
+        // combo (2H vs 1H + off-hand); rings take the top two distinct-name picks. The pre-picks come first and
+        // keep their slots; a ring never pairs with a ring it excludes (or that excludes it).
         val weaponTypes = setOf(ItemType.ONE_HANDED_WEAPONS, ItemType.TWO_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
-        val picks = mutableListOf<Equipment>()
+        val picks = prePicks.toMutableList()
+        prePicks.forEach(::consume)
+
+        fun ringFits(ring: Equipment) = picks.none { it.itemType == ItemType.RING && (it.name == ring.name || equipConflict(it, ring)) }
         for ((type, items) in byType) {
             when {
-                type == ItemType.RING -> {
-                    val first = items.maxByOrNull { itemValue(it) } ?: continue
-                    picks += first
-                    consume(first)
-                    items.filter { it.name != first.name }.maxByOrNull { itemValue(it) }?.let {
-                        picks += it
-                        consume(it)
+                type == ItemType.RING ->
+                    repeat(2 - picks.count { it.itemType == ItemType.RING }) {
+                        items.filter(::ringFits).maxByOrNull { itemValue(it) }?.let {
+                            picks += it
+                            consume(it)
+                        }
                     }
-                }
 
                 type in weaponTypes -> Unit // resolved as a combo below
+
+                picks.any { it.itemType == type } -> Unit // a pre-pick holds the slot
 
                 else ->
                     items.maxByOrNull { itemValue(it) }?.let {
@@ -210,10 +243,14 @@ internal object MostMasteriesWarmStart {
                     }
             }
         }
-        // Weapon combo: a two-handed weapon vs one-handed + off-hand, by total greedy value.
-        val best2h = byType[ItemType.TWO_HANDED_WEAPONS]?.maxByOrNull { itemValue(it) }
-        val best1h = byType[ItemType.ONE_HANDED_WEAPONS]?.maxByOrNull { itemValue(it) }
-        val bestOff = byType[ItemType.OFF_HAND_WEAPONS]?.maxByOrNull { itemValue(it) }
+        // Weapon combo: a two-handed weapon vs one-handed + off-hand, by total greedy value — around a pre-picked weapon.
+        val preWeapon = picks.firstOrNull { it.itemType in weaponTypes }
+        val best2h = byType[ItemType.TWO_HANDED_WEAPONS]?.maxByOrNull { itemValue(it) }.takeIf { preWeapon == null }
+        val best1h = byType[ItemType.ONE_HANDED_WEAPONS]?.maxByOrNull { itemValue(it) }.takeIf { preWeapon == null }
+        val bestOff =
+            byType[ItemType.OFF_HAND_WEAPONS]?.maxByOrNull { itemValue(it) }.takeIf {
+                preWeapon == null || preWeapon.itemType == ItemType.ONE_HANDED_WEAPONS
+            }
         val v2h = best2h?.let { itemValue(it) } ?: Double.NEGATIVE_INFINITY
         val v1hOff = (best1h?.let { itemValue(it) } ?: 0.0) + (bestOff?.let { itemValue(it) } ?: 0.0)
         if (best2h != null && v2h >= v1hOff) {
@@ -230,24 +267,26 @@ internal object MostMasteriesWarmStart {
             }
         }
 
-        // Rarity-budget repair: while a scarce rarity is over budget, downgrade the pick whose best
-        // same-slot alternative loses the least greedy value (dropping the slot if none). Alternatives
-        // exclude BOTH scarce rarities: replacing an over-budget epic with a relic (or vice versa) made
-        // the two repairs PING-PONG on pools where epic/relic items dominate every slot — repair(EPIC)
-        // inflated the relic count to 10, repair(RELIC) pushed epics back to 5, and the warm start
-        // silently self-cancelled on every end-game max-damage request.
-        fun repair(rarity: Rarity) {
-            while (picks.count { it.rarity == rarity } > 1) {
+        // Exclusivity-budget repair: while an "only one equipped at a time" group (the EPIC group — every EPIC item and
+        // two COMMON ones — or the RELIC group, [Equipment.exclusiveGroup]) is over budget, downgrade the pick whose best
+        // same-slot alternative loses the least greedy value (dropping the slot if none). Alternatives are in NEITHER
+        // group: replacing an over-budget epic with a relic (or vice versa) made the two repairs PING-PONG on pools where
+        // epic/relic items dominate every slot — repair(EPIC) inflated the relic count to 10, repair(RELIC) pushed epics
+        // back to 5, and the warm start silently self-cancelled on every end-game max-damage request.
+        fun repair(group: ExclusiveGroup) {
+            while (picks.count { it.exclusiveGroup == group } > 1) {
                 val candidates =
-                    picks.filter { it.rarity == rarity }.map { pick ->
+                    picks.filter { it.exclusiveGroup == group && it !in prePicks }.map { pick ->
                         val alternative =
                             byType
                                 .getValue(pick.itemType)
                                 .filter { alt ->
-                                    alt.rarity != Rarity.EPIC &&
-                                        alt.rarity != Rarity.RELIC &&
+                                    alt.exclusiveGroup == ExclusiveGroup.NONE &&
                                         alt !in picks &&
-                                        (pick.itemType != ItemType.RING || picks.none { it.itemType == ItemType.RING && it !== pick && it.name == alt.name })
+                                        (
+                                            pick.itemType != ItemType.RING ||
+                                                picks.none { it.itemType == ItemType.RING && it !== pick && (it.name == alt.name || equipConflict(it, alt)) }
+                                        )
                                 }.maxByOrNull { itemValue(it) }
                         val loss = itemValue(pick) - (alternative?.let { itemValue(it) } ?: 0.0)
                         Triple(pick, alternative, loss)
@@ -257,8 +296,8 @@ internal object MostMasteriesWarmStart {
                 cheapest.second?.let { picks.add(it) }
             }
         }
-        repair(Rarity.EPIC)
-        repair(Rarity.RELIC)
+        repair(ExclusiveGroup.EPIC)
+        repair(ExclusiveGroup.RELIC)
 
         // Target-aware skill fill (deterministic seed): assign each branch's points among the skills
         // matching the requested characteristics — the AP/MP majors and %HP lines carry required targets.
@@ -271,13 +310,30 @@ internal object MostMasteriesWarmStart {
         skills.luck.assignRandomPoints(skills.luck.maxPointsToAssign, targetCharacteristics, random)
         skills.major.assignRandomPoints(skills.major.maxPointsToAssign, targetCharacteristics, random)
 
-        val combination =
-            BuildCombination(
-                equipments = picks.toList(),
-                characterSkills = skills,
-                passives = WakfuBuildSolver.resolvedPassives(params)
-            )
+        val passives = WakfuBuildSolver.resolvedPassives(params)
+
+        fun combination() = BuildCombination(equipments = picks.toList(), characterSkills = skills, passives = passives)
+
+        // Stat-gate repair ([statGateViolations]: an item inactive on the build's out-of-combat sheet — "range ≤ 3" at 4 range,
+        // "AP ≤ 11" once the skills pushed AP to 12): replace a broken gated pick by the best UNGATED item of its slot that keeps
+        // the exclusivity and ring rules (dropping the slot if none). Each round removes a gated pick for an ungated one, so it
+        // ends; a broken pre-pick (a bundle) is left to the final validity check, which then cancels the candidate.
+        while (true) {
+            val broken = statGateViolations(combination(), params.character.clazz).map { it.item }.firstOrNull { it !in prePicks } ?: break
+            picks.remove(broken)
+            byType[broken.itemType]
+                .orEmpty()
+                .filter { alt ->
+                    alt.statGates.isEmpty() &&
+                        alt !in picks &&
+                        (alt.exclusiveGroup == ExclusiveGroup.NONE || picks.none { it.exclusiveGroup == alt.exclusiveGroup }) &&
+                        (alt.itemType != ItemType.RING || picks.none { it.itemType == ItemType.RING && (it.name == alt.name || equipConflict(it, alt)) })
+                }.maxByOrNull { itemValue(it) }
+                ?.let { picks += it }
+        }
+
+        val combination = combination()
         // The greedy is best-effort: any rule it got wrong just cancels the warm start (never a wrong result).
-        return combination.takeIf { it.isValid() }
+        return combination.takeIf { it.isValid(params.character.clazz) }
     }
 }

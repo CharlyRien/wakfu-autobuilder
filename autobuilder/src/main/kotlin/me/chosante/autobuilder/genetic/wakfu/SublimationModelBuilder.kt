@@ -83,6 +83,29 @@ private fun dropsDamageWithNoMasteryToProtect(
 }
 
 /**
+ * The sublimations [createSublimationModel] gives a variable for this request: `first` = the FORCED ones (matched by
+ * French or English name, modelled whatever [WakfuBestBuildParams.useSublimations] says), `second` = the choosable
+ * ones (sublimations on, solver-choosable and modelable in this mode / scenario). One source for the model and for
+ * the domination pre-filter's carrier contract ([dominationShape]): an epic / relic sub in either list needs an epic
+ * / relic carrier item.
+ */
+internal fun modelledSublimations(
+    params: WakfuBestBuildParams,
+    sublimations: List<Sublimation>,
+): Pair<List<Sublimation>, List<Sublimation>> {
+    val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
+    val forcedSubs =
+        sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
+    val choosableSubs =
+        if (!params.useSublimations) {
+            emptyList()
+        } else {
+            sublimations.filter { it !in forcedSubs && isModelableSublimation(it, params) }
+        }
+    return forcedSubs to choosableSubs
+}
+
+/**
  * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
  * Epic/relic subs are gated to an equipped epic/relic item — their dedicated slot comes from that carrier
  * ([gateSublimationsOnCarrierItems]). Normal subs all share the same carrier eligibility in this optimistic
@@ -106,15 +129,7 @@ internal fun CpModel.createSublimationModel(
     sublimations: List<Sublimation>,
 ): SublimationModel {
     if (sublimations.isEmpty()) return SublimationModel.EMPTY
-    val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
-    val forcedSubs =
-        sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
-    val choosableSubs =
-        if (!params.useSublimations) {
-            emptyList()
-        } else {
-            sublimations.filter { it !in forcedSubs && isModelableSublimation(it, params) }
-        }
+    val (forcedSubs, choosableSubs) = modelledSublimations(params, sublimations)
     if (forcedSubs.isEmpty() && choosableSubs.isEmpty()) return SublimationModel.EMPTY
 
     val subVars = LinkedHashMap<Sublimation, IntVar>()
@@ -133,6 +148,9 @@ internal fun CpModel.createSublimationModel(
     // (Σ sub − Σ carrier ≤ 0). This also caps each sub at ≤1 since epic/relic items are themselves ≤1
     // (addBuildValidityConstraints). Forcing such a sub therefore forces its carrier item to be
     // equipped; with no carrier in the pool the request is correctly infeasible (it cannot be hosted).
+    // The carrier is the item's RARITY, not its exclusivity group — an assumption the CDN does not settle: the two COMMON
+    // items of the EPIC group (18691, 18693) take the epic budget but are taken to host no epic sub (see
+    // [me.chosante.common.ExclusiveGroup]).
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.EPIC, Rarity.EPIC)
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.RELIC, Rarity.RELIC)
 

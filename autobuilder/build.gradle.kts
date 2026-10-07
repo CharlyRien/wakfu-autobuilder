@@ -22,7 +22,7 @@ dependencies {
     implementation("com.github.ajalt.mordant:mordant:3.1.0")
     implementation("io.github.oshai:kotlin-logging-jvm:8.0.4")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1")
-    implementation("org.slf4j:slf4j-api:2.0.19")
+    implementation("org.slf4j:slf4j-api:2.0.20")
     implementation(libs.ortools.java)
     testImplementation(libs.assertj.core)
     testImplementation(kotlin("test"))
@@ -47,16 +47,47 @@ val orToolsTestJvmArgs =
         "--sun-misc-unsafe-memory-access=allow"
     )
 
+// Named per-push CI shards. Unset keeps the ordinary full test suite; "remaining" is the
+// complement, so newly added classes automatically run without updating the workflow.
+val ciTestShards =
+    mapOf(
+        "most-masteries" to listOf("MostMasteriesCertificateTest"),
+        "solver" to listOf("WakfuBuildSolverTest"),
+        "floors-soft" to listOf("ZeroTargetRowsTest", "MaxDamageSoftCertificateTest"),
+        "medium" to
+            listOf(
+                "MaxDamageTargetAwareCertificateTest",
+                "DofusPourpreLevelScalingTest",
+                "PerElementRowFoldTest",
+                "SoundnessReviewAdversarialTest",
+                "RuneChoicePruningTest"
+            )
+    )
+val ciTestShard = providers.gradleProperty("ciTestShard").orNull
+require(ciTestShard == null || ciTestShard == "remaining" || ciTestShard in ciTestShards) {
+    "Unknown ciTestShard: $ciTestShard"
+}
+
 tasks.test {
     // The heavy full-pool OR-Tools OPTIMAL *proof* tests are tagged @Tag("slow") and EXCLUDED here: each
     // requests 8 solver workers and burns a large deterministic-time budget, so on a 2-core CI runner they
     // oversubscribe and take ~15 min. The default `test` (every push/PR) stays fast; they run via `slowTest`
     // (nightly + on-demand — see .github/workflows/build.yml).
     useJUnitPlatform { excludeTags("slow") }
+    filter {
+        if (ciTestShard == "remaining") {
+            ciTestShards.values.flatten().forEach { excludeTestsMatching("me.chosante.autobuilder.*.$it") }
+        } else if (ciTestShard != null) {
+            ciTestShards.getValue(ciTestShard).forEach { includeTestsMatching("me.chosante.autobuilder.*.$it") }
+        }
+    }
     jvmArgs(orToolsTestJvmArgs)
     // Manual measurement harnesses only (e.g. the M3-v2 DP at fine grids): lets a local run raise
     // the test-worker heap without touching CI (unset ⇒ Gradle's default).
     System.getenv("WAKFU_TEST_MAX_HEAP")?.let { maxHeapSize = it }
+    // Manual measurement harnesses only: extra test-JVM args, e.g. "-XX:ActiveProcessorCount=4" to mimic
+    // a 4-core laptop or a JFR recording. Unset ⇒ nothing changes.
+    System.getenv("WAKFU_TEST_JVM_ARGS")?.let { extra -> jvmArgs(extra.split(' ').filter { it.isNotBlank() }) }
 }
 
 tasks.register<Test>("slowTest") {

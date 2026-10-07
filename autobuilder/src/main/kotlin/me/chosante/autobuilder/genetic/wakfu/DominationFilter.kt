@@ -1,26 +1,45 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import me.chosante.autobuilder.domain.forbiddenItemIds
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.RANDOM_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scenarioGateMatches
+import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationRarity
 
 // Domination pre-filter (DominationFilter) extracted from the WakfuBuildSolver object (B1 of
 // docs/code-review-followups.md): the pure monotone-objective item-domination relation + per-slot pool
 // filter — no CP-SAT model or solver state. An item beaten on every relevant stat is never in an optimum,
 // so it is dropped before the search.
+//
+// The contract (CERTIFIER_VERSION 53 audit, docs/perf-review-backlog.md §E): A may replace B in EVERY build of the
+// model with no loss. Besides the stats, that means A must offer at least what B offers on every OTHER dimension the
+// CP-SAT model or a certificate reads from an item — the slot (per-slot filter), the ≤1-epic / ≤1-relic budget, the
+// epic / relic sublimation carrier, the rune sockets AND their value (the item's level caps the rune level), for
+// rings, the "never two rings of the same name" rule, and the item EQUIP conditions (CERTIFIER_VERSION 57: a required
+// item is never evicted, A's requirements / conflict partners / stat gates must be a subset of B's, and a gated stat
+// never moves the wrong way). Each is a clause of
+// [dominates] / [dominatedWithin] below; the search and every certificate read the SAME reduced pool, so a clause that
+// is missing makes CP-SAT's OPTIMAL and the certificate's bound both wrong at once (a wrong "proven optimal" badge).
 
 /**
- * The characteristics to PIN to equality in the domination relation for these params — or `null` to not
- * apply the pre-filter at all. An empty set means full domination (no condition to respect).
+ * The domination relation's parameters for a request — or `null` (from [dominationShape]) to not apply the
+ * pre-filter at all. Empty [pinned] / null [compared] means full domination on every stat.
  *
  * Applies to **all three modes** — each maximizes an objective that is **monotone non-decreasing in every
  * characteristic** (more of any stat is never worse), so an item beaten on every stat is never needed:
@@ -38,17 +57,41 @@ import me.chosante.common.SublimationEffect
  * so the swap can't move that stat's build sum and no sub can flip — while domination still fires across
  * every stat no condition touches. A `≥`-type condition stays satisfied under a `≥` swap on a beneficial
  * choosable sub, so it needs no pin. Returns `null` (gate off) for a forced item / rune-carrier, a forced
- * conditional sub (unknown effect direction), or a condition that compares two build stats / is categorical
- * and can't be reduced to a stat pin.
+ * conditional sub (unknown effect direction), a condition that compares two build stats / is categorical
+ * and can't be reduced to a stat pin, or a best-element concentration sub outside a single-element max-damage solve.
  */
 internal data class DominationShape(
     val pinned: Set<Characteristic>,
     val compared: Set<Characteristic>? = null,
     // Stats where LOWER is better for the swap proof, so a dominator must be `≤` (not `≥`). Used for the three
     // non-scenario elemental masteries when a best-element concentration sub (Elemental Concentration) is
-    // choosable: in a single-element solve they do nothing for the scored element and only risk flipping which
+    // modelled: in a single-element solve they do nothing for the scored element and only risk flipping which
     // element is "strongest", so more of them is never beneficial — see the swap proof in the sub's decode.
     val minimized: Set<Characteristic> = emptySet(),
+    // An EPIC (RELIC) sublimation can be modelled in this request, and only an EPIC (RELIC) item can carry it (the
+    // model's `Σ epicSub ≤ Σ epicItem`): evicting the slot's epic item for a non-epic one would silently forbid
+    // every epic sub. So an EPIC (RELIC) item may then only be dominated by another EPIC (RELIC) item.
+    val epicCarriers: Boolean = false,
+    val relicCarriers: Boolean = false,
+    // The rune contract, null when no rune can be modelled (the old count-only socket clause is then all it needs).
+    val runes: RuneDomination? = null,
+)
+
+/**
+ * How runes constrain domination when the request can model them. A rune's value is fixed by the CARRIER's level (the
+ * item's level caps the rune level — [RuneType.maxLevelForItemLevel]) and its slot (doubling — same slot here), so a
+ * dominator must carry B's runes at no lower value: its rune-level cap must be ≥ B's whenever B has sockets.
+ *
+ * [exact]: a modelled rune type is a stat a dangerous condition reads (pinned: crit mastery under Critical Secret, a
+ * secondary mastery under the Neutralité family, dodge under Furie) or a minimized stat. Then B's rune contribution on
+ * it must be replicated EXACTLY (a higher-level rune on A would add to a capped sum and could flip the sub) ⇒ equal
+ * rune-level caps. [oneTypePerItem]: the max-damage single-type fold / choice collapse fills ALL of an item's sockets
+ * with ONE type (the collapse may even offer only capped types), so with [exact] the socket counts must match too —
+ * A's extra sockets would otherwise be forced to carry more of a capped stat.
+ */
+internal data class RuneDomination(
+    val exact: Boolean,
+    val oneTypePerItem: Boolean,
 )
 
 /** The MAX_* riders folded into usable AP/MP/WP ([foldedToUsableStat]); pinned like the stats they fold into. */
@@ -76,6 +119,13 @@ internal fun dominationShape(
             subStats += conversion.from.foldedToUsableStat()
             subStats += conversion.to.foldedToUsableStat()
         }
+        // A per-stat-step ramp (Poids Plume: MP → DI) is monotone non-decreasing in its source, so its source only has
+        // to be COMPARED (≥) in max-damage. The shipped ramp's source (MP) is pinned anyway; this keeps a future ramp
+        // on a stat max-damage does not otherwise compare from being evicted with its source.
+        sub.perStatStep?.let { ramp ->
+            subStats += ramp.source.foldedToUsableStat()
+            subStats += ramp.target.foldedToUsableStat()
+        }
         val condition = sub.condition ?: continue
         if (forced) return null // forced conditional sub: unknown effect direction ⇒ can't pin soundly
         when (condition.type) {
@@ -99,9 +149,16 @@ internal fun dominationShape(
                 pinned += Characteristic.DODGE
                 conditionStats += Characteristic.DODGE
             }
+            // EACH secondary is capped on its own: pinning every one of them keeps each per-stat read unchanged.
             SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
                 pinned += SECONDARY_MASTERY_CHARACTERISTICS
                 conditionStats += SECONDARY_MASTERY_CHARACTERISTICS
+            }
+            // Not solver-modelled (no choosable sub carries it; a carrier's effects apply unconditionally) — pinned like
+            // AP_ODD all the same, should a future data refresh model it.
+            SublimationConditionType.HEALING_MASTERY_AT_MOST -> {
+                pinned += Characteristic.MASTERY_HEALING
+                conditionStats += Characteristic.MASTERY_HEALING
             }
             // ≥-type: a ≥ swap on a beneficial choosable sub keeps the condition satisfied ⇒ no pin needed.
             SublimationConditionType.AP_AT_LEAST -> conditionStats += Characteristic.ACTION_POINT
@@ -123,6 +180,20 @@ internal fun dominationShape(
             -> return null
         }
     }
+    // The epic / relic CARRIER contract — on exactly the subs the model gives a variable ([modelledSublimations]).
+    val (forcedModelled, choosableModelled) = modelledSublimations(params, sublimations)
+    val modelled = forcedModelled + choosableModelled
+    val epicCarriers = modelled.any { it.rarity == SublimationRarity.EPIC }
+    val relicCarriers = modelled.any { it.rarity == SublimationRarity.RELIC }
+    // Best-element concentration (Elemental Concentration) constrains `subVar ≤ "the scenario element is the strongest"`
+    // wherever it is modelled. Its sound pin (the off-scenario elemental masteries MINIMIZED, below) needs a single
+    // scenario element to protect; a FORCED one elsewhere (most-masteries / precision, a multi-element solve) would make
+    // more of an off-element mastery INFEASIBLE, which no `≥` swap respects ⇒ gate off.
+    val ecModelled = modelled.any { it.bestElementConcentration != null }
+    val singleElementMaxDamage =
+        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
+            params.damageScenario.candidateElements().size == 1
+    if (ecModelled && !singleElementMaxDamage) return null
     // The out-of-combat sheet caps (16 AP / 8 MP / 20 WP, [StatBuilder.applyOutOfCombatCaps]) are HARD
     // constraints in EVERY mode, so a dominator with strictly more AP/MP/WP could break the cap the evicted
     // item respected — pruning a cap-tight optimum. Pin them in all three modes (previously max-damage only:
@@ -137,7 +208,12 @@ internal fun dominationShape(
     pinned += MAX_RIDER_STATS
 
     if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-        return DominationShape(pinned)
+        return DominationShape(
+            pinned,
+            epicCarriers = epicCarriers,
+            relicCarriers = relicCarriers,
+            runes = runeDomination(params, pinned)
+        )
     }
 
     // Max-damage does not care about every sheet stat. Comparing only stats that can affect the objective,
@@ -155,6 +231,9 @@ internal fun dominationShape(
             add(Characteristic.DAMAGE_INFLICTED)
             add(Characteristic.MASTERY_CRITICAL)
             addAll(scenarioMasteryStats(scenario))
+            // The objective is a max over EVERY candidate element (one per solve on the production path — MaxDamageSearch
+            // enumerates them — but a multi-element scenario would read each candidate's mastery).
+            scenario.candidateElements().forEach { (element, _) -> add(element.masteryCharacteristic) }
             addAll(MASTERY_RANDOM_BY_COUNT.map { it.first })
             addAll(params.targetStats.map { it.characteristic })
             addAll(conditionStats)
@@ -199,73 +278,237 @@ internal fun dominationShape(
     // masteries do nothing for the scored element, so a dominator having MORE of them is never beneficial — mark
     // them MINIMIZED (dominator must be ≤). Sound and cheap (3 extra compared stats). If one is also a beneficial
     // target the two directions can't be reconciled by a pin, so gate domination off for that rare request.
-    val ecChoosable = sublimations.any { it.bestElementConcentration != null && it.solverChoosable && params.useSublimations }
     val minimized = mutableSetOf<Characteristic>()
-    if (ecChoosable && scenario.candidateElements().size == 1) {
+    if (ecModelled) {
         val offElements = ELEMENT_MASTERY_CHARACTERISTICS - scenario.element.masteryCharacteristic
         if (offElements.any { it in compared }) return null
         minimized += offElements
     }
-    return DominationShape(pinned, compared + minimized, minimized)
+    return DominationShape(
+        pinned,
+        compared + minimized,
+        minimized,
+        epicCarriers = epicCarriers,
+        relicCarriers = relicCarriers,
+        runes = runeDomination(params, pinned + minimized)
+    )
 }
 
-/** Apply [dominatedWithin] per slot — RING keeps 2 (two are co-equippable, distinct); every other slot 1. */
-internal fun filterDominatedPool(
-    pool: Map<ItemType, List<Equipment>>,
-    pinned: Set<Characteristic>,
-    compared: Set<Characteristic>? = null,
-    minimized: Set<Characteristic> = emptySet(),
-): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned, compared, minimized) }
+/**
+ * The rune clause of the relation, or null when no rune can be modelled. The modelled rune types are over-estimated
+ * like [createRuneModel] picks them ([relevantRuneStats] over every rune-able characteristic; a global forced rune —
+ * resolved by name there — counts as any of them), so [RuneDomination.exact] is never missed.
+ */
+private fun runeDomination(
+    params: WakfuBestBuildParams,
+    dangerous: Set<Characteristic>,
+): RuneDomination? {
+    val autoFilled = if (params.useRunes) relevantRuneStats(params, RuneType.VALUED_CHARACTERISTICS) else emptySet()
+    val forced = if (params.forcedRunes.isNotEmpty()) RuneType.VALUED_CHARACTERISTICS else emptySet()
+    val runeStats = autoFilled + forced
+    if (runeStats.isEmpty()) return null
+    return RuneDomination(
+        exact = runeStats.any { it in dangerous },
+        oneTypePerItem = params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+    )
+}
 
 /**
- * Keep only items NOT dominated by ≥[k] others in the same slot (k = slot capacity). B is removable iff
- * ≥k items A satisfy `A ≽ B`, with a deterministic tie-break (A strictly better, OR equal and lower id ⇒
- * exactly one of a set of identical items is kept). RING needs k=2 because one dominator may already be
- * worn in the other ring slot — see the proof in `docs/SOLVER_PERFORMANCE.md`.
- *
- * `A ≽ B` (A can replace B in any build of a monotone mode with no loss, no extra scarce-rarity budget,
- * and no conditional-sublimation flip):
- *  - `A.maxShardSlots ≥ B` — ≥ rune capacity AND sub-carrier eligibility (sockets are a colour-agnostic
- *    count in this model), so any rune/sub on B fits A;
- *  - **(A epic ⇒ B epic) ∧ (A relic ⇒ B relic)** — the swap never RAISES the build's ≤1-epic / ≤1-relic
- *    count, so an EPIC never dominates a non-epic (keeping the non-epic may be what frees the epic budget
- *    for a stronger epic elsewhere — the one case a naive stats-only filter gets wrong);
- *  - `A.characteristics ≥ B` on EVERY characteristic, AND **`A == B` on every [pinned] stat** — so every
- *    monotone objective term / ≥-type condition is still ≥, and every pinned ≤/exact/parity condition keeps
- *    its exact truth value (its build sum is unchanged by the swap).
+ * Apply [dominatedWithin] per slot (each slot's items only ever replace each other). The item EQUIP conditions are
+ * read over the WHOLE pool first, since a requirement crosses slots (a sword needs a ring): every item another pool item
+ * requires is KEPT — whatever dominates it can't stand in for it in its requirer's build (the four nation rings are
+ * stat-identical, zero-stat EPIC rings: they used to evict each other and fall to any 4-socket ring) — and
+ * [EquipConstraints] carries each item's conflict partners (the symmetric closure of `not HasEquipmentId`) to [dominates].
+ */
+internal fun filterDominatedPool(
+    pool: Map<ItemType, List<Equipment>>,
+    shape: DominationShape,
+): Map<ItemType, List<Equipment>> {
+    val constraints = EquipConstraints.of(pool)
+    return pool.mapValues { (slot, items) -> dominatedWithin(items, slot, shape, constraints) }
+}
+
+/**
+ * The pool-wide side of the item EQUIP conditions domination must respect: [requiredKeys] (ids some pool item requires
+ * — never evicted), each item's [conflictPartners] (pool ids it can't be worn with, either way round) and the STAT GATES
+ * ([gatedStats]): the stats some pool item's gate bounds from above (`range ≤ 3`) or from below (`lock ≥ 500`), with the
+ * slots of the gated items.
+ */
+internal class EquipConstraints private constructor(
+    val requiredKeys: Set<Int>,
+    private val partners: Map<Int, Set<Int>>,
+    // Per slot, the stats an upper (lower) gate of an item that can be worn BESIDE an item of that slot bounds: an item of
+    // another slot, or a second ring. Precomputed: [gatedStats] runs once per compared pair.
+    private val upperBySlot: Map<ItemType, Set<Characteristic>>,
+    private val lowerBySlot: Map<ItemType, Set<Characteristic>>,
+) {
+    fun conflictPartners(item: Equipment): Set<Int> = partners[item.equipmentId].orEmpty()
+
+    /**
+     * The sheet stats on which a swap of B by A in [slot] must not move the build's out-of-combat total: UP for [upper] (an
+     * upper gate — of an item another slot holds, a second ring, or A's own, which B carries too — could break), DOWN for the
+     * lower ones. An item of the same single-occupancy slot is never worn beside B, so its gate does not count.
+     */
+    fun gatedStats(
+        slot: ItemType,
+        a: Equipment,
+        upper: Boolean,
+    ): Set<Characteristic> {
+        val beside = (if (upper) upperBySlot else lowerBySlot)[slot].orEmpty()
+        val gates = a.statGates
+        if (gates.isEmpty()) return beside
+        return beside + gates.filter { if (upper) it.comparison.boundsAbove() else it.comparison.boundsBelow() }.map { it.sheetCharacteristic }
+    }
+
+    companion object {
+        val NONE = EquipConstraints(emptySet(), emptyMap(), emptyMap(), emptyMap())
+
+        fun of(pool: Map<ItemType, List<Equipment>>): EquipConstraints {
+            val items = pool.values.flatten()
+            val keys = items.flatMapTo(HashSet()) { it.requiredItemIds }
+            val partners = HashMap<Int, MutableSet<Int>>()
+            for (item in items) {
+                for (other in item.forbiddenItemIds) {
+                    partners.getOrPut(item.equipmentId) { HashSet() } += other
+                    partners.getOrPut(other) { HashSet() } += item.equipmentId
+                }
+            }
+            val upper = HashMap<Characteristic, MutableSet<ItemType>>()
+            val lower = HashMap<Characteristic, MutableSet<ItemType>>()
+            for (item in items) {
+                for (gate in item.statGates) {
+                    if (gate.comparison.boundsAbove()) upper.getOrPut(gate.sheetCharacteristic) { HashSet() } += item.itemType
+                    if (gate.comparison.boundsBelow()) lower.getOrPut(gate.sheetCharacteristic) { HashSet() } += item.itemType
+                }
+            }
+            if (keys.isEmpty() && partners.isEmpty() && upper.isEmpty() && lower.isEmpty()) return NONE
+
+            fun besideBySlot(gatedSlots: Map<Characteristic, Set<ItemType>>): Map<ItemType, Set<Characteristic>> =
+                pool.keys.associateWith { slot -> gatedSlots.filterValues { slots -> slots.any { it != slot || slot == ItemType.RING } }.keys }
+            return EquipConstraints(keys, partners, besideBySlot(upper), besideBySlot(lower))
+        }
+    }
+}
+
+/** Whether a gate with this operator can fail on a HIGHER value (`≤`, `<`, `=`, `≠`). */
+private fun CriterionComparison.boundsAbove(): Boolean = this != CriterionComparison.GE && this != CriterionComparison.GT
+
+/** Whether a gate with this operator can fail on a LOWER value (`≥`, `>`, `=`, `≠`). */
+private fun CriterionComparison.boundsBelow(): Boolean = this != CriterionComparison.LE && this != CriterionComparison.LT
+
+/**
+ * Keep only the items of [slot] NOT dominated. `A ≻ B` (A strictly dominates B) iff `A ≽ B` ([dominates]) and, when
+ * B ≽ A too (equivalent items), A has the lower id — a strict partial order, so exactly one of a set of identical
+ * items is kept and every removed item has a KEPT dominator (take a ≻-maximal one: transitivity).
+ *  - A one-item slot: B is removable iff ≥ 1 item dominates it.
+ *  - RING (two are worn, never two of the same French name — the model's same-name rule): B is removable iff its
+ *    dominators span ≥ 2 distinct NAMES. Then its KEPT dominators do too (a ≻-maximal dominator of another name than
+ *    the kept ones would be kept itself), so whatever B's partner ring X, a kept dominator has a name ≠ X's (and
+ *    differs from X) — and if X is removed as well, its own kept dominators offer another name. Counting dominators
+ *    by ITEM (the old `≥ 2`) let two rarity variants of ONE ring (both named N) evict B although a build wearing
+ *    a ring named N can only pair it with B.
+ *  - An item another pool item REQUIRES ([EquipConstraints.requiredKeys]) is always kept.
+ * The EQUIP-condition clauses of [dominates] (A's requirements ⊆ B's, A's conflict partners ⊆ B's) keep the ring
+ * argument whole: B's partner X conflicts with neither B nor (hence) its dominator A.
  */
 private fun dominatedWithin(
     items: List<Equipment>,
-    k: Int,
-    pinned: Set<Characteristic>,
-    compared: Set<Characteristic>?,
-    minimized: Set<Characteristic> = emptySet(),
+    slot: ItemType,
+    shape: DominationShape,
+    constraints: EquipConstraints,
 ): List<Equipment> =
     items.filter { b ->
-        items.count { a ->
-            a !== b &&
-                a.dominates(b, pinned, compared, minimized) &&
-                (!b.dominates(a, pinned, compared, minimized) || a.equipmentId < b.equipmentId)
-        } < k
+        if (b.equipmentId in constraints.requiredKeys) return@filter true
+
+        fun strictlyDominates(a: Equipment) = a !== b && a.dominates(b, shape, constraints) && (!b.dominates(a, shape, constraints) || a.equipmentId < b.equipmentId)
+        if (slot == ItemType.RING) {
+            var firstName: String? = null
+            items.none { a ->
+                if (!strictlyDominates(a)) return@none false
+                val name = a.name.fr.lowercase()
+                if (firstName == null) firstName = name
+                name != firstName
+            }
+        } else {
+            items.none { strictlyDominates(it) }
+        }
     }
 
+/**
+ * `A ≽ B`: A can replace B in any build of a monotone mode with no loss, no extra scarce-rarity budget, no lost
+ * sublimation carrier, no weaker rune, and no conditional-sublimation flip:
+ *  - `A.maxShardSlots ≥ B` — ≥ rune capacity AND normal-sub carrier eligibility (a ≥3-socket item; sockets are a
+ *    colour-agnostic count in this model);
+ *  - **A in an exclusivity group ⇒ B in the same one** ([Equipment.exclusiveGroup]: the EPIC group — every EPIC item
+ *    and two COMMON ones — or the RELIC group) — the swap never RAISES the build's ≤1-per-group count, so an item that
+ *    takes the epic budget never dominates one that does not (keeping the free one may be what frees the epic budget
+ *    for a stronger epic elsewhere — the one case a naive stats-only filter gets wrong);
+ *  - **(B epic ⇒ A epic) when an epic sub is modelled, (B relic ⇒ A relic) when a relic sub is** — nor LOWERS the
+ *    count of epic / relic carriers: B may be the build's only carrier of its epic / relic sub ([DominationShape.epicCarriers]).
+ *    The carrier is the RARITY (an EPIC-group COMMON item hosts no epic sub);
+ *  - the rune clause ([RuneDomination]) when runes can be modelled;
+ *  - `A.characteristics ≥ B` on EVERY compared characteristic, AND **`A == B` on every [DominationShape.pinned]
+ *    stat**, `≤` on every minimized one — so every monotone objective term / ≥-type condition is still ≥, and every
+ *    pinned ≤/exact/parity condition keeps its exact truth value (its build sum is unchanged by the swap);
+ *  - the item EQUIP conditions: **A's required items ⊆ B's** (the build already wears B's, so A's are worn too — a
+ *    sword that needs its ring never evicts a free weapon) and **A's conflict partners ⊆ B's** (no item the build wears
+ *    beside B refuses A). Class-only and never-equippable items are out of the pool before domination runs;
+ *  - the item STAT GATES (read on the out-of-combat sheet, `StatBuilder.applyItemStatGates`): **A's gates ⊆ B's** (a gated item
+ *    never evicts an ungated one: its gate could fail where B was free), **`A ≤ B` on every stat an upper gate bounds** and
+ *    **`A ≥ B` on every stat a lower gate bounds** ([EquipConstraints.gatedStats]: the gates of items worn beside B, and A's own)
+ *    — so the swap never moves a gated total the wrong way; with the `≥` on compared stats an upper-gated one is in effect
+ *    pinned, and its runes too.
+ */
 private fun Equipment.dominates(
     other: Equipment,
-    pinned: Set<Characteristic>,
-    compared: Set<Characteristic>?,
-    minimized: Set<Characteristic> = emptySet(),
+    shape: DominationShape,
+    constraints: EquipConstraints,
 ): Boolean {
+    if (!other.requiredItemIds.containsAll(requiredItemIds)) return false
+    if (!constraints.conflictPartners(other).containsAll(constraints.conflictPartners(this))) return false
+    if (!other.statGates.containsAll(statGates)) return false
+    val upperGated = constraints.gatedStats(itemType, this, upper = true)
+    if (upperGated.any { valueFor(it) > other.valueFor(it) }) return false
+    if (constraints.gatedStats(itemType, this, upper = false).any { valueFor(it) < other.valueFor(it) }) return false
     if (maxShardSlots < other.maxShardSlots) return false
-    if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
-    if (rarity == Rarity.RELIC && other.rarity != Rarity.RELIC) return false
-    val chars = compared ?: (characteristics.keys + other.characteristics.keys)
+    if (exclusiveGroup != ExclusiveGroup.NONE && other.exclusiveGroup != exclusiveGroup) return false
+    if (shape.epicCarriers && other.rarity == Rarity.EPIC && rarity != Rarity.EPIC) return false
+    if (shape.relicCarriers && other.rarity == Rarity.RELIC && rarity != Rarity.RELIC) return false
+    // A rune of an upper-gated stat must be replicated EXACTLY too: a higher-level one on A could break the gate.
+    shape.runes?.let { rule ->
+        val exact = rule.exact || upperGated.any { it in RuneType.VALUED_CHARACTERISTICS }
+        if (!carriesRunesOf(other, if (exact) rule.copy(exact = true) else rule)) return false
+    }
+    val chars = shape.compared ?: (characteristics.keys + other.characteristics.keys)
     return chars.all { c ->
         val mine = characteristics.getOrDefault(c, 0)
         val theirs = other.characteristics.getOrDefault(c, 0)
         when {
-            c in pinned -> mine == theirs
-            c in minimized -> mine <= theirs
+            c in shape.pinned -> mine == theirs
+            c in shape.minimized -> mine <= theirs
             else -> mine >= theirs
         }
+    }
+}
+
+/**
+ * The rune clause of `A ≽ B` (this = A), sockets ≥ already checked. Only B's runes matter when B has sockets: A carries
+ * the same types at its own rune-level cap, which must be ≥ B's (or EQUAL under [RuneDomination.exact]). Under the
+ * max-damage one-type-per-item model the choice collapse picks each item's rune TYPE by value, and at rune level 1
+ * the elemental and the secondary-mastery runes tie (1 vs 1) — the type can differ from level 2 on — so a level-1
+ * carrier is only replaced by another level-1 carrier there.
+ */
+private fun Equipment.carriesRunesOf(
+    other: Equipment,
+    rule: RuneDomination,
+): Boolean {
+    if (rule.exact && rule.oneTypePerItem && maxShardSlots != other.maxShardSlots) return false
+    if (other.maxShardSlots == 0) return true
+    val mine = RuneType.maxLevelForItemLevel(level)
+    val theirs = RuneType.maxLevelForItemLevel(other.level)
+    return when {
+        rule.exact -> mine == theirs
+        rule.oneTypePerItem && theirs == 1 -> mine == 1
+        else -> mine >= theirs
     }
 }

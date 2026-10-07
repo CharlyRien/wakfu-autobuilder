@@ -169,7 +169,10 @@ private fun conditionText(
             localized(lang, fr = "Si Esquive < ${c.value}% du niveau", en = "If Dodge < ${c.value}% of level", es = "Si Esquiva < ${c.value}% del nivel")
 
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
-            localized(lang, fr = "Si maîtrises secondaires ≤ ${c.value}", en = "If secondary masteries ≤ ${c.value}", es = "Si dominios secundarios ≤ ${c.value}")
+            localized(lang, fr = "Si chaque maîtrise secondaire ≤ ${c.value}", en = "If each secondary mastery ≤ ${c.value}", es = "Si cada dominio secundario ≤ ${c.value}")
+
+        SublimationConditionType.HEALING_MASTERY_AT_MOST ->
+            localized(lang, fr = "Si Maîtrise Soin ≤ ${c.value}", en = "If Healing Mastery ≤ ${c.value}", es = "Si Dominio cura ≤ ${c.value}")
 
         SublimationConditionType.CRITICAL_MASTERY_AT_MOST ->
             localized(lang, fr = "Si Maîtrise Critique ≤ ${c.value}", en = "If Critical Mastery ≤ ${c.value}", es = "Si Dominio crítico ≤ ${c.value}")
@@ -182,7 +185,7 @@ private fun conditionText(
                 lang,
                 fr = "Si ni bouclier, ni dague, ni arme à deux mains équipé",
                 en = "If no shield, dagger or two-handed weapon equipped",
-                es = "Si no hay escudo, daga ni arma a dos manos equipada"
+                es = "Si no hay escudo, daga ni arma de dos manos equipada"
             )
 
         SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_REAR ->

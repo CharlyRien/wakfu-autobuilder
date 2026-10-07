@@ -21,6 +21,8 @@ import me.chosante.ui.i18n.label
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WRarityColor
 import java.math.BigDecimal
+import me.chosante.common.displayedMatchPercent as commonDisplayedMatchPercent
+import me.chosante.common.meetsAllTargets as commonMeetsAllTargets
 
 enum class Phase {
     Idle,
@@ -35,12 +37,33 @@ enum class ZenithState {
     Error,
 }
 
+/** What the error banner's "Retry" repeats. */
+enum class ErrorRetry {
+    OPEN_ZENITH,
+    COPY_ZENITH,
+    SEARCH,
+}
+
+/**
+ * The error banner of the results panel: the [message] shown to the player and, when repeating the failed action can help,
+ * what its "Retry" does ([retry]). Technical detail (host names, timeouts, stack traces) never goes in [message]: it is logged.
+ */
+data class UiError(
+    val message: String,
+    val retry: ErrorRetry? = null,
+)
+
 /** The coarse phase the running optimality proof is in. See [ProofProgress]. */
 enum class ProofPhase {
     /** The AP-cell certificate DP is computing the per-cell upper bounds (the long part). */
     CERTIFYING,
 
-    /** The certificate proved a better build exists and the E8 fast-path is constructing it. */
+    /**
+     * The certificate proved a better build exists and the E8 fast-path is constructing it. NOT emitted any more by the
+     * max-damage flow: that verdict now shows its "proven within X %" badge at once and the construct runs behind it
+     * ([ProofState.ProvenWithin.refining]). Kept only because the stats panel's progress label still renders it
+     * (`Tr.PROOF_CONSTRUCTING`); nothing sets it.
+     */
     CONSTRUCTING,
 }
 
@@ -64,7 +87,12 @@ data class ProofProgress(
 
 /** Max-damage AP-cell certificate verdict for the finished build (P4.4). See [UiState.proofState]. */
 sealed interface ProofState {
-    /** No proof yet (not max-damage, or before the async computation starts). */
+    /**
+     * No verdict: not max-damage / most-masteries, before the async computation starts, or the check was stopped before
+     * it knew anything ([BuildSearchModel.stopProof]) or switched off ([UiState.verifyOptimality]), or the request is one no
+     * search can prove ([UiState.prefilteredRequest]: no check is started for it). The stats panel then shows the usual
+     * "not proven" hint — or, for such a request, its explanation.
+     */
     data object Idle : ProofState
 
     /** The certificate is being computed off-thread; [progress] says which phase and since when. */
@@ -76,8 +104,11 @@ sealed interface ProofState {
     data object ProvenOptimal : ProofState
 
     /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above.
-     *  [refining] = the per-carrier silent refinement is still running and may tighten this badge (or close
-     *  it to [ProvenOptimal]); the UI shows the badge plus a small progress indicator while it is true. */
+     *  [refining] = work that may improve on this badge is still running behind it: the E8 construct of the proven
+     *  optimum (which may swap the build in and flip to [ProvenOptimal]) and then, failing that, the per-carrier silent
+     *  refinement (which may tighten the badge or close it to [ProvenOptimal]); the UI shows the badge plus a small
+     *  progress indicator (with an info tooltip and a Stop link) while it is true. [BuildSearchModel.stopProof] clears
+     *  it and keeps the badge. */
     data class ProvenWithin(
         val fraction: Double,
         val refining: Boolean = false,
@@ -226,6 +257,12 @@ data class UiState(
     /** Dungeon HP multiplier for the turns-to-kill estimate (display only; never changes the build). */
     val bossDifficulty: String = "1",
     val targets: List<TargetRow> = defaultTargets(),
+    /**
+     * The OTHER search modes' work, parked while [mode] is on screen: each mode keeps its own target rows and the result found
+     * under it, so a visit to another mode destroys neither (switching back restores both). The live mode is never in the map.
+     * See [BuildSearchModel.setMode] and [ModeWorkspace].
+     */
+    val modeWorkspaces: Map<ScoreComputationMode, ModeWorkspace> = emptyMap(),
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */
     val excludedRarities: Set<Rarity> = emptySet(),
@@ -233,6 +270,13 @@ data class UiState(
     // (~80–110s after the rune fold); shorter modes still finish early and stream their result well before.
     val duration: String = "120",
     val stopAtMatch: Boolean = false,
+    /**
+     * "Check optimality after the search" (default ON, persisted via [LibraryPreferences]): whether the engine keeps
+     * working once a search ends to prove how close the build is to the best possible one (the [proofState] pipeline,
+     * in max-damage and most-masteries). An app option, not part of the request: it is not saved with a build. OFF starts
+     * no proof work after the search — see [BuildSearchModel.setVerifyOptimality].
+     */
+    val verifyOptimality: Boolean = true,
     val forcedItems: List<ItemChip> = emptyList(),
     val excludedItems: List<ItemChip> = emptyList(),
     /** When true (default), the solver may pick statically-modelable sublimations. */
@@ -262,12 +306,42 @@ data class UiState(
      */
     val maxDamageStructural: Boolean = false,
     /**
+     * True when the request the shown result was computed for is one no search can prove: it wants more than one element of
+     * mastery or resistance ([me.chosante.autobuilder.domain.TargetStats.needsItemPrefilter]), so the engine searches a
+     * heuristic selection of the items and never awards an optimality badge, however long the search runs. The stats panel
+     * then explains that instead of suggesting a longer search.
+     *
+     * It belongs to the RESULT, like [maxDamageStructural]: read from the request a search was started with
+     * ([BuildSearchModel.search]) or a saved build was restored with ([BuildSearchModel.loadBuild]), never from the target rows
+     * as they are now — editing the rows after a search must not change what that search's result says about itself.
+     */
+    val prefilteredRequest: Boolean = false,
+    /**
      * Max-damage mode only: the AP-cell certificate's optimality verdict for the finished build (P4.4).
      * Computed asynchronously AFTER the search completes (a full exact solve can take minutes), so it starts
      * [ProofState.Idle], becomes [ProofState.Proving], then resolves. It can prove optimality CP-SAT left
      * un-closed ([optimal] false but [ProofState.ProvenOptimal]). See [ProofState].
      */
     val proofState: ProofState = ProofState.Idle,
+    /**
+     * True when the shown build is the best-so-far of a search the user stopped before it finished
+     * ([BuildSearchModel.cancel]). That build is fully usable (save, export, Zenith) but it is a not-proven result, so the
+     * stats panel says so instead of claiming a proof or blaming the time budget. Cleared by whatever replaces the build.
+     */
+    val searchStopped: Boolean = false,
+    /**
+     * The game-data version the shown build was computed with, when it is NOT the data this app ships — a saved (or imported)
+     * build loaded after a game update ([BuildSearchModel.loadBuild]). The stats column then says so, quietly, until a new
+     * search replaces the build; saving the build as it is keeps this stamp, since the numbers are still those of that
+     * data. Null for a build found by this app's own data. Travels with the result ([ShownResult]).
+     */
+    val staleDataVersion: String? = null,
+    /**
+     * Set when the shown build was computed by an older engine than this app's ([me.chosante.autobuilder.domain.ENGINE_RESULTS_VERSION]):
+     * a saved (or imported) build loaded after an engine fix that can improve results. Like [staleDataVersion], it travels with
+     * the result, a new search clears it, and saving the build as it is keeps the original stamp. Null for a build found here.
+     */
+    val staleEngine: StaleEngine? = null,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
@@ -281,7 +355,7 @@ data class UiState(
     val zenith: ZenithState = ZenithState.Idle,
     val zenithUrl: String? = null,
     val toast: String? = null,
-    val error: String? = null,
+    val error: UiError? = null,
     /** Pre-search request problems shown together in the errors pop-up; non-empty blocks the search. */
     val requestErrors: List<RequestValidationProblem> = emptyList(),
     val modal: Modal? = null,
@@ -327,7 +401,125 @@ data class UiState(
     val libraryFolder: LibraryFolderFilter = LibraryFolderFilter.All,
     /** Whether the library groups its cards by class; persisted across launches. */
     val libraryGroupByClass: Boolean = false,
+    /**
+     * Saved builds re-scored under the CURRENT rules, by entry id, filled off the UI thread when the library or the compare view
+     * opens ([BuildSearchModel] keeps the cache). The cards and the compare view show these numbers instead of the stored ones;
+     * read through [shownEntry], which ignores a re-score made for another version of the entry. In-memory only.
+     */
+    val libraryRescores: Map<String, RescoredResult> = emptyMap(),
 )
+
+/** The build engine version a loaded build was computed with, when older than this app's; [savedVersion] null = not recorded. */
+data class StaleEngine(
+    val savedVersion: Int?,
+)
+
+/** A saved build's [stored] result and the same build re-scored under the current rules ([current]). */
+data class RescoredResult(
+    val stored: me.chosante.common.history.ResultSnapshot,
+    val current: me.chosante.common.history.ResultSnapshot,
+)
+
+/**
+ * [entry] as the library shows it: with the numbers of the current rules when its re-score is ready ([UiState.libraryRescores]),
+ * else as stored. A re-score made for another version of the entry (overwritten since) is ignored.
+ */
+fun UiState.shownEntry(entry: HistoryEntry): HistoryEntry =
+    libraryRescores[entry.id]
+        ?.takeIf { it.stored == entry.result }
+        ?.let { entry.copy(result = it.current) }
+        ?: entry
+
+/**
+ * What one search mode keeps while another mode is on screen: its target [targets] and the [result] found under it. A result
+ * belongs to the mode (and rows) that produced it — its headline number, its achieved-stat grid and its rotation are read by
+ * that mode's rules, and Save / Export snapshot the mode and rows together with it — so it is parked here with them rather
+ * than shown under another mode.
+ */
+data class ModeWorkspace(
+    val targets: List<TargetRow>,
+    val result: ShownResult,
+)
+
+/**
+ * The part of [UiState] that describes the build the last search found — everything the paperdoll and the stats column read
+ * for it — gathered so it can be parked and restored as one piece ([ModeWorkspace]).
+ */
+data class ShownResult(
+    val phase: Phase = Phase.Idle,
+    val progress: Int = 0,
+    val match: BigDecimal = BigDecimal.ZERO,
+    val optimal: Boolean = false,
+    val maxDamageStructural: Boolean = false,
+    val prefilteredRequest: Boolean = false,
+    val proofState: ProofState = ProofState.Idle,
+    val searchStopped: Boolean = false,
+    val staleDataVersion: String? = null,
+    val staleEngine: StaleEngine? = null,
+    val build: BuildCombination? = null,
+    val achieved: Map<Characteristic, Int> = emptyMap(),
+    val spellRotation: SpellRotation? = null,
+    val scenarioDamages: List<ScenarioDamage> = emptyList(),
+    val zenith: ZenithState = ZenithState.Idle,
+    val zenithUrl: String? = null,
+) {
+    /**
+     * This result as it can be shown again after being parked: nothing is running for it any more, so a running proof
+     * ([ProofState.Proving]) is back to the "not proven" state and a "proven within X %" badge loses its "still refining" cue.
+     */
+    fun atRest(): ShownResult =
+        copy(
+            proofState =
+                when (val proof = proofState) {
+                    is ProofState.Proving -> ProofState.Idle
+                    is ProofState.ProvenWithin -> if (proof.refining) proof.copy(refining = false) else proof
+                    else -> proof
+                }
+        )
+}
+
+/** The result fields of this state, as one parkable piece. */
+fun UiState.shownResult(): ShownResult =
+    ShownResult(
+        phase = phase,
+        progress = progress,
+        match = match,
+        optimal = optimal,
+        maxDamageStructural = maxDamageStructural,
+        prefilteredRequest = prefilteredRequest,
+        proofState = proofState,
+        searchStopped = searchStopped,
+        staleDataVersion = staleDataVersion,
+        staleEngine = staleEngine,
+        build = build,
+        achieved = achieved,
+        spellRotation = spellRotation,
+        scenarioDamages = scenarioDamages,
+        zenith = zenith,
+        zenithUrl = zenithUrl
+    )
+
+/** This state with [result] on screen in place of whatever result it shows now. */
+fun UiState.withResult(result: ShownResult): UiState =
+    copy(
+        phase = result.phase,
+        progress = result.progress,
+        match = result.match,
+        optimal = result.optimal,
+        maxDamageStructural = result.maxDamageStructural,
+        prefilteredRequest = result.prefilteredRequest,
+        proofState = result.proofState,
+        searchStopped = result.searchStopped,
+        staleDataVersion = result.staleDataVersion,
+        staleEngine = result.staleEngine,
+        build = result.build,
+        achieved = result.achieved,
+        spellRotation = result.spellRotation,
+        scenarioDamages = result.scenarioDamages,
+        zenith = result.zenith,
+        zenithUrl = result.zenithUrl,
+        lastLandedEquipmentId = null
+    )
 
 /**
  * Stats the engine treats as internal encodings rather than final values a player reads:
@@ -419,6 +611,23 @@ fun Long.formatCompact(): String =
     } else {
         toString()
     }
+
+/**
+ * A precision "% match" as the player reads it: a whole percent, capped at 100. Once a build meets every target the engine
+ * keeps scoring how far it overshoots them (so the search still prefers the better of two builds that both meet them), and that
+ * raw score reaches 248 or 20 330 — not a percentage anyone can read. The raw value stays in [UiState.match] and in the saved
+ * entry (it is what orders builds); only what is displayed is capped.
+ */
+fun BigDecimal.displayedMatchPercent(): Int = commonDisplayedMatchPercent()
+
+/** True once the match reaches 100: every requested target is met (the figure above 100 only ranks overshoot). */
+fun BigDecimal.meetsAllTargets(): Boolean = commonMeetsAllTargets()
+
+/** [displayedMatchPercent] for a saved match. */
+fun Double.displayedMatchPercent(): Int = commonDisplayedMatchPercent()
+
+/** [meetsAllTargets] for a saved match. */
+fun Double.meetsAllTargets(): Boolean = commonMeetsAllTargets()
 
 data class TargetRow(
     val id: String,

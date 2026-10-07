@@ -11,6 +11,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import me.chosante.common.CharacterClass
+import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.label
 
 /**
  * Resolves the class ("breed") artwork baked under `assets/breeds/` (extracted from the local client's
@@ -47,7 +49,7 @@ internal fun BreedIcon(
 ) {
     val bitmap = BreedAssets.iconPath(clazz)?.let { rememberClasspathBitmap(it) }
     if (bitmap != null) {
-        Image(bitmap = bitmap, contentDescription = clazz.name, contentScale = ContentScale.Fit, modifier = modifier.size(size))
+        Image(bitmap = bitmap, contentDescription = clazz.label(LocalLang.current), contentScale = ContentScale.Fit, modifier = modifier.size(size))
     } else {
         Box(modifier.size(size))
     }
@@ -65,7 +67,7 @@ internal fun BreedIllustration(
     val bitmap = BreedAssets.illustrationPath(clazz)?.let { rememberClasspathBitmap(it) } ?: return
     Image(
         bitmap = bitmap,
-        contentDescription = clazz.name,
+        contentDescription = clazz.label(LocalLang.current),
         contentScale = contentScale,
         alpha = alpha,
         colorFilter = colorFilter,

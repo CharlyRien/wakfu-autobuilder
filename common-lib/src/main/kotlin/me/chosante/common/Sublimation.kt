@@ -36,8 +36,8 @@ enum class SublimationConditionType {
      * "Critical **Mastery** ≤ N" (almost always ≤ 0) — distinct from [CRIT_AT_MOST], which caps the critical-hit
      * *rate*. The in-game *Critical Secret* sub grants +crit-rate only when the build has invested **no** critical
      * mastery; decoded from the 1-argument `GetCharac("CRITICAL_BONUS") <= N` criterion. Evaluated against
-     * `MASTERY_CRITICAL`. (The 2-argument `GetCharac("CRITICAL_BONUS", "caster")` form is instead one of the six
-     * tokens of [SECONDARY_MASTERIES_AT_MOST]; the arity disambiguates them.)
+     * `MASTERY_CRITICAL`. (The 2-argument `GetCharac("CRITICAL_BONUS", "target")` form is instead one of the six
+     * atoms of [SECONDARY_MASTERIES_AT_MOST]; the arity disambiguates them.)
      */
     CRITICAL_MASTERY_AT_MOST,
     BLOCK_AT_LEAST,
@@ -45,7 +45,24 @@ enum class SublimationConditionType {
     RANGE_AT_LEAST,
     RANGE_EXACT,
     DODGE_LT_PCT_OF_LEVEL,
+
+    /**
+     * "Each secondary mastery ≤ N" (the Neutralité family: Neutrality, Ambition, Inflexibility, Pretension, …): holds
+     * iff EVERY one of the six [SECONDARY_MASTERY_CHARACTERISTICS] is at most [SublimationCondition.value] on its own —
+     * NOT their sum, so a positive mastery is never offset by a negative one. Decoded from an `and`-chain of exactly six
+     * `GetCharac("<token>", "target") <= N` atoms with one threshold (melee `MELEE_DMG`, distance `RANGED_DMG`, berserk
+     * `BERSERK_DMG`, critical `CRITICAL_BONUS`, rear `BACKSTAB_BONUS`, healing `HEAL_IN_PERCENT`); the extractor fails
+     * on any other shape.
+     */
     SECONDARY_MASTERIES_AT_MOST,
+
+    /**
+     * "Healing Mastery ≤ N" — Engagement's lone `GetCharac("HEAL_IN_PERCENT", "caster") <= N` criterion (healing mastery
+     * ONLY, not the six [SECONDARY_MASTERIES_AT_MOST] read). Display / decode only: no solver-choosable sub carries it
+     * (Engagement's "+30 % heals performed" is not a modelled stat), so the solver does not model it — like every type
+     * outside `SUPPORTED_SUB_CONDITIONS`, a FORCED carrier's effects would apply unconditionally.
+     */
+    HEALING_MASTERY_AT_MOST,
     WEAPON_TYPE_EQUIPPED,
 
     /**
@@ -63,10 +80,12 @@ enum class SublimationConditionType {
 /**
  * The six **secondary** masteries (melee / distance / berserk / rear / critical / healing) — i.e. every
  * mastery that is *not* an elemental one. The [SublimationConditionType.SECONDARY_MASTERIES_AT_MOST]
- * condition (e.g. Neutrality / Ambition: "if secondary masteries ≤ 0") is evaluated against the **sum** of
- * these. Single source of truth so the CP-SAT solver, the re-scorer and the extractor classifier stay in
- * lockstep — omitting any of them (the solver historically summed only melee+distance) makes the condition
- * spuriously hold for a rear/crit-stacking build and hands it the bonus for free.
+ * condition (e.g. Neutrality / Ambition: "if each secondary mastery ≤ 0") holds iff **each** of these is at most
+ * the threshold on its own — the game's criterion is an `and` of six per-stat comparisons, so (unlike a sum) a
+ * positive mastery can NOT be offset by a negative one (+76 distance and −304 rear break it). Single source of
+ * truth so the CP-SAT solver, the re-scorer and the extractor classifier stay in lockstep — omitting any of them
+ * (the solver historically read only melee+distance) makes the condition spuriously hold for a rear/crit-stacking
+ * build and hands it the bonus for free.
  */
 val SECONDARY_MASTERY_CHARACTERISTICS: Set<Characteristic> =
     setOf(
@@ -177,7 +196,7 @@ sealed interface SublimationEffect {
         override val scenarioGate: ScenarioGate? = null,
         override val appliesBeforeCombat: Boolean = false,
     ) : StatEffect {
-        override fun magnitudeAtLevel(level: Int): Int = (percentOfLevel * level) / 100
+        override fun magnitudeAtLevel(level: Int): Int = percentOfLevelMagnitude(percentOfLevel, level)
     }
 
     /**

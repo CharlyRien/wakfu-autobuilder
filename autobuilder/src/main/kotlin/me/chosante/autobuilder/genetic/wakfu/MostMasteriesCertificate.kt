@@ -1,5 +1,7 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.ringPairingKeys
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scaledWeight
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -20,15 +22,25 @@ import kotlin.math.ceil
  *
  *   `⌊max(M,0) × (100 + clamp(D)) / 100⌋ × power6(bucket(totalActual)) × SCALE + (SCALE − 1)`
  *
+ * (`power6` is the solver's own [penaltyMultiplier], floor at 1 included.)
+ *
  * [MostMasteriesBoundPrototype] (v1) bounded the unpenalized core only, so any targets-met
  * incumbent sat below it by the crit/AP-dump gap (+2.6% on F5). v2 tracks the required-target
  * achievements INSIDE the DP state, so mastery bought by dumping targets pays its penalty bucket:
- * state = (DI, AP, MP, CC, HP, epicItem, relicItem) → best M, with the achievement dims SATURATED
+ * state = (DI, AP, MP, CC, HP, RANGE, epicItem, relicItem) → best M, with the achievement dims SATURATED
  * at their target (per-stat clamp in `totalActualScore`) and BUCKETED UP (an over-count of the
- * achievement can only raise the multiplier — sound).
+ * achievement can only raise the multiplier — sound). A 0-valued required row of ANY stat (the GUI's
+ * default "wind resistance 0" / "dodge 0") gets no dim: the model weighs it 0 in the penalty's actual
+ * AND expected sums, so it only keeps the objective folded, like the model's fold predicate. Such a row
+ * is a FLOOR in the model (`TargetStats.hasFloors`: `≥ 0` on the hard leg, the objective halved on the
+ * soft one while it is below 0) — constraints this bound ignores: a RELAXATION, so it stays an upper bound
+ * of both reads (every floored build's objective is at most its unfloored one). The item STAT GATES (an item inactive on the
+ * build's out-of-combat sheet — `StatBuilder.applyItemStatGates`) are ignored the same way: they only remove builds.
  *
  * Sound-by-construction relaxations (each only ever RAISES the bound):
- *  - negative stat lines dropped everywhere;
+ *  - negative stat lines dropped everywhere — except a sublimation's DI, which is NET per sub (a build
+ *    takes the sub whole) and kept signed inside the exact normal-sub packing, and the assume worlds'
+ *    LOW reads, which take negative lines on purpose;
  *  - per-item rune compositions are EXACT over the socket count and the available rune axes
  *    (mixing mastery + target runes on one item is a real build shape, so omitting mixes would
  *    UNDER-count — they are enumerated);
@@ -37,17 +49,27 @@ import kotlin.math.ceil
  *    layer-independent reachable max of their stat;
  *  - sublimations: v1's caps-only knapsack (10/1/1, epic/relic carrier binding), extended with the
  *    target axes; conditional subs credited as if their condition held; objective-capping subs go
- *    to world B (M ≤ threshold at the max multiplier);
+ *    to world B (M ≤ threshold at the max multiplier). The 10-slot NORMAL knapsack is EXACT per subset
+ *    (plan §8.18, T5): every stat summed raw, DI signed (a carried sub's negative DI rider pays), each
+ *    axis rounded once when the packed option enters the DP. In an assume-CC world the start-of-combat
+ *    crit the path's subs carry rides its own saturating dim (T1) — the fold's crit read is
+ *    `threshold + carried start-of-combat crit + passives/ramps`, not every sub's crit at max copies;
  *  - ramps (perStatStep) priced at the sound reachable max of their source.
  *
- * Bails (null) instead of guessing: elemental-mastery requests (min-over-elements out of scope),
- * forced items/runes/subs, a required target outside {AP, MP, CC, HP}, a conversion into a
- * requested mastery.
+ * Bails (null) instead of guessing — request-level ones shared with [supportsRequest]
+ * ([requestShape]): elemental-mastery requests (min-over-elements out of scope), forced
+ * items/runes/subs, a NON-ZERO required target outside {AP, MP, CC, HP, RANGE}, a choosable sub
+ * converting into a stat the DP reads, a sub family the worlds cannot cover, a negative capped-stat
+ * line on a sub the assume worlds never stage, a positive MAX_ACTION_POINT / MAX_MOVEMENT_POINT sub
+ * line, a packed-field overflow; pool-level ones in [bound]: an item's positive MAX_* AP / MP rider, an
+ * assume world's LOW offset outgrowing its field.
  *
- * PRODUCTION (backup certificate, plan §8.9bis): triggered by [WakfuBestBuildFinderAlgorithm.
- * proveMostMasteriesQuality] AFTER a most-masteries search whose CP-SAT leg ended non-OPTIMAL —
- * on low-core machines the 1-worker proof takes 15-20 min while this single-thread DP delivers a
- * "proven within X%" statement in seconds. Default grid = COARSE (DI 1 / CC 10 / HP 500):
+ * PRODUCTION (backup certificate, plan §8.9bis): read by [WakfuBestBuildFinderAlgorithm.
+ * proveMostMasteriesQuality] after a most-masteries search whose CP-SAT leg ended non-OPTIMAL —
+ * on low-core machines the 1-worker proof takes 15-20 min while this DP delivers a "proven within
+ * X%" statement in seconds. The bound is incumbent-free, so it is computed in the search's tail (one
+ * full-tier pass, memoized single-flight by [MostMasteriesBoundCache], §8.19) and the badge is
+ * usually ready when the search ends. Default grid = COARSE (DI 1 / CC 10 / HP 500):
  * measured bound-identical to the fine grid on S2 (the binding state saturates its targets) at
  * 580k states / ~33 MB / ~15 s. The steps stay mutable for the measurement harnesses
  * (MostMasteriesCertificateTest: tightness, attribution, grid profile, race).
@@ -58,7 +80,8 @@ internal object MostMasteriesCertificate {
             Characteristic.ACTION_POINT,
             Characteristic.MOVEMENT_POINT,
             Characteristic.CRITICAL_HIT,
-            Characteristic.HP
+            Characteristic.HP,
+            Characteristic.RANGE
         )
 
     private val REQUESTABLE_MASTERIES =
@@ -95,6 +118,14 @@ internal object MostMasteriesCertificate {
      */
     private const val BLOCK_STEP = 5
 
+    /**
+     * The bound of one DP pass, read twice at the collapse (plan §8.18, T3):
+     *  - [foldedBound] / [coreBound] — the SOFT read: every build, its shortfall priced by the penalty bucket;
+     *  - [hardFoldedBound] / [hardCoreBound] — the TARGETS-MET read: only the states whose (over-counted) reads
+     *    meet every required target > 0, at the full-targets multiplier — a bound on the most-masteries HARD leg's
+     *    feasible set, the set a hard-leg result is optimal over. 0 when no state can meet the targets. Same units
+     *    as the hard leg's converted stamp ([fullTargetsMultiplier]); never above the soft read.
+     */
     class Result(
         val foldedBound: Long,
         val coreBound: Long,
@@ -105,7 +136,27 @@ internal object MostMasteriesCertificate {
         // Instrument only ([bound] provenance=true): the reconstructed binding PATH — one line per
         // stage naming the chosen option and its claimed deltas.
         val bindingPath: List<String> = emptyList(),
-    )
+        val hardFoldedBound: Long = 0L,
+        val hardCoreBound: Long = 0L,
+        // Provenance of the targets-met argmax state (instrument / harness readouts).
+        val hardBindingState: String = "",
+    ) {
+        /**
+         * The read a most-masteries result's stamped objective is compared with: the bare core without a required
+         * target (both legs coincide there), the TARGETS-MET read for a HARD-leg result (it is optimal over exactly
+         * that set — [me.chosante.autobuilder.genetic.SolverResult.mostMasteriesHardConstraintsMet]), else the soft
+         * read.
+         */
+        fun comparableUpper(
+            hardLeg: Boolean,
+            hasRequiredTargets: Boolean,
+        ): Long =
+            when {
+                !hasRequiredTargets -> coreBound
+                hardLeg -> hardFoldedBound
+                else -> foldedBound
+            }
+    }
 
     /**
      * One stage option: deltas per axis (positive parts only) + rarity budget/binding flags.
@@ -158,10 +209,19 @@ internal object MostMasteriesCertificate {
         // 1 743 core units), taking the sub sets this bit and the ramp's DI lands at COLLAPSE time
         // as `contribution(mp dim)` — the path's own MP, exactly like the real build.
         val ramp: Boolean = false,
+        // T1 (plan §8.18) — assume-CC worlds only: the option's POSITIVE START-OF-COMBAT crit (outside the
+        // condition's pre-combat read). Tracked in its own saturating dim so the fold credits the crit the path
+        // actually carries instead of every choosable sub's at max copies, budget-free. Over-counted (≥).
+        val ccSoc: Int = 0,
+        // RANGE (plan §8.20): the option's POSITIVE range, fed to the saturating range dim (0 = untracked — set only
+        // when a non-zero RANGE target exists). Over-counted (≥), like AP / MP.
+        val range: Int = 0,
     ) {
         /** Component-wise dominance (same flags): a ≤-everywhere option can never beat this one. */
         fun dominates(o: Opt): Boolean =
             m >= o.m &&
+                ccSoc >= o.ccSoc &&
+                range >= o.range &&
                 d >= o.d &&
                 ap >= o.ap &&
                 mp >= o.mp &&
@@ -196,6 +256,31 @@ internal object MostMasteriesCertificate {
         return distinct.filter { o -> distinct.none { other -> other !== o && other.dominates(o) && !o.dominates(other) } }
     }
 
+    /** Stage lists above this stay unpruned: the ring-pair list runs to millions and is pruned per pair already. */
+    private const val PARETO_PRUNE_MAX_OPTIONS = 200_000
+
+    /**
+     * [prune]'s exact filter (same strictness rule) applied to a whole STAGE — across the slot's items and the
+     * branch's skill allocations — as a skyline sweep, O(n · front) instead of O(n²), so it scales to the ~3-4k
+     * options of an item slot (perf next-steps P2: S2 4.6M → 45k states, full tier 78 s → 8 s with primitive maps,
+     * bit-identical bound).
+     *
+     * Why it is exact: a dominating option has the same flags (identical applicability in every state) and yields
+     * a successor state ≥ on every over-counted dim, ≤ on the assume-world LOW dims and ≥ on M. Every later
+     * transition (the BLOCK_AT_LEAST gate only gets easier with more block) and the collapse fold (core, penalty
+     * bucket, world-B caps, assume-world filters) are monotone in that order, so a dominated option's descendants
+     * can never beat the dominating one's — the max, and the core max, are unchanged.
+     */
+    private fun paretoPrune(options: List<Opt>): List<Opt> {
+        val front = ArrayList<Opt>()
+        for (o in options.distinct().sortedByDescending { it.m }) {
+            if (front.any { it.dominates(o) && !o.dominates(it) }) continue
+            front.removeAll { o.dominates(it) && !it.dominates(o) }
+            front += o
+        }
+        return front
+    }
+
     /** One AT_MOST cap a conditional sub can pin: the tracked dim + its threshold (raw units). */
     class CapSpec(
         val stat: Characteristic,
@@ -216,20 +301,36 @@ internal object MostMasteriesCertificate {
         // dim exceeds it, and the fold credits the stat as a CONSTANT min(threshold, target).
         val assumeApThreshold: Int = -1,
         val assumeCcThresholdRaw: Int = -1,
+        // T1 (plan §8.18) — assume-CC worlds with a CC target: the start-of-combat crit dim's cap in [socStep]
+        // buckets (0 = untracked). It saturates at `target − threshold`, past which the fold's crit read meets
+        // the target whatever else lands (exact for the fold); [socStep] is 1 (raw) unless that range overflows
+        // the 7-bit field, where UP-rounding keeps it an over-count.
+        val socCap: Int = 0,
+        val socStep: Int = 1,
+        // RANGE (plan §8.20): the range dim's saturation, RAW (0 = untracked — no non-zero RANGE target). Its target;
+        // the model puts no out-of-combat cap on range, so no reachable value lies between the two.
+        val rangeCap: Int = 0,
     ) {
         init {
             // The packed-key field widths are FIXED; the grid steps are mutable. A too-fine step
             // overflows its field into the neighbour (state merging corrupts ⇒ the bound can
             // UNDER-count, not just loosen) — fail loudly instead of honoring the KDoc's
-            // "any setting stays sound" with a corrupted key.
+            // "any setting stays sound" with a corrupted key. ([requestShape] bails on every
+            // target-driven overflow first; these are the backstop.)
+            require(apCap <= 0x1F) { "apCap $apCap overflows the 5-bit ap field" }
+            require(mpCap <= 0x1F) { "mpCap $mpCap overflows the 5-bit mp field" }
             require(hpBucketCap <= 0x1FF) { "hpBucketCap $hpBucketCap overflows the 9-bit hp field (hpStep too fine)" }
             require(ccBucketCap <= 0x7F) { "ccBucketCap $ccBucketCap overflows the 7-bit cc field (ccStep too fine)" }
             require(diBucketCap <= 0x1FFF) { "diBucketCap $diBucketCap overflows the 13-bit d field (diStep too fine)" }
             require(blockBucketCap <= 0xF) { "blockBucketCap $blockBucketCap overflows the 4-bit block field" }
+            require(socCap <= 0x7F) { "socCap $socCap overflows the 7-bit soc field" }
+            require(rangeCap <= 0x1F) { "rangeCap $rangeCap overflows the 5-bit range field" }
         }
 
-        // Packed key: block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
+        // Packed key: lowExt(2b @61) range(5b @56) soc(7b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
         //             ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
+        // (lowExt: the assume worlds' LOW dim high bits — see [lowOff]. Bit 63 stays clear: LongLongMaxMap reserves
+        // Long.MIN_VALUE as its empty slot.)
         fun key(
             d: Int,
             ap: Int,
@@ -241,8 +342,12 @@ internal object MostMasteriesCertificate {
             mpMinus: Int = 0,
             ramp: Int = 0,
             block: Int = 0,
+            soc: Int = 0,
+            range: Int = 0,
         ): Long =
-            (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
+            (range.toLong() shl 56) or
+                (soc.toLong() shl 49) or
+                (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
                 (d.toLong() shl 28) or (ap.toLong() shl 23) or (mp.toLong() shl 18) or
                 (cc.toLong() shl 11) or (hp.toLong() shl 2) or (e.toLong() shl 1) or r.toLong()
 
@@ -266,13 +371,87 @@ internal object MostMasteriesCertificate {
 
         fun block(k: Long): Int = ((k shr 45) and 0xF).toInt()
 
+        fun soc(k: Long): Int = ((k shr 49) and 0x7F).toInt()
+
+        fun range(k: Long): Int = ((k shr 56) and 0x1F).toInt()
+
         fun mpCapOf(mpMinus: Int): Int = (mpCap - mpMinus).coerceAtLeast(0)
+
+        // A1 fix (CERTIFIER_VERSION 50) — the assume world's LOW dim is stored OFFSET: `dim = LOW read + lowOff`.
+        // The real pre-combat read can go NEGATIVE (the solver floors the pre-sub sheet at −9 only: a −10-crit ring
+        // staged first), and flooring the dim at 0 RAISED it above the real read — the real carrier was rejected in
+        // its own world (an under-count). [raiseLowOff] grows the offset by each stage's worst negative delta before
+        // the stage runs, so no transition ever needs a floor; the saturation one past the threshold moves with it.
+        var lowOff: Int = 0
+
+        // The LOW dim's packed field: the AP (5 bits) or CC (7 bits) field EXTENDED by the 2 spare key bits @61 — the
+        // offset needs the room (lowOff 118 on the level-245 catalog: every slot has a −5..−30 crit item).
+        val lowBaseBits: Int = if (assumeApThreshold >= 0) 5 else 7
+
+        /** The LOW dim's largest storable value (7-bit AP / 9-bit raw CC), 0 outside the assume worlds. */
+        val lowFieldMax: Int = if (assumeApThreshold >= 0 || assumeCcThresholdRaw >= 0) (1 shl (lowBaseBits + 2)) - 1 else 0
+
+        /** The LOW dim's saturation WITHOUT the offset (one past the threshold, within the dim's cap). */
+        val lowSatBase: Int =
+            when {
+                assumeApThreshold >= 0 -> (assumeApThreshold + 1).coerceAtMost(apCap)
+                assumeCcThresholdRaw >= 0 -> (assumeCcThresholdRaw + 1).coerceAtMost(ccBucketCap)
+                else -> 0
+            }
+
+        /** The stored LOW dim (offset included): the base field plus its 2 extension bits @61. */
+        fun low(k: Long): Int = (if (assumeApThreshold >= 0) ap(k) else cc(k)) or (((k shr 61) and 3L).toInt() shl lowBaseBits)
+
+        /** The LOW read a stored dim stands for (`dim − lowOff`). */
+        fun lowRead(k: Long): Int = low(k) - lowOff
+
+        /** False ⇔ the offset no longer fits the LOW field — the caller must BAIL (never corrupt the key). */
+        fun raiseLowOff(by: Int): Boolean {
+            lowOff += by
+            return lowSatBase + lowOff <= lowFieldMax
+        }
+
+        /** [k] with its LOW dim set to [v] (0 ≤ v ≤ [lowFieldMax]): base field + extension bits. */
+        fun withLow(
+            k: Long,
+            v: Int,
+        ): Long {
+            val shift = if (assumeApThreshold >= 0) 23 else 11
+            val baseMask = (1L shl lowBaseBits) - 1
+            return (k and ((baseMask shl shift) or (3L shl 61)).inv()) or
+                ((v.toLong() and baseMask) shl shift) or
+                ((v.toLong() shr lowBaseBits) shl 61)
+        }
+
+        /** [k] with its LOW dim moved up by [by] (an injective re-key: no two states merge). */
+        fun shiftLow(
+            k: Long,
+            by: Int,
+        ): Long = withLow(k, low(k) + by)
     }
 
     private fun ceilDiv(
         a: Int,
         b: Int,
     ): Int = (a + b - 1) / b
+
+    /**
+     * The DI dim after an option adding [delta] raw DI to a state at [dk] buckets. Only the exact normal-sub
+     * packing (T5) emits a NEGATIVE delta (a carried sub's DI rider, e.g. Vélocité II's −10), and the dim must stay
+     * an over-count of `min(real DI, cap)` through it: a negative delta rounds UP (`ceil` of a negative quotient),
+     * the floor at 0 only raises the dim, and a SATURATED dim stays saturated — its real DI may sit anywhere above
+     * the cap, so subtracting from the cap could under-count. Monotone in both arguments, which the stage-option
+     * Pareto pruning needs ([paretoPrune]).
+     */
+    private fun Geometry.nextDi(
+        dk: Int,
+        delta: Int,
+    ): Int =
+        when {
+            delta >= 0 -> (dk + ceilDiv(delta, diStep)).coerceAtMost(diBucketCap)
+            dk >= diBucketCap -> diBucketCap
+            else -> (dk - (-delta) / diStep).coerceAtLeast(0)
+        }
 
     /** The solver's soft-penalty geometry (applyConstraintPenalty / bucketedIndex / buildPowerTable), mirrored. */
     private class PenaltyGeometry(
@@ -281,12 +460,8 @@ internal object MostMasteriesCertificate {
         val maxIndex: Int,
         val powScale: BigInteger,
     ) {
-        fun power6(index: Int): Long =
-            BigInteger
-                .valueOf(index.toLong())
-                .pow(6)
-                .divide(powScale)
-                .toLong()
+        // The solver's own multiplier (floored at 1), shared — never re-derived here.
+        fun power6(index: Int): Long = penaltyMultiplier(index.toLong(), powScale)
 
         /** The bucket a build meeting EVERY required target lands in (its per-stat clamps sum to totalExpected). */
         val fullBucket: Int
@@ -304,10 +479,7 @@ internal object MostMasteriesCertificate {
         val bucketSize =
             if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX).toLong()
         val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
-        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
-        return PenaltyGeometry(totalExpected, bucketSize, maxIndex, powScale)
+        return PenaltyGeometry(totalExpected, bucketSize, maxIndex, penaltyPowScale(maxIndex.toLong()))
     }
 
     /**
@@ -325,26 +497,43 @@ internal object MostMasteriesCertificate {
         return geometry.power6(geometry.fullBucket)
     }
 
+    /** Sentinel of [applyOneRaw] for an inapplicable/rejected option (no packed key can equal it). */
+    private const val REJECT = Long.MIN_VALUE
+
     /** One state transition, or null when the option is inapplicable/rejected in [k]. */
     private fun Geometry.applyOne(
         k: Long,
         o: Opt,
-    ): Long? {
+    ): Long? = applyOneRaw(k, o).takeIf { it != REJECT }
+
+    /** [applyOne] without the boxed `Long?` — [REJECT] when the option is inapplicable in [k] (the hot path). */
+    private fun Geometry.applyOneRaw(
+        k: Long,
+        o: Opt,
+    ): Long {
         val e = e(k)
         val r = r(k)
-        if (o.epic && e == 1) return null
-        if (o.relic && r == 1) return null
-        if (o.requiresEpicItem && e == 0) return null
-        if (o.requiresRelicItem && r == 0) return null
+        if (o.epic && e == 1) return REJECT
+        if (o.relic && r == 1) return REJECT
+        if (o.requiresEpicItem && e == 0) return REJECT
+        if (o.requiresRelicItem && r == 0) return REJECT
         val newMpMinus = (mpMinus(k) + o.mpCapMinus).coerceAtMost(1)
         // Review fix (A#1) — ASSUME-world semantics: the capped stat's dim is a LOW
         // under-approximation (SIGNED deltas, FLOOR bucketing), saturated one past the threshold
         // (all higher values fail the collapse filter identically). real ≥ dim on every
         // represented build, which is exactly what the sound condition check needs; the fold
         // credits the capped stat as a constant instead of this dim.
+        // A1: the LOW dim (offset, extended field — see [Geometry.lowOff]); its base bits ride the AP / CC field below.
+        val newLow =
+            when {
+                assumeApThreshold >= 0 -> (low(k) + o.apLow).coerceAtMost(lowSatBase + lowOff)
+                assumeCcThresholdRaw >= 0 -> (low(k) + o.ccLowRaw).coerceAtMost(lowSatBase + lowOff)
+                else -> 0
+            }
         val newAp =
             if (assumeApThreshold >= 0) {
-                (ap(k) + o.apLow).coerceIn(0, (assumeApThreshold + 1).coerceAtMost(apCap))
+                // A1: the LOW dim's base bits (never below 0: [lowOff] covers every stage's worst negative delta).
+                newLow and 0x1F
             } else {
                 (ap(k) + o.ap).coerceAtMost(apCap)
             }
@@ -353,13 +542,13 @@ internal object MostMasteriesCertificate {
                 // RAW signed accumulation (no bucketing): flooring lost small +cc lines and let
                 // phantom carriers slip the condition (+21% measured on S2) — raw is exact, and
                 // the dim saturates at threshold+1 anyway (every higher value fails the filter).
-                (cc(k) + o.ccLowRaw).coerceIn(0, (assumeCcThresholdRaw + 1).coerceAtMost(ccBucketCap))
+                newLow and 0x7F
             } else {
                 (cc(k) + ceilDiv(o.cc, ccStep)).coerceAtMost(ccBucketCap)
             }
         // Increment 8: an AT_LEAST block condition gates on the state's OVER-counted block —
         // real final block ≥ t implies the dim reads ≥ t, so a real build is never wrongly denied.
-        if (o.requiresBlockAtLeast > 0 && block(k) * BLOCK_STEP < o.requiresBlockAtLeast) return null
+        if (o.requiresBlockAtLeast > 0 && block(k) * BLOCK_STEP < o.requiresBlockAtLeast) return REJECT
         // mpCapMinus stays SATURATING: a lowered MAX MP wastes excess MP, it never forbids it.
         val mpEff = mpCapOf(newMpMinus)
         val flatHpBuckets = hp(k) + ceilDiv(o.hp, hpStep)
@@ -367,123 +556,186 @@ internal object MostMasteriesCertificate {
         // so ceil(buckets × (100+pct) / 100) buckets still over-count the scaled value.
         val hpBuckets =
             if (o.hpPct > 0) ceilDiv(flatHpBuckets * (100 + o.hpPct), 100) else flatHpBuckets
-        return key(
-            (d(k) + ceilDiv(o.d, diStep)).coerceAtMost(diBucketCap),
-            newAp,
-            (mp(k) + o.mp).coerceAtMost(mpEff),
-            newCcBuckets,
-            hpBuckets.coerceAtMost(hpBucketCap),
-            if (o.epic) 1 else e,
-            if (o.relic) 1 else r,
-            newMpMinus,
-            if (o.ramp) 1 else ramp(k),
-            (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap)
-        )
+        val packed =
+            key(
+                nextDi(d(k), o.d),
+                newAp,
+                (mp(k) + o.mp).coerceAtMost(mpEff),
+                newCcBuckets,
+                hpBuckets.coerceAtMost(hpBucketCap),
+                if (o.epic) 1 else e,
+                if (o.relic) 1 else r,
+                newMpMinus,
+                if (o.ramp) 1 else ramp(k),
+                (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap),
+                // T1: the carried start-of-combat crit, UP-rounded and saturating (an over-count — sound).
+                if (socCap > 0) (soc(k) + ceilDiv(o.ccSoc, socStep)).coerceAtMost(socCap) else 0,
+                // RANGE: raw and saturating at the target — an over-count of `min(real range, target)`.
+                (range(k) + o.range).coerceAtMost(rangeCap)
+            )
+        return if (lowFieldMax > 0) withLow(packed, newLow) else packed
     }
 
     /** Transitions below this stay single-threaded (thread + merge overhead beats the gain). */
     private const val PARALLEL_APPLY_MIN_TRANSITIONS = 4_000_000L
 
-    private fun Geometry.applySequential(
-        entries: List<Map.Entry<Long, Long>>,
-        options: List<Opt>,
-        expectedSize: Int,
-    ): HashMap<Long, Long> {
-        val next = HashMap<Long, Long>(expectedSize)
-        for ((k, mv) in entries) {
-            for (o in options) {
-                val nk = applyOne(k, o) ?: continue
-                val nm = mv + o.m
-                val cur = next[nk]
-                if (cur == null || nm > cur) next[nk] = nm
-            }
-        }
-        return next
-    }
-
     /**
-     * One stage advance. Big stages run CHUNKED across CPU cores: each worker sweeps its slice of
-     * the state map into a LOCAL map, then the locals max-merge — the same DP (max is
-     * order-independent, so the result is bit-identical to the sequential sweep), roughly
-     * cores× faster on the hot stages. Unlike the world-level parallelism that was measured
-     * SLOWER (4 full concurrent DPs = 4× the live state maps, GC-bound), the chunk locals only
-     * duplicate the overlap of one stage's output — the peak stays near the sequential footprint.
+     * One stage advance on primitive arrays ([LongLongMaxMap], perf next-steps P1): every transition is a
+     * max-merge, so the result is identical to the boxed `HashMap` sweep it replaced — only allocation, hashing
+     * and cache behaviour change. Big stages run chunked across CPU cores inside [LongLongMaxMap.advance]; the
+     * states stay a `HashMap` between stages for the collapse and the provenance replay.
      */
     private fun Geometry.apply(
         states: HashMap<Long, Long>,
         options: List<Opt>,
+        workers: Int,
     ): HashMap<Long, Long> {
-        val transitions = states.size.toLong() * options.size
-        val workers = Runtime.getRuntime().availableProcessors() - 1
-        if (transitions < PARALLEL_APPLY_MIN_TRANSITIONS || workers < 2) {
-            return applySequential(states.entries.toList(), options, states.size * 2)
+        val n = states.size
+        val ks = LongArray(n)
+        val vs = LongArray(n)
+        var i = 0
+        for ((k, v) in states) {
+            ks[i] = k
+            vs[i] = v
+            i++
         }
-        val entries = states.entries.toList()
-        val chunkCount = minOf(workers, 8)
-        val chunkSize = (entries.size + chunkCount - 1) / chunkCount
-        val locals =
-            (0 until chunkCount)
-                .toList()
-                .parallelStream()
-                .map { c ->
-                    val from = c * chunkSize
-                    val to = minOf(entries.size, from + chunkSize)
-                    if (from >= to) {
-                        HashMap()
-                    } else {
-                        applySequential(entries.subList(from, to), options, (to - from) * 2)
+        val opts = options.toTypedArray()
+        return LongLongMaxMap
+            .advance(ks, vs, n, opts.size, PARALLEL_APPLY_MIN_TRANSITIONS, workers) { from, to, into ->
+                for (idx in from until to) {
+                    val k = ks[idx]
+                    val m = vs[idx]
+                    for (o in opts) {
+                        val nk = applyOneRaw(k, o)
+                        if (nk != REJECT) into.putMax(nk, m + o.m)
                     }
-                }.collect(
-                    java.util.stream.Collectors
-                        .toList()
-                )
-        val merged = locals.maxByOrNull { it.size } ?: HashMap()
-        for (local in locals) {
-            if (local === merged) continue
-            for ((k, mv) in local) {
-                val cur = merged[k]
-                if (cur == null || mv > cur) merged[k] = mv
-            }
-        }
-        return merged
+                }
+            }.toHashMap()
     }
 
-    fun bound(
+    /**
+     * `false` ⇔ [bound] returns null on this request whatever the pool — answered by the SAME code [bound] runs first
+     * ([requestShape], production semantics: no diagnostic flag, full tier), so the two cannot drift. The search-time
+     * warm-up ([MostMasteriesBoundCache]) skips such a request instead of paying the pool + option build to watch the
+     * bail. Only ever gates that warm-up — the proof itself always runs [bound] — and the parity lock in
+     * MostMasteriesBoundCacheTest triggers every bail through both entries.
+     */
+    fun supportsRequest(
         params: WakfuBestBuildParams,
-        pool: Map<ItemType, List<Equipment>>,
-        runes: List<RuneType>,
         sublimations: List<Sublimation>,
-        debug: Boolean = false,
-        // ⚠️ DIAGNOSTIC ONLY — each flag REMOVES a credit layer, making the result UNSOUND as a
-        // bound. Used exclusively by the attribution harness to price each relaxation's share of
-        // the overshoot: "noCondSubs", "noSubs", "noSkills", "noRunes".
-        diag: Set<String> = emptySet(),
-        // Instrument (attribution): retain per-stage states + options and reconstruct the binding
-        // PATH backward — names the option chosen at every stage of the argmax state. Costs memory
-        // (all stage maps retained) and a backward sweep; never used in production.
-        provenance: Boolean = false,
-        // Two-tier certificate: `false` skips the block dim (increment 8) — the QUICK tier (~15 s,
-        // bound ~1.3pt looser). The GUI shows the quick badge first, then refines with the full
-        // pass in the background. Both tiers are independently sound.
-        blockGate: Boolean = true,
-        // §8.15 P&B-2 seam (harness only): veto options of a stage by provenance src — the DD-B&B
-        // branching primitive. A veto only ever RESTRICTS the relaxation, so the result stays a
-        // sound upper bound OF THE VETOED SUBSPACE (fix a choice = veto its alternatives; exclude
-        // it = veto it). Non-null veto forces src population (slightly larger option sets, same
-        // soundness).
-        optionVeto: ((stage: String, src: String) -> Boolean)? = null,
-        // Cooperative cancellation (review finding): the DP runs 15-80 s and used to be
-        // uninterruptible — a superseded GUI proof kept a core pinned until completion. Checked
-        // once per stage; `false` aborts with null (callers already treat null as "no badge").
-        shouldContinue: () -> Boolean = { true },
-        // INTERNAL world-split recursion (review fix A#1) — never set by callers. worldDropCaps:
-        // run the DP with every AT_MOST cap sub excluded; worldAssume: run it with THAT cap sub
-        // assumed carried (LOW semantics on its capped stat, credits added at collapse).
-        worldAssume: Sublimation? = null,
-        worldDropCaps: Boolean = false,
-    ): Result? {
-        val t0 = System.nanoTime()
-        val wantSrc = provenance || optionVeto != null
+    ): Boolean = requestShape(params, sublimations, diag = emptySet(), blockGate = true) != null
+
+    /**
+     * A POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line: the solver folds it onto AP / MP (`valueFor`,
+     * `foldedToUsableStat`), no AP / MP read of this certificate does — [requestShape] and [bound] bail on one.
+     */
+    private fun isPositiveApMpRider(
+        c: Characteristic,
+        value: Int,
+    ): Boolean = value > 0 && (c == Characteristic.MAX_ACTION_POINT || c == Characteristic.MAX_MOVEMENT_POINT)
+
+    /** The AT_MOST cap a sub's condition puts on a TRACKED stat (the world split's cap subs), or null. */
+    private fun capStatOf(sub: Sublimation): Characteristic? =
+        when (sub.condition?.type) {
+            SublimationConditionType.AP_AT_MOST, SublimationConditionType.AP_EXACT -> Characteristic.ACTION_POINT
+            SublimationConditionType.CRIT_AT_MOST -> Characteristic.CRITICAL_HIT
+            else -> null
+        }
+
+    // A PAIRED skill (Major "Movement Point and damage": +1 MP AND +20 elemental mastery for ONE point) carries a
+    // null characteristic of its own — its halves are what the solver credits (buildSkillTerms adds both).
+    // Expanding it is the review fix for the never-credited major MP.
+    private fun skillComponents(sk: SkillCharacteristic): List<SkillCharacteristic> =
+        if (sk is SkillCharacteristic.PairedCharacteristic) listOf(sk.first, sk.second) else listOf(sk)
+
+    /**
+     * Whether [bound] STAGES [sub] (as a DP option, a world-B credit or an assumed cap sub): every solver-choosable
+     * sub except best-element concentration (forced-input only in most-masteries) and the diagnostic removals.
+     */
+    private fun stagesSub(
+        sub: Sublimation,
+        diag: Set<String>,
+    ): Boolean =
+        sub.solverChoosable &&
+            sub.bestElementConcentration == null &&
+            !("noCondSubs" in diag && sub.condition != null) &&
+            !("noEpicSubs" in diag && sub.rarity == SublimationRarity.EPIC) &&
+            !("noNormalSubs" in diag && sub.rarity == SublimationRarity.NORMAL) &&
+            !("noRelicSubs" in diag && sub.rarity == SublimationRarity.RELIC) &&
+            !("noSecretCritique" in diag && sub.condition?.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST)
+
+    /**
+     * Whether [sub]'s condition caps the OBJECTIVE itself — world B: [bound] folds its credits per state under a sound
+     * M-cap instead of staging it.
+     */
+    private fun isObjectiveCapping(
+        sub: Sublimation,
+        requested: Set<Characteristic>,
+    ): Boolean {
+        val cond = sub.condition ?: return false
+        return cond.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ||
+            (cond.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST && Characteristic.MASTERY_CRITICAL in requested)
+    }
+
+    /** [requestShape]'s output: the request-level facts every world of [bound] reads. */
+    private class RequestShape(
+        val requested: Set<Characteristic>,
+        // Every required row: the model's fold predicate ("any required-target stat requested ⇒ the objective folds")
+        // and its penalty geometry read them all.
+        val targets: List<me.chosante.autobuilder.domain.TargetStat>,
+        // The rows the DP tracks — the NON-ZERO required rows, all in [SUPPORTED_TARGETS], one per stat.
+        val targetByChar: Map<Characteristic, me.chosante.autobuilder.domain.TargetStat>,
+        // The selected passives' flat stats, folded to the usable stat.
+        val passiveFlat: Map<Characteristic, Int>,
+        // The AT_MOST cap subs of the world split (all EPIC).
+        val capSubs: List<Sublimation>,
+        // Increment 8: the largest BLOCK_AT_LEAST threshold among the staged subs (0 = no block dim).
+        val blockAtLeastMax: Int,
+        // Increment 6: the single tracked MP→DI ramp (Poids Plume), or null.
+        val mpDiRamp: Pair<Sublimation, SublimationEffect.PerStatStep>?,
+        // Sound upper bounds of a build's FINAL AP / MP (see [requestShape]).
+        val apUpper: Long,
+        val mpUpper: Long,
+    ) {
+        // A dim's saturation point: its target, never below 0 (a negative target would corrupt the packed key).
+        fun cap(char: Characteristic): Int = (targetByChar[char]?.target ?: 0).coerceAtLeast(0)
+
+        fun passivePos(char: Characteristic): Int = maxOf(passiveFlat[char] ?: 0, 0)
+
+        // The tracked ramp reads the MP dim up to where its contribution saturates.
+        val rampSaturationMp: Int = mpDiRamp?.second?.let { it.threshold + ceilDiv(it.cap, it.perStep) } ?: 0
+
+        // The MP dim's saturation (world-independent) and the main world's AP one: min(target, upper) keeps
+        // `dim ≥ min(real, target)` — at the target that is the fold's own clamp; at the upper the dim never saturates
+        // below a real build. (An assume-AP world saturates its LOW AP read one past the threshold instead.)
+        val mpCap: Int = minOf(maxOf(cap(Characteristic.MOVEMENT_POINT), rampSaturationMp).toLong(), mpUpper).toInt()
+        val mainApCap: Int = minOf(cap(Characteristic.ACTION_POINT).toLong(), apUpper).toInt()
+    }
+
+    /**
+     * [bound]'s REQUEST-level facts and bails — the ONE source of truth [bound] (every world) and [supportsRequest]
+     * read, computed before any pool or DP work. Null ⇔ [bound] returns null on this request whatever the pool:
+     *  - an elemental-mastery request (min-over-elements out of scope), forced items / runes / sublimations (they can
+     *    ADD capability the bound does not price), no requestable mastery;
+     *  - a NON-ZERO required target outside [SUPPORTED_TARGETS], or one stat required twice (the fold reads one row
+     *    per stat) — a 0-valued row of any stat (a floor) is skipped, a sound relaxation (see `tracked` below);
+     *  - a cap-sub family the world split cannot cover (more than 6, or a non-EPIC one), a second tracked MP→DI ramp,
+     *    more than 6 objective-capping (world-B) subs;
+     *  - a choosable sub CONVERTING into a stat the DP reads — a requested mastery, DI, AP, MP, or a tracked CC / HP /
+     *    RANGE / block — whose moved value no option prices (an under-count);
+     *  - with a cap sub in play, a NEGATIVE line on a capped stat (crit, AP / MAX_ACTION_POINT) on a cap sub or a world-B
+     *    sub — the subs no assume world stages into its LOW dim (CERTIFIER_VERSION 51: none exists; an under-count);
+     *  - a POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line on a staged sub, which no AP / MP read here folds
+     *    (CERTIFIER_VERSION 51: none exists; an under-count);
+     *  - a target or catalog that overflows its packed-key field (AP / MP / RANGE 5 bits, CC 7, HP 9, block 4).
+     * [diag] and [blockGate] are [bound]'s own arguments ([supportsRequest]: none / the full tier).
+     */
+    private fun requestShape(
+        params: WakfuBestBuildParams,
+        sublimations: List<Sublimation>,
+        diag: Set<String>,
+        blockGate: Boolean,
+    ): RequestShape? {
         if (params.targetStats.masteryElementsToMinimize.isNotEmpty()) return null
         // Forced RUNES (both forms) and forced SUBS can ADD modelable capability the bound does not
         // price — under-count risk ⇒ bail. (Forced ITEMS only restrict, but stay bailed for parity
@@ -505,12 +757,18 @@ internal object MostMasteriesCertificate {
         // the objective folds when ANY required-target stat is requested, 0-valued included — the
         // certificate's units must never diverge from the model's on any request shape.
         val targets = params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
-        if (targets.any { it.characteristic !in SUPPORTED_TARGETS }) return null
-        val targetByChar = targets.associateBy { it.characteristic }
+        // The rows the DP TRACKS: a 0-valued row of any stat is skipped — TargetStats weighs it 0, so its penalty
+        // term (weight × clamp(actual, ±0)) and its share of the expected total are both 0, its overshoot term is 0.
+        // The model keeps it as a FLOOR (`≥ 0` on the hard leg, a halving of the soft objective while broken): skipping
+        // that is a RELAXATION — the floors only remove builds or lower their objective — so the bound stays sound
+        // for both reads. It keeps the fold (above) and nothing else.
+        val tracked = targets.filter { it.target != 0 }
+        if (tracked.any { it.characteristic !in SUPPORTED_TARGETS }) return null
+        // The model sums one penalty term PER ROW; the fold reads one per stat — two rows of one stat would be
+        // under-counted.
+        if (tracked.groupBy { it.characteristic }.any { it.value.size > 1 }) return null
+        val targetByChar = tracked.associateBy { it.characteristic }
         val level = params.character.level
-        val diCap = DAMAGE_DI_MAX.toInt()
-
-        fun cap(char: Characteristic): Int = targetByChar[char]?.target ?: 0
 
         // Pre-release review fix (2026-10-01): the selected passives' flat stats fold into the
         // solver's FINAL stats (StatBuilder.prePercentTermsFor) but into NO condition read (pre-combat
@@ -527,37 +785,210 @@ internal object MostMasteriesCertificate {
 
         fun passivePos(char: Characteristic): Int = maxOf(passiveFlat[char] ?: 0, 0)
 
-        // A PAIRED skill (Major "Movement Point and damage": +1 MP AND +20 elemental mastery for ONE
-        // point) carries a null characteristic of its own — its halves are what the solver credits
-        // (buildSkillTerms adds both). Expanding it is the review fix for the never-credited major MP.
-        fun skillComponents(sk: SkillCharacteristic): List<SkillCharacteristic> = if (sk is SkillCharacteristic.PairedCharacteristic) listOf(sk.first, sk.second) else listOf(sk)
-
+        val staging = params.useSublimations && "noSubs" !in diag
         // Increment 4/5 pre-scan, redesigned by the 2026-07-14 review (A#1): the AT_MOST cap subs
-        // (AP_AT_MOST/AP_EXACT/CRIT_AT_MOST — all EPIC, so a real build carries at most ONE). The
-        // old in-state rejection accumulated per-option CEILs and could deny a real satisfying
-        // build (an under-count); the sound form is a WORLD SPLIT: one world WITHOUT any cap sub
-        // (bit-identical to the pre-increment-4 DP) plus one world per cap sub where it is ASSUMED
-        // carried — the capped stat's dim switches to LOW semantics for the condition and the fold
-        // credits it as a constant. The bound is the max over worlds (every real build lives in
-        // exactly one).
-        fun capStatOf(sub: Sublimation): Characteristic? =
-            when (sub.condition?.type) {
-                SublimationConditionType.AP_AT_MOST, SublimationConditionType.AP_EXACT -> Characteristic.ACTION_POINT
-                SublimationConditionType.CRIT_AT_MOST -> Characteristic.CRITICAL_HIT
-                else -> null
-            }
-
+        // (AP_AT_MOST/AP_EXACT/CRIT_AT_MOST — all EPIC, so a real build carries at most ONE) — see the world split in
+        // [bound]. The split relies on every cap sub being EPIC (one epic slot ⇒ a build carries at most one, so one
+        // assume-world per cap sub covers it): bail on a NORMAL/RELIC cap sub (a future game-data refresh) rather than
+        // under-count.
         val capSubs =
-            if (params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
+            if (staging && "noCondSubs" !in diag) {
                 sublimations.filter { it.solverChoosable && capStatOf(it) != null }
             } else {
                 emptyList()
             }
         if (capSubs.size > 6) return null
-        // The world split relies on every cap sub being EPIC (one epic slot ⇒ a build carries at
-        // most one, so one assume-world per cap sub covers it). Bail on a NORMAL/RELIC cap sub (a
-        // future game-data refresh) rather than under-count.
         if (capSubs.any { it.rarity != SublimationRarity.EPIC }) return null
+
+        // Increment 8 pre-scan: BLOCK_AT_LEAST conditions among the choosable subs — when present,
+        // the block dim is tracked up to the LARGEST threshold (values above it are equivalent).
+        val blockAtLeastMax =
+            if (blockGate && staging && "noCondSubs" !in diag) {
+                sublimations
+                    .filter { it.solverChoosable && it.condition?.type == SublimationConditionType.BLOCK_AT_LEAST }
+                    .maxOfOrNull { it.condition?.value ?: 0 } ?: 0
+            } else {
+                0
+            }
+
+        // Increment 6 pre-scan: the single tracked MP→DI ramp (Poids Plume). Its DI lands at
+        // collapse as contribution(mp dim) — so MP is tracked even without an MP target. A second
+        // tracked-source→DI ramp would need another state bit: bail rather than under-model.
+        val mpDiRamps =
+            if (staging && "noRamps" !in diag) {
+                sublimations
+                    .filter { it.solverChoosable && ("noCondSubs" !in diag || it.condition == null) }
+                    .flatMap { sub -> sub.effects.filterIsInstance<SublimationEffect.PerStatStep>().map { sub to it } }
+                    .filter { (_, eff) -> eff.source == Characteristic.MOVEMENT_POINT && eff.target == Characteristic.DAMAGE_INFLICTED }
+            } else {
+                emptyList()
+            }
+        if (mpDiRamps.size > 1) return null
+
+        // Sound upper bound of a build's FINAL AP / MP (review fix, plan §8.18): the solver caps only the
+        // PRE-sublimation sheet at 16 AP / 8 MP (applyOutOfCombatCaps), so sublimations (Vivacité II's +1 AP,
+        // Vélocité II's +1 MP), ramps and passives land above it. The AP/MP dims used to saturate at the bare
+        // out-of-combat cap, one short of a reachable target above it — an UNDER-count of that target's partial
+        // (−46% on the `neg-di-rider-mp-overflow` lock). Null (bail) on a conversion into the stat.
+        fun finalStatUpper(
+            stat: Characteristic,
+            outOfCombatCap: Long,
+        ): Long? {
+            var v = outOfCombatCap + passivePos(stat)
+            if (!params.useSublimations) return v
+            for (sub in sublimations) {
+                if (!sub.solverChoosable) continue
+                val copies = sub.maxCopies.coerceAtLeast(1).toLong()
+                for (eff in sub.effects) {
+                    when (eff) {
+                        is SublimationEffect.StatEffect ->
+                            if (eff.characteristic.foldedToUsableStat() == stat && WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) {
+                                v += maxOf(eff.magnitudeAtLevel(level), 0).toLong() * copies
+                            }
+                        // A ramp never contributes more than its cap.
+                        is SublimationEffect.PerStatStep -> if (eff.target.foldedToUsableStat() == stat) v += maxOf(eff.cap, 0).toLong() * copies
+                        is SublimationEffect.Conversion -> if (eff.to.foldedToUsableStat() == stat) return null
+                        else -> {}
+                    }
+                }
+            }
+            return v
+        }
+        val apUpper = finalStatUpper(Characteristic.ACTION_POINT, MAX_OUT_OF_COMBAT_AP) ?: return null
+        val mpUpper = finalStatUpper(Characteristic.MOVEMENT_POINT, MAX_OUT_OF_COMBAT_MP) ?: return null
+
+        if (staging) {
+            // Every stat the DP reads, a choosable sub must not convert into: the moved value rides no option. (AP / MP
+            // conversions already bailed above, whether staged or not.)
+            val read =
+                requested +
+                    Characteristic.DAMAGE_INFLICTED +
+                    targetByChar.keys +
+                    (if (blockAtLeastMax > 0) setOf(Characteristic.BLOCK_PERCENTAGE) else emptySet())
+            if (sublimations.any { sub ->
+                    stagesSub(sub, diag) && sub.effects.any { it is SublimationEffect.Conversion && it.to.foldedToUsableStat() in read }
+                }
+            ) {
+                return null
+            }
+            // World B folds every SUBSET of the objective-capping subs at each collapse state (2^n − 1).
+            if (sublimations.count { stagesSub(it, diag) && capStatOf(it) == null && isObjectiveCapping(it, requested) } > 6) return null
+            // Review follow-ups (CERTIFIER_VERSION 51) — shapes no current sub reaches, bailed rather than under-counted:
+            //  - the assumed cap sub and the world-B subs never feed an assume world's LOW dim (both are credited at the
+            //    collapse only), while the solver's pre-combat read carries every permanent line of a STATIC sub, its own
+            //    condition's read included (`buildPermanentSubTerms`). A NEGATIVE line on a capped stat would lower the
+            //    real read under the dim and reject a real carrier in its own world (A1's over-rejection);
+            //  - a POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line folds into AP / MP in the solver
+            //    (`foldedToUsableStat`), but the staging, [reachableMax] and the outside-read constants read the plain AP /
+            //    MP lines only (the data's MAX_* lines are all negative, which they over-count).
+            val lowStats = capSubs.mapNotNull(::capStatOf).toSet()
+            if (lowStats.isNotEmpty() &&
+                sublimations.any { sub ->
+                    // A cap sub matters in its OWN world only (the others are EPIC too: never beside it); a world-B sub
+                    // can ride beside any assumed one.
+                    val unstagedLowStats =
+                        when {
+                            sub in capSubs -> setOfNotNull(capStatOf(sub))
+                            stagesSub(sub, diag) && isObjectiveCapping(sub, requested) -> lowStats
+                            else -> emptySet()
+                        }
+                    sub.effects.any {
+                        it is SublimationEffect.StatEffect && it.characteristic.foldedToUsableStat() in unstagedLowStats && it.magnitudeAtLevel(level) < 0
+                    }
+                }
+            ) {
+                return null
+            }
+            if (sublimations.any { sub ->
+                    stagesSub(sub, diag) &&
+                        sub.effects.any { it is SublimationEffect.StatEffect && isPositiveApMpRider(it.characteristic, it.magnitudeAtLevel(level)) }
+                }
+            ) {
+                return null
+            }
+        }
+
+        val shape = RequestShape(requested, targets, targetByChar, passiveFlat, capSubs, blockAtLeastMax, mpDiRamps.firstOrNull(), apUpper, mpUpper)
+        // The packed-key fields are FIXED (Geometry): a target or threshold past them would corrupt the key — bail
+        // instead. (Assume worlds saturate their capped dim at threshold + 1, inside these fields.)
+        if (shape.mainApCap > 0x1F || shape.mpCap > 0x1F) return null
+        if (ceilDiv(shape.cap(Characteristic.CRITICAL_HIT), ccStep) > 0x7F) return null
+        if (ceilDiv(shape.cap(Characteristic.HP), hpStep) > 0x1FF) return null
+        if (ceilDiv(blockAtLeastMax, BLOCK_STEP) > 0xF) return null
+        if (shape.cap(Characteristic.RANGE) > 0x1F) return null
+        return shape
+    }
+
+    fun bound(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        debug: Boolean = false,
+        // ⚠️ DIAGNOSTIC ONLY — each flag REMOVES a credit layer, making the result UNSOUND as a
+        // bound. Used exclusively by the attribution harness to price each relaxation's share of
+        // the overshoot: "noCondSubs", "noSubs", "noSkills", "noRunes".
+        diag: Set<String> = emptySet(),
+        // Instrument (attribution): retain per-stage states + options and reconstruct the binding
+        // PATH backward — names the option chosen at every stage of the argmax state. Costs memory
+        // (all stage maps retained) and a backward sweep; never used in production.
+        provenance: Boolean = false,
+        // `false` skips the block dim (increment 8) — the former QUICK tier (bound ~1.3pt looser),
+        // kept for the harnesses and the assume worlds below. Production runs the full tier only:
+        // since P1+P2 it costs what the quick tier did, so the badge is ONE pass (§8.19). Both
+        // settings are independently sound.
+        blockGate: Boolean = true,
+        // §8.15 P&B-2 seam (harness only): veto options of a stage by provenance src — the DD-B&B
+        // branching primitive. A veto only ever RESTRICTS the relaxation, so the result stays a
+        // sound upper bound OF THE VETOED SUBSPACE (fix a choice = veto its alternatives; exclude
+        // it = veto it). Non-null veto forces src population (slightly larger option sets, same
+        // soundness).
+        optionVeto: ((stage: String, src: String) -> Boolean)? = null,
+        // Cooperative cancellation (review finding): the DP runs 15-80 s and used to be
+        // uninterruptible — a superseded GUI proof kept a core pinned until completion. Checked
+        // once per stage; `false` aborts with null (callers already treat null as "no badge").
+        shouldContinue: () -> Boolean = { true },
+        // Exact stage-option Pareto pruning ([paretoPrune]) — production ON; `false` only for the
+        // bit-identity lock that compares both runs.
+        pruneDominatedOptions: Boolean = true,
+        // Stage-advance chunk workers ([LongLongMaxMap.advance]), read once per stage. A pure work
+        // knob — the max-merge is order-independent, so every value yields the identical bound. The
+        // search-time warm-up ([MostMasteriesBoundCache]) holds it at 1 while CP-SAT owns the cores.
+        parallelism: () -> Int = LongLongMaxMap::defaultWorkers,
+        // INTERNAL world-split recursion (review fix A#1) — never set by callers. worldDropCaps:
+        // run the DP with every AT_MOST cap sub excluded; worldAssume: run it with THAT cap sub
+        // assumed carried (LOW semantics on its capped stat, credits added at collapse).
+        worldAssume: Sublimation? = null,
+        worldDropCaps: Boolean = false,
+    ): Result? {
+        val t0 = System.nanoTime()
+        // Cancelled before this world even builds its options (the world split runs them in turn).
+        if (!shouldContinue()) return null
+        val wantSrc = provenance || optionVeto != null
+        // Every request-level fact and bail — the code [supportsRequest] runs too.
+        val shape = requestShape(params, sublimations, diag, blockGate) ?: return null
+        // Review follow-up (CERTIFIER_VERSION 51): an item's MAX_ACTION_POINT / MAX_MOVEMENT_POINT line folds into its AP /
+        // MP (the solver's `valueFor`), but [statOf] and [reachableMax] below read the plain AP / MP lines: a NEGATIVE
+        // rider is over-counted (every one in the data is −1), a POSITIVE one would be under-counted — bail on it. (The
+        // assume-AP LOW read already takes AP + MAX_ACTION_POINT, signed.)
+        if (pool.values.any { items -> items.any { e -> e.characteristics.any { (c, v) -> isPositiveApMpRider(c, v) } } }) return null
+        val requested = shape.requested
+        val targets = shape.targets
+        val targetByChar = shape.targetByChar
+        val level = params.character.level
+        val diCap = DAMAGE_DI_MAX.toInt()
+
+        fun cap(char: Characteristic): Int = shape.cap(char)
+
+        fun passivePos(char: Characteristic): Int = shape.passivePos(char)
+
+        // The AT_MOST cap subs (AP_AT_MOST/AP_EXACT/CRIT_AT_MOST — all EPIC, so a real build carries at most ONE),
+        // redesigned by the 2026-07-14 review (A#1): the old in-state rejection accumulated per-option CEILs and could
+        // deny a real satisfying build (an under-count); the sound form is a WORLD SPLIT: one world WITHOUT any cap sub
+        // (bit-identical to the pre-increment-4 DP) plus one world per cap sub where it is ASSUMED carried — the capped
+        // stat's dim switches to LOW semantics for the condition and the fold credits it as a constant. The bound is
+        // the max over worlds (every real build lives in exactly one).
+        val capSubs = shape.capSubs
         if (capSubs.isNotEmpty() && worldAssume == null && !worldDropCaps) {
             // Orchestrate the worlds SEQUENTIALLY: the peak memory stays that of a single DP (the
             // low-core/low-RAM machines this backup exists for cannot afford 4 concurrent state
@@ -581,67 +1012,50 @@ internal object MostMasteriesCertificate {
                         blockGate = if (assume == null) blockGate else false,
                         optionVeto = optionVeto,
                         shouldContinue = shouldContinue,
+                        pruneDominatedOptions = pruneDominatedOptions,
+                        parallelism = parallelism,
                         worldAssume = assume,
                         worldDropCaps = assume == null
                     )
                 }
             if (worlds.any { it == null }) return null
             val best = worlds.filterNotNull().maxByOrNull { it.foldedBound } ?: return null
+            val bestHard = worlds.filterNotNull().maxByOrNull { it.hardFoldedBound } ?: return null
             return Result(
                 best.foldedBound,
                 worlds.filterNotNull().maxOf { it.coreBound },
                 worlds.filterNotNull().sumOf { it.states },
                 (System.nanoTime() - t0) / 1_000_000,
                 best.bindingState,
-                best.bindingPath
+                best.bindingPath,
+                hardFoldedBound = bestHard.hardFoldedBound,
+                hardCoreBound = worlds.filterNotNull().maxOf { it.hardCoreBound },
+                hardBindingState = bestHard.hardBindingState
             )
         }
         val assumeStat = worldAssume?.let { capStatOf(it) }
         val assumeThreshold = worldAssume?.condition?.value ?: -1
-
-        // Increment 8 pre-scan: BLOCK_AT_LEAST conditions among the choosable subs — when present,
-        // the block dim is tracked up to the LARGEST threshold (values above it are equivalent).
-        val blockAtLeastMax =
-            if (blockGate && params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
-                sublimations
-                    .filter { it.solverChoosable && it.condition?.type == SublimationConditionType.BLOCK_AT_LEAST }
-                    .maxOfOrNull { it.condition?.value ?: 0 } ?: 0
+        val passiveFlat = shape.passiveFlat
+        val blockAtLeastMax = shape.blockAtLeastMax
+        val mpDiRamp = shape.mpDiRamp
+        val apCap =
+            if (assumeStat == Characteristic.ACTION_POINT) {
+                // Assume-world: the AP dim is the condition's LOW read, saturated one past the threshold (its
+                // fold contribution is a constant instead).
+                (assumeThreshold + 1).coerceAtMost(MAX_OUT_OF_COMBAT_AP.toInt())
             } else {
-                0
+                shape.mainApCap
             }
-
-        // Increment 6 pre-scan: the single tracked MP→DI ramp (Poids Plume). Its DI lands at
-        // collapse as contribution(mp dim) — so MP is tracked even without an MP target. A second
-        // tracked-source→DI ramp would need another state bit: bail rather than under-model.
-        val mpDiRamps =
-            if (params.useSublimations && "noSubs" !in diag && "noRamps" !in diag) {
-                sublimations
-                    .filter { it.solverChoosable && ("noCondSubs" !in diag || it.condition == null) }
-                    .flatMap { sub -> sub.effects.filterIsInstance<SublimationEffect.PerStatStep>().map { sub to it } }
-                    .filter { (_, eff) -> eff.source == Characteristic.MOVEMENT_POINT && eff.target == Characteristic.DAMAGE_INFLICTED }
-            } else {
-                emptyList()
-            }
-        if (mpDiRamps.size > 1) return null
-        val mpDiRamp = mpDiRamps.firstOrNull()
+        val mpCap = shape.mpCap
+        // T1: in an assume-CC world the crit read is `threshold + (crit landing outside the pre-combat read)`; the
+        // part carried by staged subs rides the soc dim, useful only up to the target (0 = no CC target to reach).
+        val socRange = if (assumeStat == Characteristic.CRITICAL_HIT) (cap(Characteristic.CRITICAL_HIT) - assumeThreshold).coerceAtLeast(0) else 0
+        val socStep = ceilDiv(socRange, 0x7F).coerceAtLeast(1)
 
         val geo =
             Geometry(
-                apCap =
-                    (
-                        if (assumeStat == Characteristic.ACTION_POINT) {
-                            // Assume-world: the AP dim is the condition's LOW read, saturated one
-                            // past the threshold (its fold contribution is a constant instead).
-                            assumeThreshold + 1
-                        } else {
-                            cap(Characteristic.ACTION_POINT)
-                        }
-                    ).coerceAtMost(MAX_OUT_OF_COMBAT_AP.toInt()),
-                mpCap =
-                    maxOf(
-                        cap(Characteristic.MOVEMENT_POINT),
-                        if (mpDiRamp != null) MAX_OUT_OF_COMBAT_MP.toInt() else 0
-                    ).coerceAtMost(MAX_OUT_OF_COMBAT_MP.toInt()),
+                apCap = apCap,
+                mpCap = mpCap,
                 ccBucketCap =
                     if (assumeStat == Characteristic.CRITICAL_HIT) {
                         // RAW units in assume-CC worlds (see applyOne) — saturation at threshold+1.
@@ -653,8 +1067,36 @@ internal object MostMasteriesCertificate {
                 diBucketCap = ceilDiv(diCap, diStep),
                 blockBucketCap = ceilDiv(blockAtLeastMax, BLOCK_STEP),
                 assumeApThreshold = if (assumeStat == Characteristic.ACTION_POINT) assumeThreshold else -1,
-                assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1
+                assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1,
+                socCap = ceilDiv(socRange, socStep),
+                socStep = socStep,
+                // RANGE (plan §8.20): saturates at the target. The model puts no out-of-combat cap on range (only on
+                // AP / MP / WP / crit, applyOutOfCombatCaps), so — unlike the AP / MP dims — no final-stat upper can
+                // sit below a reachable target. 0 = no non-zero RANGE target (the dim stays 0, keys unchanged).
+                rangeCap = cap(Characteristic.RANGE)
             )
+
+        // The %HP skill multiplies the build's WHOLE flat HP (StatBuilder.actualStat: the pre-percent sum, subs and
+        // passives included, × (100 + %HP) / 100), but the skills stage scales only what was staged before it. Three HP
+        // sources land after it — the EPIC / RELIC sub stages (after the skills since increment 8) and the collapse-time
+        // credits of the world-B subs and the assumed cap sub — so their flat HP is scaled here by the LARGEST reachable
+        // %HP: an over-count of its real share (a build's own %HP ≤ that max) — sound (plan §8.20). 0 when HP is
+        // untracked or the skills are switched off (diag).
+        val hpPctMax =
+            if (geo.hpBucketCap == 0 || "noSkills" in diag) {
+                0
+            } else {
+                val skills = params.character.characterSkills
+                listOf(skills.strength, skills.agility, skills.luck, skills.major, skills.intelligence).sumOf { branch ->
+                    branch
+                        .getCharacteristics()
+                        .flatMap(::skillComponents)
+                        .filter { it.characteristic == Characteristic.HP && it.unitType == me.chosante.common.skills.UnitType.PERCENT }
+                        .sumOf { it.unitValue * minOf(branch.maxPointsToAssign, it.maxPointsAssignable) }
+                }
+            }
+
+        fun hpScaled(hp: Int): Int = if (hpPctMax > 0 && hp > 0) ceilDiv(hp * (100 + hpPctMax), 100) else hp
 
         // Positive parts of an equipment's objective/target lines.
         fun statOf(
@@ -663,14 +1105,15 @@ internal object MostMasteriesCertificate {
         ): Int = maxOf(e.characteristics[c] ?: 0, 0)
 
         // The rune axes that actually exist: for each supported axis, the best rune value per
-        // (slot type, level). Axis order: [mastery, AP, MP, CC, HP] — absent axes get 0 everywhere.
+        // (slot type, level). Axis order: [mastery, AP, MP, CC, HP, RANGE] — absent axes get 0 everywhere.
         val runeAxes: List<(ItemType, Int) -> Int> =
             listOf<(RuneType) -> Boolean>(
                 { it.characteristic in requested },
                 { it.characteristic == Characteristic.ACTION_POINT && Characteristic.ACTION_POINT in targetByChar },
                 { it.characteristic == Characteristic.MOVEMENT_POINT && Characteristic.MOVEMENT_POINT in targetByChar },
                 { it.characteristic == Characteristic.CRITICAL_HIT && Characteristic.CRITICAL_HIT in targetByChar },
-                { it.characteristic == Characteristic.HP && Characteristic.HP in targetByChar }
+                { it.characteristic == Characteristic.HP && Characteristic.HP in targetByChar },
+                { it.characteristic == Characteristic.RANGE && Characteristic.RANGE in targetByChar }
             ).map { predicate ->
                 val matching = runes.filter(predicate)
                 (
@@ -705,8 +1148,10 @@ internal object MostMasteriesCertificate {
                     mp = statOf(e, Characteristic.MOVEMENT_POINT),
                     cc = statOf(e, Characteristic.CRITICAL_HIT),
                     hp = statOf(e, Characteristic.HP),
-                    epic = e.rarity == me.chosante.common.Rarity.EPIC,
-                    relic = e.rarity == me.chosante.common.Rarity.RELIC,
+                    // The "only one equipped at a time" groups ([Equipment.exclusiveGroup]): the budget is exact; an EPIC-group
+                    // COMMON item (18691, 18693) also passes for an epic-sub carrier here, a sound over-count (it hosts none).
+                    epic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.EPIC,
+                    relic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     // LOW dims: per-item options are exact, so the SIGNED value (negative lines
                     // included) is the tightest valid under-approximation. The AP read is the
@@ -719,63 +1164,90 @@ internal object MostMasteriesCertificate {
                             0
                         },
                     ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0,
-                    src = if (wantSrc) e.name.fr else ""
+                    src = if (wantSrc) e.name.fr else "",
+                    // Gated on the dim: an untracked range must not split otherwise-equal options (more work, same bound).
+                    range = if (geo.rangeCap > 0) statOf(e, Characteristic.RANGE) else 0
                 )
             val slots = if (params.useRunes) e.maxShardSlots else 0
             if (slots == 0) return listOf(base)
             val perAxis = runeAxes.map { it(e.itemType, e.level) }
             val out = mutableListOf<Opt>()
-            // Compositions of `slots` sockets over the 5 axes (axes valued 0 collapse via dedup).
-            for (a0 in 0..slots) {
-                for (a1 in 0..(slots - a0)) {
-                    for (a2 in 0..(slots - a0 - a1)) {
-                        for (a3 in 0..(slots - a0 - a1 - a2)) {
-                            val a4 = slots - a0 - a1 - a2 - a3
-                            out +=
-                                base.copy(
-                                    m = base.m + a0.toLong() * perAxis[0],
-                                    ap = base.ap + a1 * perAxis[1],
-                                    mp = base.mp + a2 * perAxis[2],
-                                    cc = base.cc + a3 * perAxis[3],
-                                    hp = base.hp + a4 * perAxis[4],
-                                    // Runes are positive and exact — they feed the LOW dims too.
-                                    apLow = base.apLow + (if (geo.assumeApThreshold >= 0) a1 * perAxis[1] else 0),
-                                    ccLowRaw = base.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) a3 * perAxis[3] else 0)
-                                )
-                        }
-                    }
+            // Every composition of `slots` sockets over the axes. An axis valued 0 adds nothing, so all of them
+            // collapse into ONE blank remainder (a socket left to an untracked rune): this emits exactly the
+            // distinct options of the full composition set — every socket filled when no axis is blank.
+            val live = perAxis.indices.filter { perAxis[it] != 0 }
+            val mustFill = live.size == perAxis.size
+            val counts = IntArray(perAxis.size)
+
+            fun compose(
+                next: Int,
+                left: Int,
+            ) {
+                if (next == live.size) {
+                    if (mustFill && left > 0) return
+                    out +=
+                        base.copy(
+                            m = base.m + counts[0].toLong() * perAxis[0],
+                            ap = base.ap + counts[1] * perAxis[1],
+                            mp = base.mp + counts[2] * perAxis[2],
+                            cc = base.cc + counts[3] * perAxis[3],
+                            hp = base.hp + counts[4] * perAxis[4],
+                            range = base.range + counts[5] * perAxis[5],
+                            // Runes are positive and exact — they feed the LOW dims too.
+                            apLow = base.apLow + (if (geo.assumeApThreshold >= 0) counts[1] * perAxis[1] else 0),
+                            ccLowRaw = base.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) counts[3] * perAxis[3] else 0)
+                        )
+                    return
                 }
+                val axis = live[next]
+                for (c in 0..left) {
+                    counts[axis] = c
+                    compose(next + 1, left - c)
+                }
+                counts[axis] = 0
             }
+            compose(0, slots)
             return out.distinct()
         }
 
         val baseValues = params.character.baseCharacteristicValues
+        // A1: a negative LOW seed opens the offset instead of being floored at 0 (see [Geometry.lowOff]).
+        val seedLow =
+            when {
+                geo.assumeApThreshold >= 0 -> baseValues[Characteristic.ACTION_POINT] ?: 0
+                geo.assumeCcThresholdRaw >= 0 -> baseValues[Characteristic.CRITICAL_HIT] ?: 0
+                else -> 0
+            }
+        if (seedLow < 0 && !geo.raiseLowOff(-seedLow)) return null
+        val seedLowDim = (seedLow + geo.lowOff).coerceAtMost(geo.lowSatBase + geo.lowOff)
         var states = HashMap<Long, Long>()
-        states[
+        val seedKey =
             geo.key(
                 0,
-                // Assume-AP worlds seed the AP dim with the SIGNED base (LOW semantics); otherwise
-                // the usual saturating positive read. Same split for CC (floor vs ceil bucketing).
-                (baseValues[Characteristic.ACTION_POINT] ?: 0).coerceIn(0, geo.apCap),
+                // Assume-AP worlds seed the AP dim with the SIGNED base (LOW semantics, offset); otherwise
+                // the usual saturating positive read. Same split for CC (raw signed vs ceil bucketing).
+                if (geo.assumeApThreshold >= 0) seedLowDim and 0x1F else (baseValues[Characteristic.ACTION_POINT] ?: 0).coerceIn(0, geo.apCap),
                 (baseValues[Characteristic.MOVEMENT_POINT] ?: 0).coerceIn(0, geo.mpCap),
-                (
-                    if (geo.assumeCcThresholdRaw >= 0) {
-                        (baseValues[Characteristic.CRITICAL_HIT] ?: 0)
-                    } else {
-                        ceilDiv((baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0), ccStep)
-                    }
-                ).coerceIn(0, geo.ccBucketCap),
+                if (geo.assumeCcThresholdRaw >= 0) {
+                    seedLowDim and 0x7F
+                } else {
+                    ceilDiv((baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0), ccStep).coerceAtMost(geo.ccBucketCap)
+                },
                 ceilDiv((baseValues[Characteristic.HP] ?: 0).coerceAtLeast(0), hpStep).coerceAtMost(geo.hpBucketCap),
                 0,
                 0,
-                block = ceilDiv((baseValues[Characteristic.BLOCK_PERCENTAGE] ?: 0).coerceAtLeast(0), BLOCK_STEP).coerceAtMost(geo.blockBucketCap)
+                block = ceilDiv((baseValues[Characteristic.BLOCK_PERCENTAGE] ?: 0).coerceAtLeast(0), BLOCK_STEP).coerceAtMost(geo.blockBucketCap),
+                range = (baseValues[Characteristic.RANGE] ?: 0).coerceIn(0, geo.rangeCap)
             )
-        ] = 0L
+        states[if (geo.lowFieldMax > 0) geo.withLow(seedKey, seedLowDim) else seedKey] = 0L
 
-        // Provenance retention + the single stage-advance helper.
-        val stageLog = if (provenance) mutableListOf<Triple<String, HashMap<Long, Long>, List<Opt>>>() else null
+        // Provenance retention + the single stage-advance helper. Each entry keeps the stage's [Geometry.lowOff]
+        // (the replay re-applies the stage's options under it).
+        val stageLog = if (provenance) mutableListOf<StageRecord>() else null
 
         var cancelled = false
+        // A1: set when the LOW-dim offset outgrows its packed field — the world bails (null), never corrupts a key.
+        var lowOverflow = false
 
         fun step(
             label: String,
@@ -788,9 +1260,31 @@ internal object MostMasteriesCertificate {
                 states = HashMap()
                 return
             }
-            val effective = if (optionVeto == null) options else options.filter { !optionVeto(label, it.src) }
-            stageLog?.add(Triple(label, HashMap(states), effective))
-            states = geo.apply(states, effective)
+            val allowed = if (optionVeto == null) options else options.filter { !optionVeto(label, it.src) }
+            // Exact: a strictly dominated option's descendants are dominated too (see [paretoPrune]). The
+            // ring-pair list is skipped — it is millions long and already pruned per pair.
+            val effective =
+                if (pruneDominatedOptions && allowed.size in 2..PARETO_PRUNE_MAX_OPTIONS) paretoPrune(allowed) else allowed
+            // A1: open the LOW-dim offset by this stage's worst negative delta FIRST, so no transition floors the
+            // dim at 0 (exact, monotone; Pareto pruning keeps the min — a dominator's LOW delta is ≤).
+            var shift = 0
+            if (geo.lowFieldMax > 0) {
+                val worst = effective.minOfOrNull { if (geo.assumeApThreshold >= 0) it.apLow else it.ccLowRaw } ?: 0
+                if (worst < 0) {
+                    if (!geo.raiseLowOff(-worst)) {
+                        lowOverflow = true
+                        cancelled = true
+                        states = HashMap()
+                        return
+                    }
+                    shift = -worst
+                    val shifted = HashMap<Long, Long>(states.size * 2)
+                    for ((k, v) in states) shifted[geo.shiftLow(k, shift)] = v
+                    states = shifted
+                }
+            }
+            stageLog?.add(StageRecord(label, HashMap(states), effective, geo.lowOff, shift))
+            states = geo.apply(states, effective, parallelism())
         }
 
         // Pair-wise exact merge of two options (both non-null axes add; budgets/flags OR).
@@ -812,6 +1306,8 @@ internal object MostMasteriesCertificate {
                 requiresBlockAtLeast = maxOf(a.requiresBlockAtLeast, b.requiresBlockAtLeast),
                 apLow = a.apLow + b.apLow,
                 ccLowRaw = a.ccLowRaw + b.ccLowRaw,
+                ccSoc = a.ccSoc + b.ccSoc,
+                range = a.range + b.range,
                 src =
                     if (a.src.isEmpty()) {
                         b.src
@@ -822,19 +1318,38 @@ internal object MostMasteriesCertificate {
                     }
             )
 
+        // v57 item EQUIP conditions: an item that can only be worn with another (a nation sword needs its EPIC ring) is offered
+        // FUSED with it — each option combined with each of the required item's, its rarity included — so it takes the epic
+        // budget the ring takes and never pairs with another epic item (rings run first: an epic ring there rejects it). The
+        // required item keeps its own options in its slot (worn alone it is legal); the fused option leaves that ring slot
+        // free, an over-count of at most one ring (sound). A requirement outside the pool leaves the item no option.
+        val poolById = pool.values.flatten().associateBy { it.equipmentId }
+
+        fun wornOpts(e: Equipment): List<Opt> {
+            var opts = itemOpts(e)
+            for (requiredId in e.requiredItemIds) {
+                val requiredOpts = itemOpts(poolById[requiredId] ?: return emptyList())
+                opts = opts.flatMap { a -> requiredOpts.filterNot { b -> (a.epic && b.epic) || (a.relic && b.relic) }.map { b -> combineOpts(a, b) } }
+            }
+            return opts.distinct()
+        }
+
         // Stage ORDER matters for cost (|states| × |options|): the huge exact-pair stages (rings,
         // weapons) run FIRST while the state space is still tiny; the per-slot single stages follow.
         // Rings: exact distinct-name pairs over per-item dominance-pruned option sets (v1's rule —
         // the two-stage relaxation measured ~+7% looseness on S3 together with the weapon double-dip).
         run {
-            val perRing = pool[ItemType.RING].orEmpty().map { it to prune(itemOpts(it)) }
+            val perRing = pool[ItemType.RING].orEmpty().map { it to prune(wornOpts(it)) }
+            // Never two rings of one name NOR two rings that exclude each other ([ringPairingKeys]) — exactly the game's
+            // rule on every clique of conflicting rings (all of today's data); a non-clique component keeps the name rule.
+            val ringKeys = ringPairingKeys(perRing.map { it.first })
             val options = mutableListOf(Opt(0L, 0))
             perRing.forEach { (_, opts) -> options += opts }
             for (i in perRing.indices) {
                 for (j in i + 1 until perRing.size) {
                     val (ri, oi) = perRing[i]
                     val (rj, oj) = perRing[j]
-                    if (ri.name.fr == rj.name.fr) continue
+                    if (ringKeys[ri.equipmentId] == ringKeys[rj.equipmentId]) continue
                     val merged = mutableListOf<Opt>()
                     for (a in oi) {
                         for (b in oj) {
@@ -852,9 +1367,9 @@ internal object MostMasteriesCertificate {
         // Weapons: 2H alone | 1H (+ optional off-hand) | off-hand alone | nothing — exact pairs.
         run {
             val options = mutableListOf(Opt(0L, 0))
-            options += pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().flatMap { prune(itemOpts(it)) }
-            val oneH = pool[ItemType.ONE_HANDED_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
-            val off = pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
+            options += pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().flatMap { prune(wornOpts(it)) }
+            val oneH = pool[ItemType.ONE_HANDED_WEAPONS].orEmpty().map { prune(wornOpts(it)) }
+            val off = pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map { prune(wornOpts(it)) }
             oneH.forEach { options += it }
             off.forEach { options += it }
             for (oi in oneH) {
@@ -876,7 +1391,7 @@ internal object MostMasteriesCertificate {
         val singleSlots =
             pool.keys - setOf(ItemType.RING, ItemType.ONE_HANDED_WEAPONS, ItemType.TWO_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
         for (slot in singleSlots) {
-            step(slot.name, listOf(Opt(0L, 0)) + pool[slot].orEmpty().flatMap { prune(itemOpts(it)) })
+            step(slot.name, listOf(Opt(0L, 0)) + pool[slot].orEmpty().flatMap { prune(wornOpts(it)) })
             if (debug) println("MM_M3V2_STAGE $slot states=${states.size}")
         }
 
@@ -936,11 +1451,14 @@ internal object MostMasteriesCertificate {
         // sheet only) and passives. An assume world credits its capped stat as a constant — the read is
         // ≤ threshold, but the FINAL stat the target reads adds these on top (review fix: the constant
         // used to stop at `threshold + own`, an under-count). [excludeEpics]: in an assume world the
-        // assumed cap sub holds the single epic slot, so no other epic sub can contribute.
+        // assumed cap sub holds the single epic slot, so no other epic sub can contribute. [pricedElsewhere]
+        // (T1): subs whose start-of-combat lines the fold already prices — their stat lines are skipped (their
+        // ramps stay here, budget-free).
         fun outsideReadMax(
             stat: Characteristic,
             exclude: Sublimation?,
             excludeEpics: Boolean,
+            pricedElsewhere: Set<Sublimation> = emptySet(),
         ): Long {
             var v = passivePos(stat).toLong()
             for (sub in sublimations) {
@@ -950,7 +1468,8 @@ internal object MostMasteriesCertificate {
                 for (eff in sub.effects) {
                     when (eff) {
                         is SublimationEffect.StatEffect ->
-                            if (eff.characteristic == stat &&
+                            if (sub !in pricedElsewhere &&
+                                eff.characteristic == stat &&
                                 !eff.appliesBeforeCombat &&
                                 WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)
                             ) {
@@ -967,10 +1486,11 @@ internal object MostMasteriesCertificate {
             return v
         }
 
-        // Sound M-cap for builds carrying a SECONDARY_MASTERIES_AT_MOST-t sub (review fix A#2): a
+        // Sound M-cap for builds carrying a SECONDARY_MASTERIES_AT_MOST sub (review fix A#2): a
         // standalone budget knapsack over EVERY mastery source — maximize Σp (positive requested
-        // lines, what M counts) s.t. Σ(p − q − n) ≤ t, where p − q − n per pick is a LOWER bound
-        // of its contribution to the signed all-secondaries sum the condition reads (q = |negative
+        // lines, what M counts) s.t. Σ(p − q − n) ≤ t, t the SUM bound the per-stat rule implies
+        // ([secondaryMasteriesSumBound] — a relaxation of "each secondary ≤ its threshold"), where
+        // p − q − n per pick is a LOWER bound of its contribution to that signed all-secondaries sum (q = |negative
         // requested|, n = |negative unrequested|). Items are per-slot picks (rings twice); subs,
         // skills and mastery runes are optional pseudo-slots — their mastery PAYS the same budget
         // (an additive shortcut measured +102% on S2; the naive Σ-of-best-negatives offset, which
@@ -1075,6 +1595,24 @@ internal object MostMasteriesCertificate {
             return dp.entries.filter { it.key <= bucket(t) }.maxOfOrNull { it.value } ?: t.coerceAtLeast(0L)
         }
 
+        // Per-stat M-cap for a build carrying a SECONDARY_MASTERIES_AT_MOST-t sub (CERTIFIER_VERSION 56): the condition
+        // holds EACH secondary mastery ≤ t on the FIRST-TURN read (StatBuilder.firstTurnStat — base, items, runes, fixed
+        // skills, permanent and start-of-combat FLAT sub lines), so a requested secondary's FINAL value is at most t plus
+        // what lands OUTSIDE that read: the passives, a conditional sub's own lines, ramps — [outsideReadMax], which also
+        // counts the start-of-combat lines of FLAT subs the read does see (an over-count, sound) and every choosable sub
+        // (the carrier itself included). M sums the requested masteries, each floored at 0 here (≥ the signed sum). No
+        // cap (Long.MAX_VALUE) when a %-skill scales a requested mastery: its multiplier would ride on top of the read.
+        fun secondaryPerStatCap(t: Long): Long {
+            val skills = params.character.characterSkills
+            val percentOnRequested =
+                listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)
+                    .flatMap { it.getCharacteristics() }
+                    .flatMap(::skillComponents)
+                    .any { it.characteristic in requested && it.unitType == me.chosante.common.skills.UnitType.PERCENT }
+            if (percentOnRequested) return Long.MAX_VALUE
+            return requested.sumOf { maxOf(0L, t + outsideReadMax(it, exclude = null, excludeEpics = false)) }
+        }
+
         // Max total the requested masteries OTHER than crit mastery can reach: the
         // CRITICAL_MASTERY_AT_MOST condition caps only the crit component of M.
         fun otherRequestedMasteriesMax(): Long = requested.filter { it != Characteristic.MASTERY_CRITICAL }.sumOf { reachableMax(it).toLong() }
@@ -1091,6 +1629,9 @@ internal object MostMasteriesCertificate {
         // PER STATE at collapse — the old analytic fold at power6(maxIndex) assumed all targets
         // fully met, which a knapsack-limited carrier cannot do (measured +24.6% vs +21% naive).
         val worldBSubs = mutableListOf<Triple<Long, Opt, Boolean>>()
+        // T1: the subs whose start-of-combat crit the fold already prices — staged subs (soc dim) and world-B subs
+        // (their credits ride the per-state `extra`) — so the assume-CC constant [outsideReadMax] skips them.
+        val socPricedSubs = HashSet<Sublimation>()
         if (params.useSublimations && "noSubs" !in diag) {
             data class SubOpt(
                 val opt: Opt,
@@ -1098,27 +1639,18 @@ internal object MostMasteriesCertificate {
             )
             val subOpts = mutableListOf<SubOpt>()
             for (sub in sublimations) {
-                if (!sub.solverChoosable) continue
-                if (sub.bestElementConcentration != null) continue
-                if ("noCondSubs" in diag && sub.condition != null) continue
-                if ("noEpicSubs" in diag && sub.rarity == SublimationRarity.EPIC) continue
-                if ("noNormalSubs" in diag && sub.rarity == SublimationRarity.NORMAL) continue
-                if ("noRelicSubs" in diag && sub.rarity == SublimationRarity.RELIC) continue
-                if ("noSecretCritique" in diag && sub.condition?.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST) continue
+                if (!stagesSub(sub, diag)) continue
                 val cond = sub.condition
-                val capsObjective =
-                    cond != null &&
-                        (
-                            cond.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ||
-                                (cond.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST && Characteristic.MASTERY_CRITICAL in requested)
-                        )
+                val capsObjective = isObjectiveCapping(sub, requested)
                 // Review fix (A#1): AT_MOST cap subs never enter the stages — the world split
                 // handles them (excluded in every world; the assumed one is credited at collapse).
                 if (capStatOf(sub) != null && sub !== worldAssume) continue
                 val blockRequirement =
                     if (blockAtLeastMax > 0 && cond?.type == SublimationConditionType.BLOCK_AT_LEAST) (cond.value ?: 0) else 0
                 var opt = Opt(0L, 0, requiresBlockAtLeast = blockRequirement, src = if (wantSrc) sub.name.fr else "")
-                var bail = false
+                // A Conversion credits nothing here: [requestShape] bailed on every staged sub converting INTO a
+                // stat the DP reads, so the moved value only ever lands on an untracked stat (its debit on the
+                // `from` stat is dropped — an over-count).
                 for (eff in sub.effects) {
                     when (eff) {
                         is SublimationEffect.StatEffect -> {
@@ -1130,6 +1662,12 @@ internal object MostMasteriesCertificate {
                             // (review fix 2026-10-01): ignoring the debit over-counts MP — sound.
                             if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT && value < 0) continue
                             if (value <= 0) {
+                                // T5: NET DI per sub — a build takes the sub whole, so its DI lines sum
+                                // exactly (Vélocité II's −10 rider is real whenever its +1 MP is). Kept signed
+                                // only inside the exact normal packing; clamped at 0 below for every other sub.
+                                if (value < 0 && eff.characteristic == Characteristic.DAMAGE_INFLICTED) {
+                                    opt = opt.copy(d = opt.d + value)
+                                }
                                 // LOW dims (A#1): a NEGATIVE AP/CC line still lowers the real stat a
                                 // condition reads — feed it to the under-approximating dims (permissive
                                 // even when the line sits outside the read). MAX_ACTION_POINT folds into
@@ -1162,11 +1700,16 @@ internal object MostMasteriesCertificate {
                                     eff.characteristic == Characteristic.CRITICAL_HIT ->
                                         opt.copy(
                                             cc = opt.cc + value,
-                                            ccLowRaw = opt.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0 && inPreCombatRead) value else 0)
+                                            ccLowRaw = opt.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0 && inPreCombatRead) value else 0),
+                                            // T1: a start-of-combat line lands OUTSIDE the read — priced on the soc dim.
+                                            ccSoc = opt.ccSoc + (if (geo.socCap > 0 && !inPreCombatRead) value else 0)
                                         )
                                     eff.characteristic == Characteristic.HP -> opt.copy(hp = opt.hp + value)
                                     eff.characteristic == Characteristic.BLOCK_PERCENTAGE && blockAtLeastMax > 0 ->
                                         opt.copy(block = opt.block + value)
+                                    // RANGE (Visibilité II's +1, Furie II's credited-as-held +1): positive lines only,
+                                    // a −1 rider (Combat rapproché II) is dropped — an over-count of the dim.
+                                    eff.characteristic == Characteristic.RANGE && geo.rangeCap > 0 -> opt.copy(range = opt.range + value)
                                     else -> opt
                                 }
                         }
@@ -1188,27 +1731,41 @@ internal object MostMasteriesCertificate {
                                     eff.target == Characteristic.MOVEMENT_POINT -> opt.copy(mp = opt.mp + credit)
                                     eff.target == Characteristic.CRITICAL_HIT -> opt.copy(cc = opt.cc + credit)
                                     eff.target == Characteristic.HP -> opt.copy(hp = opt.hp + credit)
+                                    eff.target == Characteristic.RANGE && geo.rangeCap > 0 -> opt.copy(range = opt.range + credit)
                                     else -> opt
                                 }
                         }
 
-                        is SublimationEffect.Conversion -> if (eff.to in requested) bail = true
                         else -> {}
                     }
                 }
-                if (bail) return null
+                // T5: only the exact normal packing tracks a signed DI (its per-subset sum is exact, and the DP's
+                // DI dim handles the negative delta — [nextDi]); every other sub keeps a NET DI clamped at 0 (an
+                // over-count of its real net, so sound, and never a negative fold-time extra).
+                val entersNormalPacking =
+                    sub.rarity == SublimationRarity.NORMAL &&
+                        !capsObjective &&
+                        sub !== worldAssume &&
+                        opt.capKind == 0 &&
+                        opt.mpCapMinus == 0 &&
+                        !opt.ramp &&
+                        opt.requiresBlockAtLeast == 0
+                if (opt.d < 0 && !entersNormalPacking) opt = opt.copy(d = 0)
                 if (capsObjective) {
                     // The sound M-cap for a build CARRYING this sub:
-                    //  - SECONDARY_MASTERIES_AT_MOST t: the budget knapsack over every mastery
-                    //    source (maximize Σ positive requested lines s.t. the signed
-                    //    all-secondaries sum stays ≤ t);
+                    //  - SECONDARY_MASTERIES_AT_MOST t (EACH secondary ≤ t): the budget knapsack over every
+                    //    mastery source (maximize Σ positive requested lines s.t. the signed all-secondaries
+                    //    sum stays ≤ 6·t — what the per-stat rule implies), capped by the per-stat bound
+                    //    ([secondaryPerStatCap]);
                     //  - CRITICAL_MASTERY_AT_MOST t: caps only the crit component, so M ≤ t + the
                     //    other requested masteries' reachable max.
                     // Its credits (DI/CC/…) ride along and are folded per state at collapse.
                     val t = (cond?.value ?: 0).toLong()
                     val mCap =
                         if (cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST) {
-                            secondaryBudgetCap(t)
+                            // Two sound caps, the smaller wins: the SUM knapsack (a relaxation of the per-stat rule
+                            // at the sum it implies, 6·t) and the per-stat cap itself (CERTIFIER_VERSION 56).
+                            minOf(secondaryBudgetCap(secondaryMasteriesSumBound(t.toInt()).toLong()), secondaryPerStatCap(t))
                         } else {
                             // The condition reads PRE-COMBAT crit mastery; M counts the final one,
                             // which adds start-of-combat crit mastery (Ravage III), ramps and passives
@@ -1218,6 +1775,7 @@ internal object MostMasteriesCertificate {
                                 otherRequestedMasteriesMax()
                         }
                     worldBSubs += Triple(mCap, opt, sub.rarity == SublimationRarity.EPIC)
+                    socPricedSubs += sub
                     continue
                 }
                 if (sub === worldAssume) {
@@ -1226,82 +1784,120 @@ internal object MostMasteriesCertificate {
                     assumedOpt = opt
                     continue
                 }
-                // Block-only subs (Dérobade continue III) stay: their block feeds the AT_LEAST gate.
-                if (opt.m == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && opt.block == 0 && !opt.ramp) continue
+                // Block-only subs (Dérobade continue III) stay: their block feeds the AT_LEAST gate. So do
+                // LOW-read-only subs (Carapace II's −1 MAX_AP): in an assume world they open an AT_MOST read
+                // (review fix, plan §8.18 — dropping them denied a real Inflexibilité carrier its +DI, −21% on
+                // the `low-read-only` lock). A sub whose only effect is a NEGATIVE DI is dominated by not
+                // carrying it, so it is dropped.
+                if (opt.m == 0L &&
+                    opt.d <= 0 &&
+                    opt.ap == 0 &&
+                    opt.mp == 0 &&
+                    opt.cc == 0 &&
+                    opt.hp == 0 &&
+                    opt.block == 0 &&
+                    opt.range == 0 &&
+                    opt.apLow == 0 &&
+                    opt.ccLowRaw == 0 &&
+                    !opt.ramp
+                ) {
+                    continue
+                }
                 repeat(sub.maxCopies.coerceAtLeast(1)) { subOpts += SubOpt(opt, sub.rarity) }
+                socPricedSubs += sub
             }
 
-            fun bucketOptions(
-                rarity: SublimationRarity,
-                capCount: Int,
-            ): List<Opt> {
+            /**
+             * T5 (plan §8.18) — the 10-slot NORMAL knapsack, EXACT per subset: every axis summed RAW (three +3 CC
+             * copies used to be credited a full 10-CC bucket each) and DI SIGNED (a carried sub's negative rider —
+             * Vélocité II's −10 — pays against the subset's other DI); each axis is rounded once, when the packed
+             * option enters the DP ([applyOneRaw], [nextDi]). Sound: a subset's sums are exact up to saturation at
+             * the dims' own caps (the over-counted axes only ever grow, and DI is never saturated before its sum is
+             * complete). The port of MaxDamageSoftCertificate's `exactNormalSubPacking`.
+             */
+            fun exactNormalPacking(capCount: Int): List<Opt> {
                 // Flag-carrying subs never enter the packing (it would erase their flags) — they are
                 // applied as their own stages below.
                 val opts =
                     subOpts
                         .filter {
-                            it.rarity == rarity &&
+                            it.rarity == SublimationRarity.NORMAL &&
                                 it.opt.capKind == 0 &&
                                 it.opt.mpCapMinus == 0 &&
                                 !it.opt.ramp &&
                                 it.opt.requiresBlockAtLeast == 0
                         }.map { it.opt }
                 if (opts.isEmpty()) return listOf(Opt(0L, 0))
-                // LOW dims (A#1): the packing cannot track per-subset signed sums, so every emitted
+                // LOW dims (A#1): the packing does not track per-subset signed sums, so every emitted
                 // aggregate carries the pool-wide NEGATIVE parts — a valid lower bound of ANY
                 // subset's contribution (positives deliberately uncounted: lenient, still sound).
                 val knapApNeg = opts.sumOf { minOf(it.apLow, 0) }
                 val knapCcNeg = opts.sumOf { minOf(it.ccLowRaw, 0) }
-                // Knapsack frontier over (count, d, ap, mp, cc, hp) → max m, dims saturating like the
-                // main DP (the stat dims reuse the global packing in the LOW 41 bits; the copy count
-                // rides bits 44+ so it can never collide with the stat key).
-                val statMask = (1L shl 49) - 1
-                var sub = HashMap<Long, Long>()
-                sub[0L] = 0L
+
+                data class PackKey(
+                    val count: Int,
+                    val d: Int,
+                    val ap: Int,
+                    val mp: Int,
+                    val cc: Int,
+                    val hp: Int,
+                    val block: Int,
+                    val soc: Int,
+                    val range: Int,
+                )
+                val ccRawCap = geo.ccBucketCap * ccStep
+                val hpRawCap = geo.hpBucketCap * hpStep
+                val blockRawCap = geo.blockBucketCap * BLOCK_STEP
+                val socRawCap = geo.socCap * geo.socStep
+                val zero = PackKey(0, 0, 0, 0, 0, 0, 0, 0, 0)
+                var frontier = HashMap<PackKey, Long>().apply { put(zero, 0L) }
+                var names = if (wantSrc) HashMap<PackKey, String>().apply { put(zero, "") } else null
                 for (o in opts) {
-                    val next = HashMap(sub)
-                    for ((k, mv) in sub) {
-                        val cnt = (k shr 50).toInt()
-                        if (cnt >= capCount) continue
-                        val stat = k and statMask
-                        val nStat =
-                            geo.key(
-                                (geo.d(stat) + ceilDiv(o.d, diStep)).coerceAtMost(geo.diBucketCap),
-                                (geo.ap(stat) + o.ap).coerceAtMost(geo.apCap),
-                                (geo.mp(stat) + o.mp).coerceAtMost(geo.mpCap),
-                                (geo.cc(stat) + ceilDiv(o.cc, ccStep)).coerceAtMost(geo.ccBucketCap),
-                                (geo.hp(stat) + ceilDiv(o.hp, hpStep)).coerceAtMost(geo.hpBucketCap),
-                                0,
-                                0,
-                                block = (geo.block(stat) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(geo.blockBucketCap)
+                    val next = HashMap(frontier)
+                    val nextNames = names?.let { HashMap(it) }
+                    for ((k, mv) in frontier) {
+                        if (k.count >= capCount) continue
+                        val nk =
+                            PackKey(
+                                count = k.count + 1,
+                                // Exact and unsaturated: saturating before a later negative rider could under-count.
+                                d = k.d + o.d,
+                                ap = (k.ap + o.ap).coerceAtMost(geo.apCap),
+                                mp = (k.mp + o.mp).coerceAtMost(geo.mpCap),
+                                cc = (k.cc + o.cc).coerceAtMost(ccRawCap),
+                                hp = (k.hp + o.hp).coerceAtMost(hpRawCap),
+                                block = (k.block + o.block).coerceAtMost(blockRawCap),
+                                soc = (k.soc + o.ccSoc).coerceAtMost(socRawCap),
+                                range = (k.range + o.range).coerceAtMost(geo.rangeCap)
                             )
-                        val nk = ((cnt + 1).toLong() shl 50) or nStat
                         val nm = mv + o.m
                         val cur = next[nk]
-                        if (cur == null || nm > cur) next[nk] = nm
+                        if (cur == null || nm > cur) {
+                            next[nk] = nm
+                            nextNames?.set(nk, listOfNotNull(names?.get(k)?.ifEmpty { null }, o.src.ifEmpty { null }).joinToString("+"))
+                        }
                     }
-                    sub = next
+                    frontier = next
+                    names = nextNames
                 }
-                return sub.map { (k, mv) ->
-                    val cnt = (k shr 50).toInt()
-                    val stat = k and statMask
+                return frontier.map { (k, mv) ->
                     Opt(
                         m = mv,
-                        d = geo.d(stat) * diStep,
-                        ap = geo.ap(stat),
-                        mp = geo.mp(stat),
-                        cc = geo.cc(stat) * ccStep,
-                        hp = geo.hp(stat) * hpStep,
-                        block = geo.block(stat) * BLOCK_STEP,
-                        requiresEpicItem = rarity == SublimationRarity.EPIC && cnt > 0,
-                        requiresRelicItem = rarity == SublimationRarity.RELIC && cnt > 0,
+                        d = k.d,
+                        ap = k.ap,
+                        mp = k.mp,
+                        cc = k.cc,
+                        hp = k.hp,
+                        block = k.block,
                         apLow = knapApNeg,
                         ccLowRaw = knapCcNeg,
-                        src = if (wantSrc) "$rarity x$cnt" else ""
+                        ccSoc = k.soc,
+                        range = k.range,
+                        src = if (wantSrc) names?.get(k).orEmpty().ifEmpty { "NORMAL x${k.count}" } else ""
                     )
                 }
             }
-            step("subs-normal", bucketOptions(SublimationRarity.NORMAL, 10))
+            step("subs-normal", exactNormalPacking(10))
             // Flag-carrying NORMAL subs (Armure lourde's MAX_MP−1 rider, the Poids Plume ramp): one
             // stage each, on top of the 10-cap knapsack — over-counts the shared slot budget by ≤
             // the handful of such subs (slots are not scarce for the axes we track; sound).
@@ -1313,12 +1909,14 @@ internal object MostMasteriesCertificate {
             }
 
             // EPIC / RELIC: cap 1 ⇒ a plain option list (no packing), which also PRESERVES the cap
-            // flags of the increment-4 conditional epics (Inflexibilité, Constance, Mesure III).
+            // flags of the increment-4 conditional epics (Inflexibilité, Constance, Mesure III). Staged after the
+            // skills, so their flat HP takes the %HP scaling here ([hpScaled]).
             fun singleSlotOptions(rarity: SublimationRarity): List<Opt> =
                 listOf(Opt(0L, 0)) +
                     prune(
                         subOpts.filter { it.rarity == rarity }.map {
                             it.opt.copy(
+                                hp = hpScaled(it.opt.hp),
                                 requiresEpicItem = rarity == SublimationRarity.EPIC,
                                 requiresRelicItem = rarity == SublimationRarity.RELIC
                             )
@@ -1351,6 +1949,7 @@ internal object MostMasteriesCertificate {
                         cc = passivePos(Characteristic.CRITICAL_HIT),
                         hp = passivePos(Characteristic.HP),
                         block = if (blockAtLeastMax > 0) passivePos(Characteristic.BLOCK_PERCENTAGE) else 0,
+                        range = if (geo.rangeCap > 0) passivePos(Characteristic.RANGE) else 0,
                         src = if (wantSrc) "passives" else ""
                     )
                 )
@@ -1398,7 +1997,7 @@ internal object MostMasteriesCertificate {
                     if (sk is SkillCharacteristic.PairedCharacteristic) {
                         return combineOpts(creditOf(sk.first, pts), creditOf(sk.second, pts))
                     }
-                    // Irrelevant halves (elemental mastery, range, control) feed none of our axes.
+                    // Irrelevant halves (elemental mastery, control, an untargeted range) feed none of our axes.
                     val skChar = sk.characteristic?.takeIf(::relevantChar) ?: return Opt(0L, 0)
                     // %HP scales the build's own HP — expressed multiplicatively on the HP dim (far
                     // tighter than a flat credit at the layer-independent reachable max, still sound).
@@ -1423,6 +2022,8 @@ internal object MostMasteriesCertificate {
                             Opt(0L, 0, cc = v, ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) v else 0, src = srcTag)
                         skChar == Characteristic.BLOCK_PERCENTAGE -> Opt(0L, 0, block = v, src = srcTag)
                         skChar == Characteristic.HP -> Opt(0L, 0, hp = v, src = srcTag)
+                        // Major "Range and damage" (+1 range, paired with +40 elemental mastery).
+                        skChar == Characteristic.RANGE -> Opt(0L, 0, range = v, src = srcTag)
                         else -> Opt(0L, 0)
                     }
                 }
@@ -1448,7 +2049,11 @@ internal object MostMasteriesCertificate {
 
         // Increment 8: EPIC/RELIC subs land after every other block source (items/normal subs/skills).
         epicRelicStages?.invoke()
-        if (cancelled) return null
+        if (cancelled) {
+            if (debug && lowOverflow) println("MM_M3V2_LOW_OFFSET_OVERFLOW lowOff=${geo.lowOff} world=${worldAssume?.name?.fr}")
+            return null
+        }
+        if (debug && geo.lowFieldMax > 0) println("MM_M3V2_LOW_OFFSET lowOff=${geo.lowOff} sat=${geo.lowSatBase + geo.lowOff}/${geo.lowFieldMax} world=${worldAssume?.name?.fr}")
 
         // Collapse: mirror applyConstraintPenalty/bucketedIndex/buildPowerTable arithmetic exactly
         // (shared with [fullTargetsMultiplier], so the hard-leg unit conversion can never drift).
@@ -1468,8 +2073,9 @@ internal object MostMasteriesCertificate {
         fun targetOf(char: Characteristic): Long = targetByChar[char]?.target?.toLong() ?: 0L
 
         // Precompute the world-B SUBSET folds (2^n − 1, minus impossible two-EPIC combos): the
-        // combined credits + the min cap of each subset, shared by every state's collapse.
-        if (worldBSubs.size > 6) return null
+        // combined credits + the min cap of each subset, shared by every state's collapse. ([requestShape] bails
+        // on more than 6 world-B subs.)
+        check(worldBSubs.size <= 6) { "requestShape admitted ${worldBSubs.size} world-B subs" }
         val worldBSubsets: List<Pair<Long, Opt>> =
             (1 until (1 shl worldBSubs.size)).mapNotNull { mask ->
                 val members = worldBSubs.filterIndexed { i, _ -> (mask shr i) and 1 == 1 }
@@ -1483,7 +2089,35 @@ internal object MostMasteriesCertificate {
         // the FINAL stat the target reads adds what lands outside that read (start-of-combat lines,
         // ramps, passives — see [outsideReadMax]). Computed once per world, not per state.
         val apOutsideRead = if (geo.assumeApThreshold >= 0) outsideReadMax(Characteristic.ACTION_POINT, worldAssume, excludeEpics = true) else 0L
-        val ccOutsideRead = if (geo.assumeCcThresholdRaw >= 0) outsideReadMax(Characteristic.CRITICAL_HIT, worldAssume, excludeEpics = true) else 0L
+        // T1: with the soc dim tracked, the staged and world-B subs' start-of-combat crit is priced per state
+        // (the dim / `extra`) — only passives, ramps and never-staged subs stay in this budget-free constant (it
+        // used to credit every choosable sub's crit at max copies: Mesure III's world read CC ~92 of the 100
+        // target on S2 for free, plan §8.16).
+        val ccOutsideRead =
+            if (geo.assumeCcThresholdRaw >= 0) {
+                outsideReadMax(
+                    Characteristic.CRITICAL_HIT,
+                    worldAssume,
+                    excludeEpics = true,
+                    pricedElsewhere = if (geo.socCap > 0) socPricedSubs else emptySet()
+                )
+            } else {
+                0L
+            }
+
+        // T3 (plan §8.18): the TARGETS-MET read rides the same collapse. A most-masteries HARD-leg result is the
+        // optimum among builds with `actual ≥ target` for every required target > 0 (StatBuilder.
+        // addRequiredTargetHardConstraints), and such a build's soft objective is `core × fullMultiplier × SCALE +
+        // bonus` — the hard leg's converted stamp. Every read below is an over-count of the build's FINAL stat
+        // (or ≥ the target once saturated at it), so a targets-met build's own state passes `read ≥ target` on every
+        // target: filtering the other states out keeps a sound bound OF THAT SET, while the soft read must also
+        // cover target-missing builds the hard leg never returns (+42% vs +24% on S2, plan §8.18). The hard leg also
+        // holds every floor (a required row of target 0) `≥ 0`, which this read does not check: a superset again, sound.
+        val fullMultiplier = power6(penalty.fullBucket)
+        val hardChecked = targets.filter { it.target > 0 }
+        var bestHardCore = 0L
+        var bestHardFolded = 0L
+        var hardBindingState = ""
 
         var bestCore = 0L
         var bestFolded = 0L
@@ -1496,8 +2130,8 @@ internal object MostMasteriesCertificate {
             // self-exclusion built in: the assumed sub was never staged) must stay ≤ the threshold.
             if (worldAssume != null) {
                 if (geo.e(k) == 0) continue
-                if (geo.assumeApThreshold >= 0 && geo.ap(k) > geo.assumeApThreshold) continue
-                if (geo.assumeCcThresholdRaw >= 0 && geo.cc(k) > geo.assumeCcThresholdRaw) continue
+                if (geo.assumeApThreshold >= 0 && geo.lowRead(k) > geo.assumeApThreshold) continue
+                if (geo.assumeCcThresholdRaw >= 0 && geo.lowRead(k) > geo.assumeCcThresholdRaw) continue
             }
             // Increment 6: the deferred MP→DI ramp lands here at the PATH's own MP (the dim
             // over-counts real MP and contribution() is monotone — sound).
@@ -1516,11 +2150,11 @@ internal object MostMasteriesCertificate {
             fun foldWith(
                 extra: Opt,
                 mCap: Long?,
-            ): Pair<Long, Long> {
+            ): Fold {
                 val mvX = (mv + assumedOpt.m + extra.m).let { if (mCap != null) minOf(it, mCap) else it }
                 val di = (geo.d(k).toLong() * diStep + assumedOpt.d + extra.d + rampDi).coerceAtMost(diCap.toLong())
                 val core = (maxOf(mvX, 0L) * (100L + di) / 100L).coerceAtMost(MASTERY_SCORE_ABS_MAX)
-                if (targets.isEmpty()) return core to core
+                if (targets.isEmpty()) return Fold(core, core, targetsMet = true)
                 val apRead =
                     if (geo.assumeApThreshold >= 0) {
                         (geo.assumeApThreshold + maxOf(assumedOpt.ap, 0)).toLong() + apOutsideRead + extra.ap
@@ -1529,19 +2163,39 @@ internal object MostMasteriesCertificate {
                     }
                 val ccRead =
                     if (geo.assumeCcThresholdRaw >= 0) {
-                        (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + ccOutsideRead + extra.cc
+                        (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + ccOutsideRead + extra.cc +
+                            // T1: the start-of-combat crit this path carries (0 when untracked).
+                            geo.soc(k).toLong() * geo.socStep
                     } else {
                         geo.cc(k).toLong() * ccStep + assumedOpt.cc + extra.cc
                     }
+                val mpRead = geo.mp(k).toLong() + assumedOpt.mp + extra.mp
+                // The assumed / world-B subs' flat HP lands after the skills stage: %HP-scaled here ([hpScaled]).
+                val hpRead = geo.hp(k).toLong() * hpStep + hpScaled(assumedOpt.hp + extra.hp)
+                val rangeRead = geo.range(k).toLong() + assumedOpt.range + extra.range
+                // One term per TRACKED row (an untracked stat weighs 0 here, exactly like a 0-valued row in the model).
                 val totalActual =
                     weight(Characteristic.ACTION_POINT) * minOf(apRead, targetOf(Characteristic.ACTION_POINT)) +
-                        weight(Characteristic.MOVEMENT_POINT) *
-                        minOf(geo.mp(k).toLong() + assumedOpt.mp + extra.mp, targetOf(Characteristic.MOVEMENT_POINT)) +
+                        weight(Characteristic.MOVEMENT_POINT) * minOf(mpRead, targetOf(Characteristic.MOVEMENT_POINT)) +
                         weight(Characteristic.CRITICAL_HIT) * minOf(ccRead, targetOf(Characteristic.CRITICAL_HIT)) +
-                        weight(Characteristic.HP) *
-                        minOf(geo.hp(k).toLong() * hpStep + assumedOpt.hp + extra.hp, targetOf(Characteristic.HP))
+                        weight(Characteristic.HP) * minOf(hpRead, targetOf(Characteristic.HP)) +
+                        weight(Characteristic.RANGE) * minOf(rangeRead, targetOf(Characteristic.RANGE))
                 val bucket = (totalActual.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
-                return core to core * power6(bucket) * OVERSHOOT_SCALE_MIRROR + (OVERSHOOT_SCALE_MIRROR - 1)
+                val targetsMet =
+                    hardChecked.all {
+                        val read =
+                            when (it.characteristic) {
+                                Characteristic.ACTION_POINT -> apRead
+                                Characteristic.MOVEMENT_POINT -> mpRead
+                                Characteristic.CRITICAL_HIT -> ccRead
+                                Characteristic.HP -> hpRead
+                                Characteristic.RANGE -> rangeRead
+                                // Unreachable: a row with target > 0 is tracked, so in SUPPORTED_TARGETS.
+                                else -> error("untracked required target ${it.characteristic}")
+                            }
+                        read >= it.target
+                    }
+                return Fold(core, core * power6(bucket) * OVERSHOOT_SCALE_MIRROR + (OVERSHOOT_SCALE_MIRROR - 1), targetsMet)
             }
 
             fun consider(
@@ -1549,16 +2203,29 @@ internal object MostMasteriesCertificate {
                 mCap: Long?,
                 tag: String,
             ) {
-                val (core, folded) = foldWith(extra, mCap)
+                val fold = foldWith(extra, mCap)
+                val core = fold.core
+
+                fun describe() =
+                    "M=${mv + assumedOpt.m + extra.m} d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
+                        "cc=${geo.cc(k) * ccStep} soc=${geo.soc(k) * geo.socStep} hp=${geo.hp(k) * hpStep} range=${geo.range(k)} " +
+                        "e=${geo.e(k)} r=${geo.r(k)} assume=${worldAssume?.name?.fr ?: "-"}$tag mpMinus=${geo.mpMinus(k)} core=$core" +
+                        (if (geo.lowFieldMax > 0) " lowRead=${geo.lowRead(k)} lowOff=${geo.lowOff}" else "")
                 if (core > bestCore) bestCore = core
-                if (folded > bestFolded) {
-                    bestFolded = folded
+                if (fold.folded > bestFolded) {
+                    bestFolded = fold.folded
                     bindingKey = k
                     bindingM = mv
-                    bindingState =
-                        "M=${mv + assumedOpt.m + extra.m} d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
-                        "cc=${geo.cc(k) * ccStep} hp=${geo.hp(k) * hpStep} e=${geo.e(k)} r=${geo.r(k)} " +
-                        "assume=${worldAssume?.name?.fr ?: "-"}$tag mpMinus=${geo.mpMinus(k)} core=$core"
+                    bindingState = describe()
+                }
+                if (fold.targetsMet) {
+                    if (core > bestHardCore) bestHardCore = core
+                    // Without required targets the two legs coincide (bare core); else the full-targets fold.
+                    val hardFolded = if (targets.isEmpty()) core else core * fullMultiplier * OVERSHOOT_SCALE_MIRROR + (OVERSHOOT_SCALE_MIRROR - 1)
+                    if (hardFolded > bestHardFolded) {
+                        bestHardFolded = hardFolded
+                        hardBindingState = describe()
+                    }
                 }
             }
 
@@ -1577,18 +2244,22 @@ internal object MostMasteriesCertificate {
         if (provenance && stageLog != null && bindingState.isNotEmpty()) {
             var curK = bindingKey
             var curM = bindingM
-            for ((label, preMap, options) in stageLog.reversed()) {
+            for ((label, preMap, options, stageLowOff, stageShift) in stageLog.reversed()) {
+                geo.lowOff = stageLowOff
                 var found = false
                 outer@ for ((pk, pm) in preMap) {
                     for (o in options) {
                         if (pm + o.m != curM) continue
                         if (geo.applyOne(pk, o) == curK) {
-                            if (o.src.isNotEmpty() || o.m != 0L || o.d != 0 || o.ap != 0 || o.mp != 0 || o.cc != 0 || o.hp != 0) {
+                            if (o.src.isNotEmpty() || o.m != 0L || o.d != 0 || o.ap != 0 || o.mp != 0 || o.cc != 0 || o.hp != 0 || o.range != 0) {
                                 bindingPath +=
                                     "$label: ${o.src.ifEmpty { "opt" }} " +
-                                    "(m=${o.m} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct})"
+                                    "(m=${o.m} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct} range=${o.range})"
                             }
-                            curK = pk
+                            // The pre-stage map was logged AFTER the stage's LOW-offset shift: undo it, so the key is the
+                            // one the previous stage produced (review follow-up — the backtrack broke after the first
+                            // stage whose offset grew).
+                            curK = if (stageShift != 0) geo.shiftLow(pk, -stageShift) else pk
                             curM = pm
                             found = true
                             break@outer
@@ -1602,8 +2273,37 @@ internal object MostMasteriesCertificate {
             }
             bindingPath.reverse()
         }
-        return Result(bestFolded, bestCore, states.size, (System.nanoTime() - t0) / 1_000_000, bindingState, bindingPath)
+        return Result(
+            bestFolded,
+            bestCore,
+            states.size,
+            (System.nanoTime() - t0) / 1_000_000,
+            bindingState,
+            bindingPath,
+            hardFoldedBound = bestHardFolded,
+            hardCoreBound = bestHardCore,
+            hardBindingState = hardBindingState
+        )
     }
+
+    /**
+     * One provenance-log entry: a stage's label, its pre-stage states (logged AFTER the stage's LOW-offset shift), its
+     * options, the LOW-dim offset it ran under and the [shift] it opened it by (the replay undoes it).
+     */
+    private data class StageRecord(
+        val label: String,
+        val preMap: HashMap<Long, Long>,
+        val options: List<Opt>,
+        val lowOff: Int,
+        val shift: Int,
+    )
+
+    /** One collapse fold of a state: its core, its SOFT folded value, and whether its reads meet every required target > 0. */
+    private class Fold(
+        val core: Long,
+        val folded: Long,
+        val targetsMet: Boolean,
+    )
 
     private val OVERSHOOT_SCALE_MIRROR = WakfuBuildSolver.OVERSHOOT_SCALE
     private val EMPTY_OPT = Opt(0L, 0)

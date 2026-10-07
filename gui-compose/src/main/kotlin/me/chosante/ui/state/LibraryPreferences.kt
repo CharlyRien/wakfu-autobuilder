@@ -5,10 +5,10 @@ import java.util.prefs.Preferences
 
 /**
  * Persists the *durable* UI options across launches — the library view options (sort order and
- * group-by-class) and the chosen UI language (the active search/class filters are deliberately
- * in-memory and reset each launch). Mirrors [WarmupTiming]'s Preferences pattern, but as an injectable
- * instance so tests can point it at a throwaway node. Every access is wrapped in `runCatching`: a prefs
- * failure must never break the UI.
+ * group-by-class), the chosen UI language and the "check optimality after the search" switch (the active
+ * search/class filters are deliberately in-memory and reset each launch). Mirrors [WarmupTiming]'s
+ * Preferences pattern, but as an injectable instance so tests can point it at a throwaway node. Every
+ * access is wrapped in `runCatching`: a prefs failure must never break the UI.
  */
 class LibraryPreferences(
     private val prefs: Preferences? =
@@ -34,6 +34,17 @@ class LibraryPreferences(
     }
 
     /**
+     * Whether the engine keeps checking the build's optimality after a search ends ("Check optimality after the
+     * search"). ON on first run and on any read failure: the check is what earns the "proven optimal" badges, and
+     * switching it off is the user's deliberate choice.
+     */
+    fun loadVerifyOptimality(): Boolean = runCatching { prefs?.getBoolean(KEY_VERIFY_OPTIMALITY, true) }.getOrNull() ?: true
+
+    fun saveVerifyOptimality(value: Boolean) {
+        runCatching { prefs?.putBoolean(KEY_VERIFY_OPTIMALITY, value) }
+    }
+
+    /**
      * The persisted tag registry — tags exist as first-class, named entities independent of any build,
      * so removing a tag from its last build doesn't destroy it. Stored newline-joined (tag names are
      * single-line). Returns an empty list on any read failure or first launch.
@@ -56,5 +67,6 @@ class LibraryPreferences(
         const val KEY_SORT = "librarySort"
         const val KEY_GROUP = "libraryGroupByClass"
         const val KEY_TAGS = "knownTags"
+        const val KEY_VERIFY_OPTIMALITY = "verifyOptimalityAfterSearch"
     }
 }

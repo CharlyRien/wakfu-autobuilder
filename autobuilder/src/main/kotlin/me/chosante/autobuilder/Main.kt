@@ -96,6 +96,7 @@ import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_EARTH
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_FIRE
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WIND
+import me.chosante.common.Characteristic.WAKFU_POINT
 import me.chosante.common.Characteristic.WILLPOWER
 import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
@@ -103,6 +104,7 @@ import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.WakfuData
+import me.chosante.common.displayedMatchPercent
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 import java.util.Locale
@@ -126,7 +128,7 @@ private val additionalHelpOnStats =
         |-> x:y | x being the number wanted, y the weight of the statistic you want to put (default is 1)
     """.trimMargin()
 
-private class WakfuAutobuild :
+internal class WakfuAutobuild :
     CliktCommand(
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
@@ -264,7 +266,7 @@ HUPPERMAGE"""
         names = arrayOf("--wp", "--wakfu-point", "--pw"),
         help = "Number of wakfu points wanted. $additionalHelpOnStats"
     ).splitPair(delimiter = ":")
-        .toTargetStat(MOVEMENT_POINT)
+        .toTargetStat(WAKFU_POINT)
 
     private val masteryElementWanted: TargetStat? by option(
         names = arrayOf("--mastery-elementary", "--maitrise-elementaire"),
@@ -636,6 +638,48 @@ HUPPERMAGE"""
                 "the optimal build is unchanged. Default 1."
     ).double().default(1.0).check("Difficulty multiplier must be > 0") { it > 0.0 }
 
+    /** The stat options as the engine receives them — internal so the CLI option tests can parse without searching. */
+    internal fun requestedTargetStats(): TargetStats =
+        TargetStats(
+            listOfNotNull(
+                paWanted,
+                pmWanted,
+                hpWanted,
+                pwWanted,
+                criticalHitWanted,
+                rangeWanted,
+                masteryElementWanted,
+                masteryBackWanted,
+                controlWanted,
+                masteryEarthWanted,
+                masteryFireWanted,
+                masteryWaterWanted,
+                masteryWindWanted,
+                masteryMeleeWanted,
+                masteryBerserkWanted,
+                masteryHealingWanted,
+                masteryBackWanted,
+                masteryCriticalWanted,
+                masteryDistanceWanted,
+                resistanceCriticalWanted,
+                resistanceBackWanted,
+                resistanceElementaryWanted,
+                resistanceElementaryFireWanted,
+                resistanceElementaryWaterWanted,
+                resistanceElementaryEarthWanted,
+                resistanceElementaryWindWanted,
+                wisdomWanted,
+                lockWanted,
+                dodgeWanted,
+                prospectionWanted,
+                initiativeWanted,
+                willpowerWanted,
+                receivedArmorPercentageWanted,
+                blockPercentageWanted,
+                armorGivenPercentageWanted
+            )
+        )
+
     override fun run() {
         // Contradictory level bounds (min above max) match no normal item — the engine's level
         // filter keeps items with min <= itemLevel <= max — so the solver would silently fall back
@@ -654,46 +698,7 @@ HUPPERMAGE"""
         val targetBoss = boss?.let { resolveBoss(it) }
         val mode = if (targetBoss != null) ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE else computationMode
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, maxLevelWanted, minLevelWanted)
-        val targetStats =
-            TargetStats(
-                listOfNotNull(
-                    paWanted,
-                    pmWanted,
-                    hpWanted,
-                    pwWanted,
-                    criticalHitWanted,
-                    rangeWanted,
-                    masteryElementWanted,
-                    masteryBackWanted,
-                    controlWanted,
-                    masteryEarthWanted,
-                    masteryFireWanted,
-                    masteryWaterWanted,
-                    masteryWindWanted,
-                    masteryMeleeWanted,
-                    masteryBerserkWanted,
-                    masteryHealingWanted,
-                    masteryBackWanted,
-                    masteryCriticalWanted,
-                    masteryDistanceWanted,
-                    resistanceCriticalWanted,
-                    resistanceBackWanted,
-                    resistanceElementaryWanted,
-                    resistanceElementaryFireWanted,
-                    resistanceElementaryWaterWanted,
-                    resistanceElementaryEarthWanted,
-                    resistanceElementaryWindWanted,
-                    wisdomWanted,
-                    lockWanted,
-                    dodgeWanted,
-                    prospectionWanted,
-                    initiativeWanted,
-                    willpowerWanted,
-                    receivedArmorPercentageWanted,
-                    blockPercentageWanted,
-                    armorGivenPercentageWanted
-                )
-            )
+        val targetStats = requestedTargetStats()
         // Max-damage mode optimizes the attack scenario, so target stats are optional there (they only
         // act as hard AP/MP/range/… constraints); every other mode needs at least one target.
         if (targetStats.isEmpty() && mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
@@ -784,12 +789,7 @@ HUPPERMAGE"""
                     .onStart { progressBar.execute() }
                     .onEach {
                         progressBar.update {
-                            context =
-                                if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                                    "expected damage so far: ${it.matchPercentage}"
-                                } else {
-                                    "${it.matchPercentage}% match found so far"
-                                }
+                            context = searchProgressLine(mode, it.matchPercentage)
                             completed = it.progressPercentage.toLong()
                         }
                         delay(1000L)
@@ -882,6 +882,19 @@ HUPPERMAGE"""
                         // Not "no certificate for this request": the certificate now runs for required-target
                         // requests too (it just can't rank this one — e.g. a target the incumbent misses, a boss /
                         // multi-element shape, forced runes, or a certifier bail). Keep the verdict honest and vague.
+                        terminal.println("Optimality not proven for this request")
+                }
+            }
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                // The most-masteries quality certificate, one full-tier pass: its bound was computed in the search's
+                // tail (E10-for-MM), so the verdict is usually instant — else it waits for (or computes) the bound.
+                terminal.println("Checking optimality…")
+                when (val proof = WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(searchParams, bestResult)) {
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal ->
+                        terminal.println(TextStyles.bold(if (bestResult.isOptimal) "Proven optimal (solver)" else "Proven optimal (certificate)"))
+                    is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin ->
+                        terminal.println("Proven within ${String.format(Locale.ROOT, "%.1f", proof.percent * 100)}% of optimal")
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable ->
                         terminal.println("Optimality not proven for this request")
                 }
             }
@@ -1159,10 +1172,24 @@ private fun Assignable<*>.asASCIITable() =
 private fun NullableOption<Pair<String, String>, Pair<String, String>>.toTargetStat(characteristic: Characteristic): NullableOption<TargetStat, TargetStat> =
     convert { (value, weight) ->
         val valueInt = value.toIntOrNull() ?: fail("'$value' should be a number")
+        // Targets are non-negative in the GUI too. Reject them here, before run() (and any solver/native work), using
+        // Clikt's localized range error so the message names the offending option and its valid lower bound.
+        if (valueInt < 0) fail(context.localization.rangeExceededMin(value, "0"))
 
         TargetStat(
             characteristic = characteristic,
             target = valueInt,
             userDefinedWeight = weight.toIntOrNull() ?: 1
         )
+    }
+
+/** The progress headline, with precision read as the same capped whole percentage as the GUI. */
+internal fun searchProgressLine(
+    mode: ScoreComputationMode,
+    match: java.math.BigDecimal,
+): String =
+    when (mode) {
+        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> "${match.displayedMatchPercent()}% match found so far"
+        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> "expected damage so far: $match"
+        else -> "$match% match found so far"
     }

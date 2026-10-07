@@ -31,26 +31,40 @@ object FindMaxDamageScoring {
         characterBaseCharacteristics: Map<Characteristic, Int>,
         scenario: DamageScenario,
     ): BigDecimal {
-        val stats =
-            computeCharacteristicsValues(
-                buildCombination,
-                characterBaseCharacteristics,
-                // Fold generic elemental mastery into the scenario's element so the read below already
-                // includes both the specific-element and the "+all elements" contributions.
-                masteryElementsWanted = mapOf(scenario.element.masteryCharacteristic to 1),
-                // Real resistance targets so the penalty's stats include RESISTANCE_ELEMENTARY / per-element
-                // resistances (an emptyMap read them as 0, so a required resistance couldn't rank builds).
-                resistanceElementsWanted = targetStats.resistanceElementsWanted,
-                // Mode + scenario let the sublimation fold gate scenario-specific effects (and apply the
-                // build-static conditional ones) for the chosen build's stats.
-                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                damageScenario = scenario
-            )
-
+        val stats = penaltyStats(targetStats, buildCombination, characterBaseCharacteristics, scenario)
         val expectedDamage = expectedDamage(stats, scenario)
         val penaltyFactor = requiredConstraintPenaltyFactor(targetStats, stats)
         return expectedDamage.divide(penaltyFactor, 4, RoundingMode.FLOOR)
     }
+
+    /**
+     * The stats a max-damage build is scored on — the ONE resolution every max-damage reader shares (this scorer, the search's
+     * ranking and proof gate — `MaxDamageSearch.sequencedScore` / `fullyMeetsRequiredTargets` — the solver's rotation score, the
+     * GUI's stats column), so none can read a required row or a floor differently from the others or from the solver:
+     *  - the generic elemental mastery folded into [scenario]'s element, so the mastery read already includes both the
+     *    specific-element and the "+all elements" contributions;
+     *  - the real resistance targets (an empty map read RESISTANCE_ELEMENTARY / per-element resistances as 0, so a required
+     *    resistance could not rank builds), their random rolls — and a floor's — placed where the solver's joint fold places
+     *    them ([elementRowObjectives]);
+     *  - the max-damage mode and [scenario], which gate the sublimation effects tied to it (berserk, orientation, range…) as
+     *    the solver's terms do (`SublimationTerms`) and apply the build-static conditional ones. Without them a gated effect
+     *    was dropped: "Esquive Berserk III" kept dodge ≥ 0 for the solver while this read −100 and halved the build.
+     */
+    fun penaltyStats(
+        targetStats: TargetStats,
+        buildCombination: BuildCombination,
+        characterBaseCharacteristics: Map<Characteristic, Int>,
+        scenario: DamageScenario,
+    ): Map<Characteristic, Int> =
+        computeCharacteristicsValues(
+            buildCombination,
+            characterBaseCharacteristics,
+            masteryElementsWanted = mapOf(scenario.element.masteryCharacteristic to 1),
+            resistanceElementsWanted = targetStats.resistanceElementsWanted,
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            damageScenario = scenario,
+            elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+        )
 
     /**
      * Expected damage of a single hit for [scenario] given the build's resolved [stats].
@@ -94,40 +108,16 @@ object FindMaxDamageScoring {
     }
 
     /**
-     * Replicates the most-masteries shortfall penalty: builds that fall short of the required hard
-     * targets (AP/MP/range/HP/…) are divided down by `(100 / successPercentage)^6`, so the solver and
-     * scorer both prefer constraint-satisfying builds. Returns 1 when every required target is met (or
-     * none are requested).
+     * The most-masteries shortfall penalty ([requiredPenaltyFactor]): builds that fall short of the required hard targets
+     * (AP/MP/range/HP/…) are divided down by `(100 / successPercentage)^6`, so the solver and scorer both prefer
+     * constraint-satisfying builds; a floor below 0 (a required row of target 0 — see [floorBroken]) doubles the divisor, as
+     * the solver's soft leg halves its objective. Returns 1 when every required target is met and no floor is broken (or none
+     * are requested). Capped at [MAX_PENALTY_MULTIPLIER] like the solver's floored multiplier ([penaltyMultiplier]):
+     * far-out-of-reach builds (< ~10%) keep their damage gradient — the external loop ranks probe results by this score, so an
+     * uncapped ~1e12 divisor read every such build as 0. [stats] must come from [penaltyStats].
      */
     internal fun requiredConstraintPenaltyFactor(
         targetStats: TargetStats,
         stats: Map<Characteristic, Int>,
-    ): BigDecimal {
-        val totalActual =
-            targetStats
-                .sumOf { targetStat ->
-                    if (targetStat.characteristic.isRequiredMostMasteriesTarget()) {
-                        val weight = targetStats.weight(targetStat)
-                        ((stats[targetStat.characteristic] ?: 0) * weight)
-                            .coerceAtMost(targetStats.expectedScoreByCharacteristic[targetStat] ?: 0.0)
-                    } else {
-                        0.0
-                    }
-                }.toBigDecimal()
-                .setScale(4, RoundingMode.FLOOR)
-
-        val totalExpected =
-            targetStats
-                .filter { it.characteristic.isRequiredMostMasteriesTarget() }
-                .sumOf { it.target * targetStats.weight(it) }
-                .toBigDecimal()
-                .setScale(4, RoundingMode.FLOOR)
-
-        if (totalExpected <= BigDecimal.ONE) return BigDecimal.ONE
-
-        val successPercentage =
-            ((totalActual.coerceAtLeast(BigDecimal.ONE) / totalExpected.coerceAtLeast(BigDecimal.ONE)) * BigDecimal(100))
-                .coerceAtMost(BigDecimal(100))
-        return (BigDecimal(100).setScale(4) / successPercentage.coerceAtLeast(BigDecimal.ONE)).pow(6)
-    }
+    ): BigDecimal = targetStats.requiredPenaltyFactor(stats)
 }

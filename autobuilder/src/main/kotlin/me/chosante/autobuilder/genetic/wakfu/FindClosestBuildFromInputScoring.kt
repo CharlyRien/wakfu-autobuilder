@@ -4,6 +4,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.associateWeights
 import me.chosante.autobuilder.domain.perElementDiMastery
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
@@ -17,12 +18,14 @@ import java.math.MathContext
 import java.math.RoundingMode
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 object FindClosestBuildFromInputScoring {
     fun computeScore(
         targetStats: TargetStats,
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
+        includeOverflow: Boolean = true,
     ): BigDecimal {
         val actualCharacteristicsValues =
             computeCharacteristicsValues(
@@ -30,26 +33,24 @@ object FindClosestBuildFromInputScoring {
                 characterBaseCharacteristics,
                 targetStats.masteryElementsWanted,
                 targetStats.resistanceElementsWanted,
-                scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+                scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+                // Per-element rows and floors: the random rolls placed as the solver's joint fold places them.
+                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
             )
 
         var totalActualScore = calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = false)
 
-        // Apply penalty on asked characteristics with target 0 and negative value on the current build
-        targetStats
-            .filter { it.target == 0 }
-            .forEach { targetStat ->
-                actualCharacteristicsValues[targetStat.characteristic]?.let {
-                    if (it < 0) {
-                        totalActualScore /= 2
-                    }
-                }
-            }
+        // A floor below 0 (a row of target 0 on a required stat — "air resistance 0" on its joint fold, "dodge 0"…; "all
+        // resistances 0" holds each element), or a mastery of target 0 below 0, HALVES the score — once, however many do,
+        // exactly like the solver's objective (StatBuilder.negativeTargetPenalty, see precisionHalves). It used to halve once PER
+        // such row, so where a halving was already unavoidable (say the GUI's default "dodge 0" under a negative-dodge ring) the
+        // placement the solver rightly ranks first could read as halved twice.
+        if (targetStats.precisionHalves(actualCharacteristicsValues)) totalActualScore /= 2
 
         val successPercentage = (totalActualScore / targetStats.totalExpectedScore) * 100.0
 
         // try to find better build when we have found build maximizing every characteristic asked
-        if (successPercentage.toBigDecimal() == BigDecimal("100.0")) {
+        if (includeOverflow && successPercentage.toBigDecimal() == BigDecimal("100.0")) {
             val calculateTotalActualScoreExceedingPerfectScore =
                 calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = true)
             return ((calculateTotalActualScoreExceedingPerfectScore / targetStats.totalExpectedScore) * 100).toBigDecimal(MathContext(4, RoundingMode.FLOOR))
@@ -159,6 +160,12 @@ fun computeCharacteristicsValues(
     // unweighted (the default / common path). See FindMostMasteriesFromInputScoring.computeScore.
     masteryRollWeights: Map<Characteristic, Long>? = null,
     masteryRollOffset: Long = 0L,
+    // A family read through ONE joint fold (TargetStats.elementRowObjectives: per-element rows over more than one element, or a
+    // resistance FLOOR — "air resistance 0"): its random rolls are placed at the exact optimum of the solver's objective for
+    // those rows, overriding the branches below for that family — the solver reads such rows, and the floors, from that fold.
+    // Whether the floors (and precision's rows of target 0) are kept at 0 or more is decided on the whole build, as the solver's
+    // objective weighs it (see the end). Null ⇒ the per-mode assignment of each family.
+    elementRows: ElementRowObjectives? = null,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
         buildCombination.equipments
@@ -253,12 +260,18 @@ fun computeCharacteristicsValues(
             mergeAndSumCharacteristicValues(sumOfCharacteristicFixedValues, passiveContributions)
         }
 
-    val mutableActualCharacteristics = sumWithPassives.toMutableMap()
-    if (masteryElementsWanted.isNotEmpty()) {
-        val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumWithPassives, Characteristic.MASTERY_ELEMENTARY)
-        val masteryRandoms = getMasteryRandoms(eachCharacteristicValueLineByEquipment)
-        val specificMasteryElementsWithRandomValuesAssigned =
+    val currentSpecificMasteryElements =
+        if (masteryElementsWanted.isEmpty()) emptyMap() else currentStatSpecificElements(masteryElementsWanted, sumWithPassives, Characteristic.MASTERY_ELEMENTARY)
+    val masteryRandoms = getMasteryRandoms(eachCharacteristicValueLineByEquipment)
+    val masteryPlaced: Map<Characteristic, Int>? =
+        if (masteryElementsWanted.isEmpty()) {
+            null
+        } else {
             when {
+                // Per-element mastery rows (precision): the exact optimum of the solver's objective for those rows.
+                elementRows?.mastery != null ->
+                    elementRows.mastery.assign(masteryRolls(masteryRandoms), currentSpecificMasteryElements)
+
                 // Most-masteries maximizes the MIN over [masteryElementsToMinimize]; precision maximizes the capped
                 // sum. Both objectives have a provably-suboptimal deficit-greedy, so each gets its EXACT assignment
                 // (consistent with the correspondingly-freed CP-SAT model). max-damage (m=1) falls through to greedy.
@@ -278,61 +291,120 @@ fun computeCharacteristicsValues(
                 else ->
                     assignUniformlyMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted)
             }
-        specificMasteryElementsWithRandomValuesAssigned.forEach {
-            mutableActualCharacteristics[it.key] = it.value
         }
-        mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = specificMasteryElementsWithRandomValuesAssigned.minOfOrNull { it.value } ?: 0
-    }
 
-    val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumWithPassives, Characteristic.RESISTANCE_ELEMENTARY)
-    if (resistanceElementsWanted.isNotEmpty()) {
-        val resistanceRandoms = getResistanceRandoms(eachCharacteristicValueLineByEquipment)
-        val specificResistanceElementsWithRandomValuesAssigned =
-            when {
-                scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && resistanceElementsToMinimize != null ->
-                    // Aggregate RESISTANCE_ELEMENTARY in most-masteries maximizes the MIN resistance (exact max-min).
-                    assignMaxMinResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted, resistanceElementsToMinimize)
+    // The resistance elements the request reads: its wanted ones and, once it has a floor, the floored ones with them (the joint
+    // fold's elements) — each at its own lines plus the "+all elements" ones, before any roll.
+    val resistanceObjective = elementRows?.resistance
+    val resistanceElementsRead = resistanceObjective?.elements?.associateWith { 0 } ?: resistanceElementsWanted
+    val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsRead, sumWithPassives, Characteristic.RESISTANCE_ELEMENTARY)
+    val resistanceRandoms = getResistanceRandoms(eachCharacteristicValueLineByEquipment)
+    val resistancePlaced: Map<Characteristic, Int>? =
+        when {
+            // Per-element resistance rows or a floor (every mode): the exact optimum of the solver's objective for those rows.
+            resistanceObjective != null ->
+                resistanceObjective.assign(resistanceRolls(resistanceRandoms), resistanceElementsCurrent)
 
-                scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
-                    // Precision maximizes the capped resistance sum (exact max-capped).
-                    assignMaxCappedResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
+            resistanceElementsWanted.isEmpty() -> null
 
-                else ->
-                    assignUniformlyResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
+            scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && resistanceElementsToMinimize != null ->
+                // Aggregate RESISTANCE_ELEMENTARY in most-masteries maximizes the MIN resistance (exact max-min).
+                assignMaxMinResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted, resistanceElementsToMinimize)
+
+            scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                // Precision maximizes the capped resistance sum (exact max-capped).
+                assignMaxCappedResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
+
+            else ->
+                assignUniformlyResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
+        }
+
+    // Every stat of the build with these placements of the random-element rolls.
+    fun withPlacements(
+        mastery: Map<Characteristic, Int>?,
+        resistance: Map<Characteristic, Int>?,
+    ): Map<Characteristic, Int> {
+        val mutableActualCharacteristics = sumWithPassives.toMutableMap()
+        mastery?.let { placed ->
+            placed.forEach { mutableActualCharacteristics[it.key] = it.value }
+            mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = placed.minOfOrNull { it.value } ?: 0
+        }
+        // (A floor is one of the placed elements: "all resistances 0" places all four, whose minimum is then that row's value.)
+        resistance?.let { placed ->
+            placed.forEach { mutableActualCharacteristics[it.key] = it.value }
+            placed.minOfOrNull { it.value }?.let { mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = it }
+        }
+
+        // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
+        // NOTE: the Major "% Inflicted Damage" aptitude is modeled as a FIXED contribution to the dedicated
+        // DAMAGE_INFLICTED stat (not as a percent on mastery), because in the Wakfu damage formula "% damage"
+        // is a separate multiplicative factor from mastery. DAMAGE_INFLICTED is only read by the max-damage
+        // scoring mode (FindMaxDamageScoring), so this aptitude stays inert in the most-masteries / precision
+        // modes — which is faithful: a flat "% damage inflicted" does not change displayed cumulated mastery.
+        val actualCharacteristics =
+            mutableActualCharacteristics.mapValues { (key, value) ->
+                characteristicGivenBySkillsPercentValues[key]?.let { percent ->
+                    (value + value * (percent.toDouble() / 100)).roundToInt()
+                } ?: return@mapValues value
             }
-        specificResistanceElementsWithRandomValuesAssigned.forEach {
-            mutableActualCharacteristics[it.key] = it.value
-        }
 
-        specificResistanceElementsWithRandomValuesAssigned.minOfOrNull { it.value }?.let {
-            mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = it
+        // Featherweight-style perStatStep ramps ([Sublimation.perStatStep]): clamp(perStep·(source − threshold), 0, cap)
+        // added to the target stat — applied HERE, after the stat sums, because its magnitude depends on a build
+        // variable (the source stat, e.g. MP), not on level, so it cannot ride the flat magnitudeAtLevel path above.
+        // Mirrors the solver's StatBuilder.perStatStepGatedVar exactly (same clamp on the same final source value).
+        val perStatStepContributions = perStatStepContributions(buildCombination.sublimations.values.flatten(), actualCharacteristics)
+        return if (perStatStepContributions.isEmpty()) {
+            actualCharacteristics
+        } else {
+            mergeAndSumCharacteristicValues(actualCharacteristics, perStatStepContributions)
         }
     }
 
-    // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
-    // NOTE: the Major "% Inflicted Damage" aptitude is modeled as a FIXED contribution to the dedicated
-    // DAMAGE_INFLICTED stat (not as a percent on mastery), because in the Wakfu damage formula "% damage"
-    // is a separate multiplicative factor from mastery. DAMAGE_INFLICTED is only read by the max-damage
-    // scoring mode (FindMaxDamageScoring), so this aptitude stays inert in the most-masteries / precision
-    // modes — which is faithful: a flat "% damage inflicted" does not change displayed cumulated mastery.
-    val actualCharacteristics =
-        mutableActualCharacteristics.mapValues { (key, value) ->
-            characteristicGivenBySkillsPercentValues[key]?.let { percent ->
-                (value + value * (percent.toDouble() / 100)).roundToInt()
-            } ?: return@mapValues value
-        }
+    val placed = withPlacements(masteryPlaced, resistancePlaced)
 
-    // Featherweight-style perStatStep ramps ([Sublimation.perStatStep]): clamp(perStep·(source − threshold), 0, cap)
-    // added to the target stat — applied HERE, after the stat sums, because its magnitude depends on a build
-    // variable (the source stat, e.g. MP), not on level, so it cannot ride the flat magnitudeAtLevel path above.
-    // Mirrors the solver's StatBuilder.perStatStepGatedVar exactly (same clamp on the same final source value).
-    val perStatStepContributions = perStatStepContributions(buildCombination.sublimations.values.flatten(), actualCharacteristics)
-    return if (perStatStepContributions.isEmpty()) {
-        actualCharacteristics
-    } else {
-        mergeAndSumCharacteristicValues(actualCharacteristics, perStatStepContributions)
-    }
+    // A FLOOR below 0 (a resistance row of target 0, read on the joint fold) fails the hard legs and halves the soft legs'
+    // objective, and precision HALVES its whole objective while a floor or a mastery row of target 0 reads below 0
+    // (StatBuilder.negativeTargetPenalty) — which, for a jointly read family, depends on where its rolls land: a request-wide trade
+    // no per-family objective can weigh alone. So such a family also gets its best placement keeping those elements at 0 or more,
+    // and the build keeps whichever of the two ranks first on every stat ([keepsFloorsFirst]).
+    val rows = elementRows ?: return placed
+    val masteryKeeping = rows.mastery?.takeIf { it.hasKeptElements }
+    val resistanceKeeping = rows.resistance?.takeIf { it.hasKeptElements }
+    if (masteryKeeping == null && resistanceKeeping == null) return placed
+    // One family cannot keep its elements whatever the placement: the halving is unavoidable, so the free placements stand.
+    val masteryKept =
+        masteryKeeping?.let { it.placeKeepingFloors(masteryRolls(masteryRandoms), currentSpecificMasteryElements)?.values ?: return placed }
+            ?: masteryPlaced
+    val resistanceKept =
+        resistanceKeeping?.let { it.placeKeepingFloors(resistanceRolls(resistanceRandoms), resistanceElementsCurrent)?.values ?: return placed }
+            ?: resistancePlaced
+    if (masteryKept == masteryPlaced && resistanceKept == resistancePlaced) return placed
+    val kept = withPlacements(masteryKept, resistanceKept)
+    // Ties keep the floors at 0 or more (what the stats column then shows).
+    return if (keepsFloorsFirst(rows.targetStats, scoreComputationMode, kept, placed)) kept else placed
 }
+
+/**
+ * Whether the placement keeping the floors ([kept]) ranks at least as high as the free one ([placed]) on the whole build:
+ *  - precision: by the solver's own objective ([precisionModelObjective], its halving included) — the placement the solver
+ *    takes;
+ *  - most-masteries / max-damage: by what the score divides by ([requiredPenaltyFactor]: the shortfall penalty, doubled while
+ *    a floor is broken), the only part of their score a resistance placement moves — the placement that scores highest. On a
+ *    hard-leg build both placements read every row met and [kept] keeps the floors: [kept] wins, as the hard leg's own
+ *    placement does. Below it the solver weighs the same trade on its bucketed multiplier, so its own placement is never better
+ *    by this measure (locked by `ZeroTargetRowsTest`'s fuzz).
+ */
+private fun keepsFloorsFirst(
+    targetStats: TargetStats,
+    mode: ScoreComputationMode?,
+    kept: Map<Characteristic, Int>,
+    placed: Map<Characteristic, Int>,
+): Boolean =
+    if (mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+        precisionModelObjective(targetStats, kept) >= precisionModelObjective(targetStats, placed)
+    } else {
+        targetStats.requiredPenaltyFactor(kept) <= targetStats.requiredPenaltyFactor(placed)
+    }
 
 /**
  * The [Sublimation.perStatStep] contributions of the build's chosen/forced sublimations, keyed by target stat —
@@ -384,29 +456,17 @@ fun assignUniformlyMasteryRandomValues(
     return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
 }
 
+/**
+ * The deficit-sorted greedy ([assignValues]) for a resistance family read on its own (max-damage's aggregate row, a single wanted
+ * element), each roll on the elements the game puts it on ([placedResistanceRolls]).
+ */
 fun assignUniformlyResistanceRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
     characteristicToValueWanted: Map<Characteristic, Int>,
-): Map<Characteristic, Int> {
-    val result = mutableMapOf<Characteristic, Int>()
-    for ((characteristic, _) in characteristicToValueWanted) {
-        result[characteristic] = characteristicToValueCurrent[characteristic] ?: 0
-    }
-
-    val valueToNumberOfCharacteristicAssignable = mutableListOf<Pair<Int, Int>>()
-    for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable.add(value to 1)
-    }
-    for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable.add(value to 2)
-    }
-    for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable.add(value to 3)
-    }
-
-    return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
-}
+): Map<Characteristic, Int> =
+    seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
+        .assignValues(placedResistanceRolls(randomElements, characteristicToValueWanted.size), characteristicToValueWanted)
 
 /**
  * Optimal random-element assignment for the "most-masteries" objective, which maximizes the MINIMUM mastery
@@ -419,6 +479,11 @@ fun assignUniformlyResistanceRandomValues(
  * (WakfuBuildSolver.applyGreedyRandom, most-masteries path) reaches the SAME optimal minimum, so the two engines
  * stay consistent. The per-element distribution may differ from the solver's — only the resulting minimum is
  * observable by the objective, which both maximize.
+ *
+ * EVERY roll is placed, including those that cannot lift the minimum (one 1-element roll over two equal elements):
+ * ties on the minimum go to the placement with the most mastery on the minimised elements, which is a complete one,
+ * and then to the one that fills the lowest elements first. A roll must never vanish from the displayed per-element
+ * stats just because the objective cannot see it.
  */
 fun assignMaxMinMasteryRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
@@ -431,7 +496,10 @@ fun assignMaxMinMasteryRandomValues(
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
         .assignMaxMin(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver, weights, offset)
 
-/** Resistance analogue of [assignMaxMinMasteryRandomValues] (aggregate RESISTANCE_ELEMENTARY in most-masteries). */
+/**
+ * Resistance analogue of [assignMaxMinMasteryRandomValues] (aggregate RESISTANCE_ELEMENTARY in most-masteries), each roll on the
+ * elements the game puts it on ([placedResistanceRolls]).
+ */
 fun assignMaxMinResistanceRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
@@ -439,12 +507,21 @@ fun assignMaxMinResistanceRandomValues(
     elementsToMaximizeMinOver: List<Characteristic>,
 ): Map<Characteristic, Int> =
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
-        .assignMaxMin(resistanceRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver)
+        .assignMaxMin(
+            placedResistanceRolls(randomElements, characteristicToValueWanted.size),
+            characteristicToValueWanted.keys.toList(),
+            elementsToMaximizeMinOver
+        )
 
 /**
  * Optimal random-element assignment for the PRECISION objective, which maximizes `Σ min(value_e, target_e)` over
  * the requested elements (each capped at its target). As with max-min there is no optimal greedy (the deficit-sort
  * is beatable — RandomElementAssignmentTest), so we solve it exactly; this matches precision's freed CP-SAT model.
+ *
+ * Ties on that sum go to the assignment the score reads best ABOVE 100 %, where it stops capping and reads
+ * `Σ weight_e · value_e` (and the freed model's overflow bonus rewards the same quantity): without that, once the
+ * non-random stats already meet the targets no placement beat "no roll placed" and every random-element mastery
+ * vanished from the displayed values and from the score above 100 %. See [assignMaxCapped].
  */
 fun assignMaxCappedMasteryRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
@@ -454,14 +531,21 @@ fun assignMaxCappedMasteryRandomValues(
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
         .assignMaxCapped(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), characteristicToValueWanted)
 
-/** Resistance analogue of [assignMaxCappedMasteryRandomValues] (precision). */
+/**
+ * Resistance analogue of [assignMaxCappedMasteryRandomValues] (precision), each roll on the elements the game puts it on
+ * ([placedResistanceRolls]).
+ */
 fun assignMaxCappedResistanceRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
     characteristicToValueWanted: Map<Characteristic, Int>,
 ): Map<Characteristic, Int> =
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
-        .assignMaxCapped(resistanceRolls(randomElements), characteristicToValueWanted.keys.toList(), characteristicToValueWanted)
+        .assignMaxCapped(
+            placedResistanceRolls(randomElements, characteristicToValueWanted.size),
+            characteristicToValueWanted.keys.toList(),
+            characteristicToValueWanted
+        )
 
 /** The wanted elements seeded with their current (non-random) values — the start state every assignment builds on. */
 private fun seededFrom(
@@ -506,6 +590,22 @@ private fun resistanceRolls(randomElements: Map<Characteristic, List<Int>>) =
     )
 
 /**
+ * The resistance rolls as the game places them on a family read over [readElements] of the four elements: each `(value, count)`
+ * becomes `(value, cover)`, the [rollCover] read elements it lands on — a positive roll on as many as it can, a negative one on as
+ * few as it must, the elements outside the family ([resistanceFreeSinks]) taking the rest — and a roll that lands on none of them
+ * is dropped. "−30 on 1 random element" beside "fire resistance 10" alone goes to water, never to fire; with all four read (the
+ * aggregate row) every roll keeps its count, as before. The solver's folds place them the same way (`StatBuilder.applyGreedyRandom`).
+ */
+private fun placedResistanceRolls(
+    randomElements: Map<Characteristic, List<Int>>,
+    readElements: Int,
+): List<Pair<Int, Int>> =
+    resistanceRolls(randomElements).mapNotNull { (value, count) ->
+        val cover = rollCover(value, count, readElements, resistanceFreeSinks(readElements))
+        if (cover > 0) value to cover else null
+    }
+
+/**
  * Assigns atomic [rolls] (value, count) to MAXIMIZE the minimum over [subset], EXACTLY. Each roll lands on
  * `min(count, allWanted.size)` distinct elements; of those, the `j = min(that, subset.size)` that land on subset
  * elements are what move the min — the remainder spill onto non-subset wanted elements (free for the objective).
@@ -515,6 +615,12 @@ private fun resistanceRolls(randomElements: Map<Characteristic, List<Int>>) =
  * one roll at a time, pruning with the admissible bound `min ≤ (Σ subset + reachable remaining mass) / |subset|`.
  * This is exactly what the freed CP-SAT model computes, keeping the two engines consistent. Surplus is then
  * spilled onto the lowest non-subset wanted elements for a faithful per-element display.
+ *
+ * The search starts from a COMPLETE placement — the water-fill, largest roll first onto the lowest elements — and only a
+ * STRICTLY higher minimum replaces it. It used to start from "no roll placed", which no placement could beat whenever
+ * the minimum could not move (one 1-element roll over two equal elements), so those rolls vanished from the per-element
+ * stats. Covering as many subset elements as possible never lowers the minimum, so the result is the lexicographic
+ * optimum of (minimum, total mastery on the subset); the water-fill start only picks which tied placement is shown.
  */
 private fun MutableMap<Characteristic, Int>.assignMaxMin(
     rolls: List<Pair<Int, Int>>,
@@ -546,7 +652,18 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
 
     fun objective(arr: IntArray): Long = if (weights == null) arr.min().toLong() else subset.indices.minOf { weightArr[it] * maxOf(0L, offset + arr[it].toLong()) }
 
-    val best = IntArray(subset.size) { subsetBase[it] }
+    // What the minimum sees of element [i]: its plain value, or the weighted `weight_e·max(0, offset + value_e)`.
+    fun level(
+        arr: IntArray,
+        i: Int,
+    ): Long = if (weights == null) arr[i].toLong() else weightArr[i] * maxOf(0L, offset + arr[i].toLong())
+
+    // The incumbent is a COMPLETE placement (the water-fill), never "nothing placed": rolls on equipped items always apply.
+    val best = subsetBase.copyOf()
+    for ((value, cover) in subsetRolls) {
+        val lowestFirst = subset.indices.sortedBy { level(best, it) }
+        for (i in if (value > 0) lowestFirst.take(cover) else lowestFirst.takeLast(cover)) best[i] += value
+    }
     var bestMin = objective(best)
     val current = subsetBase.copyOf()
     // Remaining reachable subset mass after roll index i (suffix sums), for the average bound.
@@ -593,16 +710,33 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
 /**
  * Assigns atomic [rolls] (value, count) to MAXIMIZE `Σ min(value_e, target_e)` over [wanted] (precision's capped
  * objective), EXACTLY — branch & bound over the ≤4 element values, pruning with the admissible bound
- * `capped ≤ current capped + min(remaining reachable mass, remaining room-to-target)`. Mirrors the freed CP-SAT model.
+ * `capped ≤ current capped + min(remaining positive mass, remaining room-to-target)`. Mirrors the freed CP-SAT model.
+ *
+ * Among the assignments that tie on that sum — all of them once the non-random stats already meet every target, so no
+ * placement can raise it — the result is the one the score reads best ABOVE 100 %: there the precision score stops
+ * capping and reads `Σ weight_e · value_e` (`calculateTotalActualScore` with `canExceedPerfectScore`, and the freed
+ * model's overflow bonus), each row weighted by [precisionRowWeight]. The result is the lexicographic optimum of the two,
+ * in that order (the second within [TIE_BREAK_NODE_BUDGET] nodes, see below), and EVERY roll is placed: rolls on equipped
+ * items always apply, so "nothing placed" is never a candidate (starting from it
+ * made every random-element mastery vanish from the displayed values, and from the score above 100 %, once the
+ * targets were met). Elements are taken in enum order so the result never depends on the iteration order of the caller's
+ * map (the targets live in a HashSet of identity-hashed enums, which differs from one run of the JVM to the next).
+ *
+ * The incumbent is a greedy complete placement — per roll, the elements that gain the most capped sum, then carry the
+ * heaviest rows, then are the lowest (water-fill) — so with every target met, or with equal rows, it is already optimal
+ * and the search stops at once; only a STRICTLY better (capped sum, weighted sum) replaces it. The capped sum is solved
+ * exactly whatever it costs; the weighted tie-break is bounded by [TIE_BREAK_NODE_BUDGET] explored nodes (deterministic).
  */
 private fun MutableMap<Characteristic, Int>.assignMaxCapped(
     rolls: List<Pair<Int, Int>>,
     wanted: List<Characteristic>,
     targets: Map<Characteristic, Int>,
 ): MutableMap<Characteristic, Int> {
-    val n = wanted.size
+    val elements = wanted.sortedBy { it.ordinal }
+    val n = elements.size
     if (n == 0 || rolls.isEmpty()) return this
-    val target = IntArray(n) { targets[wanted[it]] ?: Int.MAX_VALUE }
+    val target = IntArray(n) { targets[elements[it]] ?: Int.MAX_VALUE }
+    val weight = LongArray(n) { precisionRowWeight(target[it]) }
     val effRolls =
         rolls
             .mapNotNull { (value, count) ->
@@ -610,33 +744,132 @@ private fun MutableMap<Characteristic, Int>.assignMaxCapped(
                 if (value == 0 || eff == 0) null else value to eff
             }.sortedByDescending { it.first.toLong() * it.second }
     if (effRolls.isEmpty()) return this
-
-    val current = IntArray(n) { this[wanted[it]]!! }
-    val best = current.copyOf()
+    val combosByCover = (0..n).associateWith { k -> indexCombinations(n, k) }
 
     fun cappedSum(arr: IntArray): Long {
         var s = 0L
         for (i in 0 until n) s += minOf(arr[i], target[i]).toLong()
         return s
     }
-    var bestCapped = cappedSum(current)
-    val suffixMass = LongArray(effRolls.size + 1)
-    for (i in effRolls.indices.reversed()) suffixMass[i] = suffixMass[i + 1] + effRolls[i].first.toLong() * effRolls[i].second
-    val combosByCover = (0..n).associateWith { k -> indexCombinations(n, k) }
+
+    fun weightedSum(arr: IntArray): Long {
+        var s = 0L
+        for (i in 0 until n) s += weight[i] * arr[i]
+        return s
+    }
+
+    val start = IntArray(n) { this[elements[it]]!! }
+    val best = start.copyOf()
+    for ((value, cover) in effRolls) {
+        // A malus (the one negative random resistance in the data) goes to the lightest rows and the highest elements.
+        val sign = if (value > 0) 1 else -1
+        var chosen = combosByCover.getValue(cover).first()
+        var chosenGain = Long.MIN_VALUE
+        var chosenWeight = Long.MIN_VALUE
+        var chosenLevel = Long.MAX_VALUE
+        for (combo in combosByCover.getValue(cover)) {
+            var gain = 0L
+            var comboWeight = 0L
+            var level = 0L
+            for (idx in combo) {
+                gain += minOf(best[idx].toLong() + value, target[idx].toLong()) - minOf(best[idx], target[idx])
+                comboWeight += weight[idx]
+                level += best[idx]
+            }
+            comboWeight *= sign
+            level *= sign
+            if (gain > chosenGain || (gain == chosenGain && (comboWeight > chosenWeight || (comboWeight == chosenWeight && level < chosenLevel)))) {
+                chosen = combo
+                chosenGain = gain
+                chosenWeight = comboWeight
+                chosenLevel = level
+            }
+        }
+        for (idx in chosen) best[idx] += value
+    }
+    var bestCapped = cappedSum(best)
+    var bestWeighted = weightedSum(best)
+
+    // Admissible bounds on what the rolls still to place can add, indexed by the first roll left (positive rolls only for
+    // `capped`, which a malus can never raise; a malus can only lower `weighted`):
+    //  - capped: by no more than the positive mass left, nor than what each element can still take — its room to the target,
+    //    and the positive values still to come (a roll adds to one element at most its value, once);
+    //  - weighted: each roll at best on its `cover` heaviest rows (a malus: on its lightest).
+    val weightsDescending = weight.sortedDescending()
+    val heaviest = LongArray(n + 1)
+    val lightest = LongArray(n + 1)
+    for (k in 1..n) {
+        heaviest[k] = heaviest[k - 1] + weightsDescending[k - 1]
+        lightest[k] = lightest[k - 1] + weightsDescending[n - k]
+    }
+    val suffixPositiveMass = LongArray(effRolls.size + 1)
+    val suffixPositiveValue = LongArray(effRolls.size + 1)
+    val suffixPositiveGain = LongArray(effRolls.size + 1)
+    val suffixNegativeGain = LongArray(effRolls.size + 1)
+    for (i in effRolls.indices.reversed()) {
+        val (value, cover) = effRolls[i]
+        suffixPositiveMass[i] = suffixPositiveMass[i + 1] + maxOf(value, 0).toLong() * cover
+        suffixPositiveValue[i] = suffixPositiveValue[i + 1] + maxOf(value, 0)
+        suffixPositiveGain[i] = suffixPositiveGain[i + 1] + maxOf(value, 0).toLong() * heaviest[cover]
+        suffixNegativeGain[i] = suffixNegativeGain[i + 1] + minOf(value, 0).toLong() * lightest[cover]
+    }
+    val heaviestFirst = (0 until n).sortedByDescending { weight[it] }
+    val usable = LongArray(n)
+    var tieBreakNodes = 0
+
+    val current = start.copyOf()
 
     fun recurse(rollIndex: Int) {
+        val capped = cappedSum(current)
+        val weighted = weightedSum(current)
         if (rollIndex == effRolls.size) {
-            val c = cappedSum(current)
-            if (c > bestCapped) {
-                bestCapped = c
+            if (capped > bestCapped || (capped == bestCapped && weighted > bestWeighted)) {
+                bestCapped = capped
+                bestWeighted = weighted
                 System.arraycopy(current, 0, best, 0, n)
             }
             return
         }
-        // Admissible: extra capped ≤ min(remaining mass, remaining room-to-target).
-        var room = 0L
-        for (i in 0 until n) room += maxOf(0, target[i] - current[i]).toLong()
-        if (cappedSum(current) + minOf(suffixMass[rollIndex], room) <= bestCapped) return
+        val mass = suffixPositiveMass[rollIndex]
+        val perElementCap = suffixPositiveValue[rollIndex]
+        var capacity = 0L
+        for (i in 0 until n) {
+            usable[i] = minOf(maxOf(0L, target[i].toLong() - current[i]), perElementCap)
+            capacity += usable[i]
+        }
+        val cappedBound = capped + minOf(mass, capacity)
+        if (cappedBound < bestCapped) return
+        var weightedBound = weighted + suffixPositiveGain[rollIndex] + suffixNegativeGain[rollIndex]
+        if (cappedBound == bestCapped) {
+            // The tie-break only orders placements the capped sum cannot tell apart: it gets a fixed budget (counted in nodes, so
+            // the result stays deterministic), the capped search above and the incumbent below it being untouched by it.
+            if (++tieBreakNodes > TIE_BREAK_NODE_BUDGET) return
+            // Only a TIE on the capped sum can still win, by its weighted sum — and a tie means the capped bound is reached:
+            // either all the mass lands within the rooms (mass ≤ capacity), or every room gets filled (mass > capacity).
+            // The best weighted sum under that is a fractional knapsack over the rows, heaviest first — much tighter than
+            // "every roll on its heaviest rows" when the rooms are small, which is what keeps unequal rows with unmet targets cheap.
+            var gain = 0L
+            if (mass <= capacity) {
+                var left = mass
+                for (i in heaviestFirst) {
+                    val take = minOf(usable[i], left)
+                    gain += weight[i] * take
+                    left -= take
+                }
+            } else {
+                var surplus = mass - capacity
+                for (i in 0 until n) gain += weight[i] * usable[i]
+                for (i in heaviestFirst) {
+                    val extra = minOf(perElementCap - usable[i], surplus)
+                    gain += weight[i] * extra
+                    surplus -= extra
+                }
+                // The mass cannot fill every room within what each element can take: the capped bound is out of reach.
+                if (surplus > 0L) return
+            }
+            weightedBound = minOf(weightedBound, weighted + gain + suffixNegativeGain[rollIndex])
+            if (weightedBound <= bestWeighted) return
+        }
         val (value, cover) = effRolls[rollIndex]
         for (combo in combosByCover.getValue(cover)) {
             for (idx in combo) current[idx] += value
@@ -646,8 +879,30 @@ private fun MutableMap<Characteristic, Int>.assignMaxCapped(
     }
     recurse(0)
 
-    wanted.forEachIndexed { i, element -> this[element] = best[i] }
+    elements.forEachIndexed { i, element -> this[element] = best[i] }
     return this
+}
+
+/**
+ * How many nodes [assignMaxCapped]'s weighted tie-break may explore. The capped sum itself is always solved exactly, with no budget;
+ * the tie-break only picks, among its optima, the placement the score reads best above 100 %. It spends almost nothing when the
+ * incumbent is already optimal (every target met, or equal rows) and the exhaustive locks stay far below it. It binds only with four
+ * UNMET rows of unequal weight under 12 or more random lines (about 4 % of such random requests in a sample, ~10 ms): the best
+ * placement found so far is then kept — still complete and capped-optimal, and within 0.3 score points above 100 % of the optimum
+ * (0.02 on average).
+ */
+private const val TIE_BREAK_NODE_BUDGET = 200_000
+
+/**
+ * What the precision score multiplies a requested row of [target] by — [TargetStats.weight] at the default priority,
+ * `100 / target` rounded to 2 decimals — as an exact integer in HUNDREDTHS, so the tie-break above compares Longs. The
+ * assignment sees the targets only, not the user's per-row priority: a priority rescales a whole row's weight and so
+ * can only change WHICH of the equally-capped placements reads best above 100 %, never the capped sum itself.
+ */
+private fun precisionRowWeight(target: Int): Long {
+    val row = TargetStat(Characteristic.MASTERY_ELEMENTARY, target)
+    // Never negative (a negative target is no real request): the bounds in [assignMaxCapped] rely on it.
+    return (listOf(row).associateWeights(100).getValue(row) * 100).roundToLong().coerceAtLeast(0L)
 }
 
 /** All k-element index subsets of [0, n). */
@@ -741,7 +996,8 @@ private fun subConditionHolds(
     when (val spec = subConditionSpec(cond, level)) {
         is SubConditionSpec.StatBound -> {
             val sheet = if (spec.firstTurn) firstTurn.value else preCombat
-            spec.comparison.holds(spec.stats.sumOf { sheet[it] ?: 0 }, spec.threshold)
+            // EACH stat on its own (Neutralité family: every secondary mastery ≤ t, never their sum).
+            spec.holdsOn { sheet[it] ?: 0 }
         }
         SubConditionSpec.NoOffhandOrTwoHanded -> !usesOffhandOrTwoHanded
         SubConditionSpec.AlwaysApplies -> true

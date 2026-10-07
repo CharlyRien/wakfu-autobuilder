@@ -5,6 +5,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
@@ -28,7 +29,6 @@ val LocalLang = staticCompositionLocalOf { Lang.EN }
  * in this enum, so adding a language is "add a properties file", not "edit this file".
  */
 enum class Tr {
-    // Brand / top bar
     CLASS,
     LEVEL_SHORT,
     MIN_SHORT,
@@ -42,6 +42,48 @@ enum class Tr {
     FORCED_ITEM_RARITY_BUDGET,
     FORCED_SUBLIMATION_NO_CARRIER,
     FORCED_SUBLIMATIONS_EXCEED_CAPACITY,
+    EQUIP_NEEDS,
+    EQUIP_INCOMPATIBLE,
+    EQUIP_CLASS_ONLY,
+    EQUIP_NEVER,
+    STAT_GATE_INACTIVE,
+    STAT_GATE_BADGE,
+    STAT_GATE_CUE_HINT,
+    FORCED_ITEM_STAT_GATE_TARGET,
+    EQUIP_ASSUMED_MET,
+    EQUIP_MILITIA_RANK,
+    EQUIP_NAMED_ACHIEVEMENT,
+    EQUIP_NAMED_ACHIEVEMENT_NOT_COMPLETED,
+    EQUIP_ACHIEVEMENT,
+    EQUIP_ACHIEVEMENT_NOT_COMPLETED,
+    EQUIP_STASIS_GAUGE,
+    EQUIP_WAKFU_GAUGE,
+    EQUIP_CRIME_SCORE,
+    EQUIP_ITEM_FALLBACK,
+    EQUIP_MORE,
+    CLASS_FECA,
+    CLASS_OSAMODAS,
+    CLASS_ENUTROF,
+    CLASS_SRAM,
+    CLASS_XELOR,
+    CLASS_ECAFLIP,
+    CLASS_ENIRIPSA,
+    CLASS_IOP,
+    CLASS_CRA,
+    CLASS_SADIDA,
+    CLASS_SACRIEUR,
+    CLASS_PANDAWA,
+    CLASS_ROUBLARD,
+    CLASS_ZOBAL,
+    CLASS_OUGINAK,
+    CLASS_STEAMER,
+    CLASS_ELIOTROPE,
+    CLASS_HUPPERMAGE,
+    CLASS_UNKNOWN,
+    FORCED_ITEM_WRONG_CLASS,
+    FORCED_ITEM_NEVER_EQUIPPABLE,
+    FORCED_ITEM_REQUIRES_ITEM,
+    FORCED_ITEMS_MUTUALLY_EXCLUSIVE,
     REQUEST_ERRORS_TITLE,
     REQUEST_ERRORS_INTRO,
     REQUEST_ERRORS_DISMISS,
@@ -50,18 +92,15 @@ enum class Tr {
     MATCH,
     SEARCH,
     STOP,
-
-    // Zone headers
     ZONE_REQUEST,
     ZONE_REQUEST_HINT,
     ZONE_BUILD,
     ZONE_BUILD_IDLE,
     ZONE_BUILD_SEARCHING,
     ZONE_BUILD_DONE,
+    ZONE_BUILD_STOPPED,
     ZONE_STATS,
     ZONE_STATS_HINT,
-
-    // Request panel
     SEARCH_MODE,
     MODE_MASTERIES,
     MODE_MASTERIES_SUB,
@@ -85,6 +124,7 @@ enum class Tr {
     SCENARIO_MIN_EHP,
     BOSS,
     BOSS_NONE_HINT,
+    VS_BOSS,
     BOSS_PICK,
     BOSS_CHANGE,
     BOSS_REMOVE,
@@ -98,6 +138,12 @@ enum class Tr {
     TURNS_TO_KILL,
     EXPECTED_DAMAGE,
     SPELL_ROTATION,
+    STAT_AP_AMOUNT,
+    STAT_WP_AMOUNT,
+    SPELL_DEBUFF_CAST,
+    SPELL_DEBUFF_RESISTANCE,
+    SPELL_ROTATION_TOTAL,
+    SUBLIMATION_NORMAL,
     SPELL_ROTATION_SUB,
     SPELL_ROTATION_PER_TURN,
     SPELL_ROTATION_EMPTY,
@@ -118,6 +164,8 @@ enum class Tr {
     SEARCH_DURATION_SUB,
     SECONDS_SHORT,
     STOP_AT_MATCH,
+    VERIFY_OPTIMALITY,
+    VERIFY_OPTIMALITY_SUB,
     SEARCH_NO_RESULT,
     FORCED_ITEMS,
     REQUIRE_ITEM_CHIP,
@@ -140,8 +188,6 @@ enum class Tr {
     EXCLUDE_SUBLIMATION_TITLE,
     SEARCH_SUBLIMATIONS,
     NO_MATCHING_SUBLIMATION,
-    EXCLUDE_ALL_SUBLIMATIONS_RARITY,
-    UNEXCLUDE_ALL_SUBLIMATIONS_RARITY,
     FORCED_PASSIVES,
     ADD_PASSIVE_CHIP,
     CHOSEN_PASSIVES,
@@ -157,13 +203,9 @@ enum class Tr {
     LOCK_CURRENT_RUNES,
     RUNES_PER_ITEM_HINT,
     RUNES_ALLGOLD_HINT,
-
-    // Paperdoll
     PREPARING_OR_TOOLS_MODEL,
     FIRST_RESULT_HINT,
     EMPTY,
-
-    // Empty-slot explanations ("explain the solver's choices"): %s = the sublimation's localized name.
     EMPTY_SLOT_SUB_HINT,
     EMPTY_SLOT_NO_GAIN_HINT,
     LEVEL_PREFIX_LONG,
@@ -185,22 +227,20 @@ enum class Tr {
     SLOT_SECOND_WEAPON,
     SLOT_PET,
     SLOT_MOUNT,
-
-    // Stats panel
     BUILD_MATCH,
+    TARGETS_MET,
     BUILD_MASTERY,
     BUILD_MASTERY_HINT,
     MASTERY_SHORT,
     OPTIMAL_PROVEN,
     BEST_FOUND,
     NOT_OPTIMAL_HINT,
+    SEARCH_STOPPED_HINT,
     NOT_OPTIMAL_STRUCTURAL_HINT,
-
-    // Max-damage certificate proof state (P4.4). The %s is the elapsed time ("2 min 10 s").
+    NO_PROOF_TITLE,
+    NO_PROOF_BODY,
     PROVING_OPTIMALITY,
     PROOF_CONSTRUCTING,
-    PROVEN_WITHIN,
-    PROOF_REFINING,
     PROOF_STAGE_WORLD_TREE,
     PROOF_STAGE_AFTER_RELAXED,
     PROOF_STAGE_AFTER_NO_COND,
@@ -210,6 +250,9 @@ enum class Tr {
     PROOF_STAGE_FINALIZING,
     PROOF_STAGE_CP_PROBE,
     PROOF_STAGE_CARRIER_CLOSURE,
+    PROOF_REFINING,
+    PROOF_INFO,
+    BEST_FOUND_WITHIN,
     PROOF_UNAVAILABLE_FORCED,
     MASTERY_SUMMARY,
     MASTERY_TOTAL,
@@ -236,8 +279,6 @@ enum class Tr {
     BRANCH_LUCK,
     BRANCH_MAJOR,
     SKILL_LEFTOVER_WARNING,
-
-    // Modals
     ADD_TARGET_STAT_TITLE,
     FILTER_STATS,
     STAT_GROUP_CORE,
@@ -248,6 +289,8 @@ enum class Tr {
     REQUIRE_ITEM_TITLE,
     BAN_ITEM_TITLE,
     SEARCH_ITEMS,
+    ALL_SLOTS,
+    PICKER_MATCH_COUNT,
     NO_MATCHING_ITEM,
     EQUIPPABLE_ONLY,
     RARITY_ALL,
@@ -256,17 +299,41 @@ enum class Tr {
     BAN,
     RUNES,
     LOADING_ITEMS,
-
-    // Import-build dialog
     IMPORT_DIALOG_TITLE,
     IMPORT_DIALOG_HINT,
     IMPORT_PLACEHOLDER,
     IMPORT_PASTE,
+    GLYPH_ACTION_POINT,
+    GLYPH_MOVEMENT_POINT,
+    GLYPH_WAKFU_POINT,
+    GLYPH_MASTERY_ELEMENTARY,
+    GLYPH_MASTERY_ELEMENTARY_WATER,
+    GLYPH_MASTERY_ELEMENTARY_FIRE,
+    GLYPH_MASTERY_ELEMENTARY_EARTH,
+    GLYPH_MASTERY_ELEMENTARY_WIND,
+    GLYPH_MASTERY_MELEE,
+    GLYPH_MASTERY_BACK,
+    GLYPH_MASTERY_BERSERK,
+    GLYPH_MASTERY_HEALING,
+    GLYPH_RESISTANCE_ELEMENTARY,
+    GLYPH_RESISTANCE_ELEMENTARY_WATER,
+    GLYPH_RESISTANCE_ELEMENTARY_FIRE,
+    GLYPH_RESISTANCE_ELEMENTARY_EARTH,
+    GLYPH_RESISTANCE_CRITICAL,
+    GLYPH_RESISTANCE_BACK,
+    GLYPH_CONTROL,
+    GLYPH_WISDOM,
+    GLYPH_PROSPECTION,
+    GLYPH_INITIATIVE,
+    GLYPH_LOCK,
+    GLYPH_WILLPOWER,
+    GLYPH_BLOCK_PERCENTAGE,
     IMPORT_INVALID,
+    SAVE_BUILD_FAILED,
+    IMPORT_BUILD_FAILED,
+    DUPLICATE_BUILD_FAILED,
     IMPORT_CONFIRM,
     IMPORTED_BUILD_NAME,
-
-    // Toasts (read off the composition by the state holder)
     TOAST_ZENITH_COPIED,
     TOAST_ZENITH_READY,
     TOAST_BUILD_SAVED,
@@ -275,15 +342,16 @@ enum class Tr {
     TOAST_BUILD_IMPORTED,
     TOAST_RUNES_LOCKED,
     TOAST_FORCED_ITEMS_REMOVED,
-
-    // Navigation / active build
+    TOAST_WORKSPACE_ENTRIES_REMOVED,
+    ZENITH_UNREACHABLE,
+    ZENITH_BROWSER_FAILED,
+    SEARCH_FAILED,
+    RETRY,
     NAV_BUILDER,
     NAV_LIBRARY,
     NEW_BUILD,
     ACTIVE_BUILD_EDITING,
     BACK,
-
-    // Save dialog
     SAVE_BUILD,
     SAVE_DIALOG_TITLE,
     SAVE_NAME_LABEL,
@@ -294,8 +362,6 @@ enum class Tr {
     SAVE_NAME_TAKEN,
     SAVE_UPDATE_HINT,
     CANCEL,
-
-    // Library
     LIBRARY_TITLE,
     LIBRARY_SUBTITLE,
     IMPORT_BUILD,
@@ -304,6 +370,13 @@ enum class Tr {
     LIBRARY_SEARCH,
     LIBRARY_NO_MATCH,
     LIBRARY_COUNT,
+    OBSOLETE_BADGE,
+    OBSOLETE_DATA_REASON,
+    OBSOLETE_ENGINE_REASON,
+    OBSOLETE_STORED_SCORE,
+    OBSOLETE_DATA_OTHER,
+    PROVEN_BY_OLDER_ENGINE,
+    ACTION_RERUN_SEARCH,
     LIBRARY_ALL_BUILDS,
     LIBRARY_CLASSES,
     LIBRARY_TAGS,
@@ -330,11 +403,7 @@ enum class Tr {
     ACTION_DUPLICATE,
     ACTION_RENAME,
     ACTION_DELETE,
-
-    /** Suffix appended to a duplicated build's name, e.g. "Cra 110 (copy)". */
     DUPLICATE_SUFFIX,
-
-    // Edit / delete dialogs
     EDIT_BUILD_TITLE,
     TAGS_LABEL,
     TAG_ADD_PLACEHOLDER,
@@ -351,13 +420,9 @@ enum class Tr {
     TOAST_TAG_DELETED,
     DELETE_TITLE,
     DELETE_HINT,
-
-    // Re-search guard
     RESEARCH_TITLE,
     RESEARCH_HINT,
     RESEARCH_CONFIRM,
-
-    // Compare view
     COMPARE_TITLE,
     COMPARE_PICK,
     COMPARE_ADD,
@@ -366,19 +431,20 @@ enum class Tr {
     COMPARE_EMPTY,
     COMPARE_STAT,
     COMPARE_ENGINE_SCORE,
+    COMPARE_ENGINE_DAMAGE,
     COMPARE_GROUP_DAMAGE,
     COMPARE_GROUP_OTHER,
     COMPARE_SPELL_DAMAGE,
     COMPARE_SPELLS_MIXED_CLASS,
-
-    // What's-new dialog (once-per-version release notes)
     WHATS_NEW_TITLE,
+    WHATS_NEW_NEW,
+    WHATS_NEW_FIXED,
+    WHATS_NEW_FASTER,
+    WHATS_NEW_SCOPE_CLI,
     WHATS_NEW_FEATURES,
     WHATS_NEW_FIXES,
     WHATS_NEW_PERF,
     WHATS_NEW_GOT_IT,
-
-    // Class spells & passives tab (build-result region)
     TAB_DISCOVERED_BUILD,
     TAB_CLASS_SPELLS,
     CLASS_SPELLS_TITLE,
@@ -402,7 +468,12 @@ enum class Tr {
     ELEMENT_WATER,
     ELEMENT_EARTH,
     ELEMENT_AIR,
+    EXCLUDE_ALL_SUBLIMATIONS_RARITY,
+    UNEXCLUDE_ALL_SUBLIMATIONS_RARITY,
     ;
+
+    val en: String get() = value(Lang.EN)
+    val fr: String get() = value(Lang.FR)
 
     fun value(lang: Lang): String = Translations.lookup(lang, name)
 }
@@ -552,7 +623,7 @@ fun SublimationRarity.label(lang: Lang): String =
     when (this) {
         SublimationRarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico")
         SublimationRarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia")
-        SublimationRarity.NORMAL -> localized(lang, fr = "Normal", en = "Normal", es = "Normal")
+        SublimationRarity.NORMAL -> Tr.SUBLIMATION_NORMAL.value(lang)
     }
 
 /**
@@ -580,6 +651,7 @@ private val SKILL_NAME_FR =
         "% Damage Inflicted" to "% Dommages infligés",
         "% HP as Armor" to "% PV en Armure",
         "% HP" to "% PV",
+        "HP" to "PV",
         "% Heal Received" to "% Soins reçus",
         "% Inflicted Damage" to "% Dommages infligés",
         "% damage" to "% dommages",
@@ -613,6 +685,7 @@ private val SKILL_NAME_ES =
         "% Damage Inflicted" to "% Daños infligidos",
         "% HP as Armor" to "% PdV como Armadura",
         "% HP" to "% PdV",
+        "HP" to "PdV",
         "% Heal Received" to "% Curas recibidas",
         "% Inflicted Damage" to "% Daños infligidos",
         "% damage" to "% daño",
@@ -657,3 +730,27 @@ fun ItemType.label(lang: Lang): String =
         ItemType.MOUNTS -> localized(lang, fr = "Monture", en = "Mount", es = "Montura")
         ItemType.BELT -> localized(lang, fr = "Ceinture", en = "Belt", es = "Cinturón")
     }
+
+/** Shared localized class names. */
+fun CharacterClass.label(lang: Lang): String =
+    when (this) {
+        CharacterClass.FECA -> Tr.CLASS_FECA
+        CharacterClass.OSAMODAS -> Tr.CLASS_OSAMODAS
+        CharacterClass.ENUTROF -> Tr.CLASS_ENUTROF
+        CharacterClass.SRAM -> Tr.CLASS_SRAM
+        CharacterClass.XELOR -> Tr.CLASS_XELOR
+        CharacterClass.ECAFLIP -> Tr.CLASS_ECAFLIP
+        CharacterClass.ENIRIPSA -> Tr.CLASS_ENIRIPSA
+        CharacterClass.IOP -> Tr.CLASS_IOP
+        CharacterClass.CRA -> Tr.CLASS_CRA
+        CharacterClass.SADIDA -> Tr.CLASS_SADIDA
+        CharacterClass.SACRIEUR -> Tr.CLASS_SACRIEUR
+        CharacterClass.PANDAWA -> Tr.CLASS_PANDAWA
+        CharacterClass.ROUBLARD -> Tr.CLASS_ROUBLARD
+        CharacterClass.ZOBAL -> Tr.CLASS_ZOBAL
+        CharacterClass.OUGINAK -> Tr.CLASS_OUGINAK
+        CharacterClass.STEAMER -> Tr.CLASS_STEAMER
+        CharacterClass.ELIOTROPE -> Tr.CLASS_ELIOTROPE
+        CharacterClass.HUPPERMAGE -> Tr.CLASS_HUPPERMAGE
+        CharacterClass.UNKNOWN -> Tr.CLASS_UNKNOWN
+    }.value(lang)

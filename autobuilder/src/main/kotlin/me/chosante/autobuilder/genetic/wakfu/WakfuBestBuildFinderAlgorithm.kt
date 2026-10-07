@@ -2,23 +2,40 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import me.chosante.autobuilder.EmbeddedResources
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.StatGateViolation
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.equipConflict
+import me.chosante.autobuilder.domain.isWearableBy
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
+import me.chosante.autobuilder.domain.withRequirementsMet
 import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
+import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.I18nText
+import me.chosante.common.ItemEquipCriterion
+import me.chosante.common.ItemStatGate
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
+import java.math.BigDecimal
 import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
@@ -36,8 +53,79 @@ object WakfuBestBuildFinderAlgorithm {
     // these multi-MB JSON parses eagerly — blocking the UI thread before the first frame could even
     // paint. Lazy init moves the parse to the first real use (icon preloading / the first search),
     // which always happens on a background thread in the GUI and on the main thread in the CLI.
+    //
+    // The RAW catalog: an item's level-scaled lines ([Equipment.percentOfLevel]) are not in its characteristics yet.
+    // Search with [poolFor] (or resolve with [Equipment.atLevel]) — a pool built straight from this list misses them.
+    // Each item carries its EQUIP criterion ([Equipment.equipCriterion], joined by id from [itemCriteria]), so every
+    // consumer of a pool reads the item's conditions from the item itself.
     val equipments: List<Equipment> by lazy {
-        EmbeddedResources.decodeList<Equipment>("equipments.json")!!
+        EmbeddedResources.decodeList<Equipment>("equipments.json")!!.map { equipment ->
+            criteriaById[equipment.equipmentId]?.let { equipment.copy(equipCriterion = it) } ?: equipment
+        }
+    }
+
+    private val criteriaById: Map<Int, ItemEquipCriterion> by lazy { itemCriteria.associateBy { it.itemId } }
+
+    // The catalog's exclusivity-group exceptions by id ([Equipment.exclusiveGroupOverride]: the two COMMON items of the EPIC group).
+    private val exclusiveGroupOverrideById: Map<Int, ExclusiveGroup> by lazy {
+        equipments.mapNotNull { item -> item.exclusiveGroupOverride?.let { item.equipmentId to it } }.toMap()
+    }
+
+    /**
+     * The first item EQUIP condition or "only one equipped at a time" rule [build] breaks for a [characterClass] (null when
+     * the game lets it wear the build), each item's criterion and exclusivity group read from the catalog by id — an item
+     * that carries none of its own included: a build read back from a save or an import has no criterion
+     * ([Equipment.equipCriterion] is never saved), and one saved before the conditions were enforced may wear a nation
+     * sword without its ring; one saved before the exclusivity groups were read follows its rarity, so it may wear 18691
+     * (COMMON, EPIC group) beside an epic item, and one saved before the stat gates were enforced may wear Cartes And at 4 range.
+     * See [me.chosante.autobuilder.domain.equipConditionViolation], [me.chosante.autobuilder.domain.exclusiveGroupViolation]
+     * and [statGateViolations].
+     */
+    fun equipConditionViolation(
+        build: BuildCombination,
+        characterClass: CharacterClass,
+    ): String? {
+        val items = withCatalogConditions(build.equipments)
+        return me.chosante.autobuilder.domain
+            .equipConditionViolation(items, characterClass)
+            ?: me.chosante.autobuilder.domain
+                .exclusiveGroupViolation(items)
+            ?: me.chosante.autobuilder.domain
+                .statGateViolations(build.copy(equipments = items), characterClass)
+                .firstOrNull()
+                ?.describe()
+    }
+
+    /**
+     * Every stat gate [build] breaks for a [characterClass] ([me.chosante.autobuilder.domain.statGateViolations]: an item
+     * the game would show red — inactive — on the build's out-of-combat sheet), each item's criterion read from the catalog by
+     * id, as [equipConditionViolation] does: a saved build carries none, and one saved before the gates were enforced may wear
+     * Cartes And at 4 range. Empty when every item is active. The GUI's warning on a loaded or saved build.
+     */
+    fun statGateViolations(
+        build: BuildCombination,
+        characterClass: CharacterClass,
+    ): List<StatGateViolation> =
+        me.chosante.autobuilder.domain
+            .statGateViolations(build.copy(equipments = withCatalogConditions(build.equipments)), characterClass)
+
+    /** [items] with the catalog's EQUIP criterion and exclusivity-group override joined on, where they carry none of their own. */
+    private fun withCatalogConditions(items: List<Equipment>): List<Equipment> =
+        items.map { item ->
+            val withCriterion = item.equipCriterion?.let { item } ?: criteriaById[item.equipmentId]?.let { item.copy(equipCriterion = it) } ?: item
+            withCriterion.exclusiveGroupOverride?.let { withCriterion }
+                ?: exclusiveGroupOverrideById[item.equipmentId]?.let { withCriterion.copy(exclusiveGroupOverride = it) }
+                ?: withCriterion
+        }
+
+    /**
+     * The EQUIP criteria of the catalog's items (`item-criteria.json`, decoded from the local client's Item table by
+     * `bdata-extractor`): a nation sword needs its ring, class emblems / amulets are for their class, some rings
+     * exclude each other — see [me.chosante.autobuilder.domain.isWearableBy] and the AGENTS.md §4 "Item equip
+     * conditions". Required: a missing file would silently drop every condition.
+     */
+    val itemCriteria: List<ItemEquipCriterion> by lazy {
+        EmbeddedResources.decodeList<ItemEquipCriterion>("item-criteria.json")!!
     }
 
     /**
@@ -132,26 +220,32 @@ object WakfuBestBuildFinderAlgorithm {
         // forced sublimation) BEFORE any work, reporting ALL problems at once. The GUI pre-validates with
         // [validateRequest] and shows them in a pop-up; this throw is the CLI / safety floor. (ENG-1 / ENG-2)
         validateRequest(params).let { if (it.isNotEmpty()) throw InvalidRequestException(it) }
-        val equipmentsByItemType =
-            groupAndFilterEquipments(
-                excludedItems = params.excludedItems,
-                forcedItems = params.forcedItems,
-                maxRarity = params.maxRarity,
-                excludedRarities = params.excludedRarities,
-                character = params.character
-            )
+        val equipmentsByItemType = poolFor(params)
 
         return try {
             // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
             // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
-            // fallback (P2a — see [mostMasteriesHardThenSoft]). Precision stays a single soft solve.
+            // fallback (P2a — see [mostMasteriesHardThenSoft]), its quality bound computed in the
+            // search's tail (E10-for-MM, [MostMasteriesBoundCache]). Precision stays a single soft
+            // solve. Every new search supersedes the bounds still computing for earlier requests.
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
-                    MaxDamageSearch.run(params, equipmentsByItemType, runes, activeSublimations(params))
-                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                    mostMasteriesHardThenSoft(params, equipmentsByItemType, runes, activeSublimations(params))
+                    MaxDamageSearch
+                        .run(params, equipmentsByItemType, runes, activeSublimations(params))
+                        .onStart { MostMasteriesBoundCache.supersedeAll() }
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
+                    val sublimations = activeSublimations(params)
+                    MostMasteriesBoundCache.withSearchTimeWarmup(
+                        params,
+                        equipmentsByItemType,
+                        sublimations,
+                        mostMasteriesHardThenSoft(params, equipmentsByItemType, runes, sublimations)
+                    )
+                }
                 else ->
-                    WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, activeSublimations(params))
+                    WakfuBuildSolver
+                        .optimize(params, equipmentsByItemType, runes, activeSublimations(params))
+                        .onStart { MostMasteriesBoundCache.supersedeAll() }
             }
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
@@ -161,6 +255,27 @@ object WakfuBestBuildFinderAlgorithm {
             throw exception
         }
     }
+
+    /**
+     * [build] scored under the CURRENT rules: exactly the number [run] streams as [SolverResult.matchPercentage] for it — the
+     * most-masteries / precision scorer's value or, in max-damage, the debuff-aware rotation damage over the shortfall penalty
+     * ([MaxDamageSearch.sequencedScore], which the max-damage search ranks by). For a build the search did not just find, such as a
+     * saved one whose stored number is the old rules': no search, no solver, one scorer call (milliseconds). It deliberately never
+     * touches [WakfuBuildSolver], whose first use loads OR-Tools natively; the two scorers called here are those of its `scoreFor`.
+     */
+    fun rescore(
+        params: WakfuBestBuildParams,
+        build: BuildCombination,
+    ): BigDecimal =
+        when (params.scoreComputationMode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                FindMostMasteriesFromInputScoring.computeScore(params.targetStats, build, params.character.baseCharacteristicValues)
+
+            ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                FindClosestBuildFromInputScoring.computeScore(params.targetStats, build, params.character.baseCharacteristicValues)
+
+            ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> MaxDamageSearch.sequencedScore(params, build)
+        }
 
     /**
      * P2a (docs/MOST_MASTERIES_PERF_PLAN.md): the production most-masteries orchestration — the
@@ -211,7 +326,9 @@ object WakfuBestBuildFinderAlgorithm {
                     onTermination = { termination = it }
                 ).collect { result ->
                     if (result.progressPercentage == 100) hardSolved = true
-                    emit(result)
+                    // Hard-leg provenance (plan §8.18, T3): the quality certificate compares such a build with its
+                    // targets-met read. Never on the greedy warm start, which precedes the solve.
+                    emit(if (result.greedyWarmStartEmission) result else result.copy(mostMasteriesHardConstraintsMet = true))
                 }
             if (!hardSolved) {
                 // The REAL solver status distinguishes the two no-build cases: proven INFEASIBLE = the
@@ -241,21 +358,22 @@ object WakfuBestBuildFinderAlgorithm {
             }
         }
 
-    // Quick/full proof tiers share one prepared pool per params instance (identity-keyed: the GUI
-    // passes the same object twice; a new search builds new params and naturally invalidates it).
-    private val mmProofPoolMemo =
-        java.util.concurrent.atomic
-            .AtomicReference<Pair<WakfuBestBuildParams, Map<ItemType, List<Equipment>>>?>(null)
-
     /**
      * The most-masteries QUALITY certificate (backup certifier, docs/MOST_MASTERIES_PERF_PLAN.md
-     * §8.9bis): a post-search, single-thread sound upper bound on the SOFT folded objective —
-     * "your build is provably within X% of the optimum". Meant for searches whose CP-SAT leg ended
-     * WITHOUT a proof (low-core machines / short budgets: the 1-worker proof takes 15-20 min where
-     * this DP answers in seconds). Rebuilds the same filtered+dominated pool the search used and
-     * compares [MostMasteriesCertificate]'s bound against the result's raw objective
+     * §8.9bis): a sound upper bound on the SOFT folded objective — "your build is provably within X%
+     * of the optimum". Meant for searches whose CP-SAT leg ended WITHOUT a proof (low-core machines /
+     * short budgets: the 1-worker proof takes 15-20 min where this DP answers in seconds).
+     *
+     * The convenience entry (GUI, CLI, tests): [mostMasteriesQualityBound] — the full-tier bound,
+     * memoized single-flight and normally already computed in the search's tail (E10-for-MM, §8.19:
+     * instant at search end; else the in-flight compute is awaited, or computed here after a budget
+     * too short for a warm-up) — then [compareMostMasteriesQuality] against the result's raw objective
      * ([SolverResult.mostMasteriesObjective] — stamped only when the searched objective is
-     * certificate-comparable). Async-friendly (~15-60 s); call after the flow completes.
+     * certificate-comparable). [shouldContinue] cancels the wait (and a compute this call started),
+     * polled every ~100 ms and once per DP stage. One that is ALREADY false makes the call a PEEK: a
+     * memoized bound still answers (the memo is read before the first poll) but nothing is started or
+     * joined, so a bound that is not ready yet gives [MostMasteriesProof.Unavailable] at once — how the
+     * GUI shows the badge the search's tail already paid for when the post-search check is switched off.
      *
      * SOUNDNESS: the bound never under-counts (locked by the tightness/fuzz harnesses), so
      * [MostMasteriesProof.ProvenWithin.percent] is a GUARANTEE, not an estimate; every unsupported
@@ -266,44 +384,54 @@ object WakfuBestBuildFinderAlgorithm {
     fun proveMostMasteriesQuality(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
-        // Two-tier: the QUICK tier (~15 s, ~1.3pt looser) for an instant badge; the full tier
-        // (~80 s) refines it in the background. Both sound.
-        quick: Boolean = false,
-        // Cooperative cancellation: checked once per DP stage — a superseded proof (new search
-        // started) aborts within a stage instead of pinning a core for up to ~80 s.
         shouldContinue: () -> Boolean = { true },
     ): MostMasteriesProof {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return MostMasteriesProof.Unavailable
+        // Mirror max-damage: reject heuristic requests BEFORE trusting a result's OPTIMAL stamp or a bound.
+        if (WakfuBuildSolver.needsItemPrefilter(params.targetStats)) return MostMasteriesProof.Unavailable
+        // Result-level verdicts first: no bound is computed for a result that cannot use one.
         if (result.isOptimal) return MostMasteriesProof.ProvenOptimal // CP-SAT already certified it exactly.
         val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
         if (incumbent <= 0) return MostMasteriesProof.Unavailable
-        // The GUI runs the two tiers back-to-back on the SAME params: memoize the (expensive)
-        // filtered + dominated pool so the full tier doesn't rebuild what the quick tier just
-        // computed (the identity-keyed domination memo always missed on a fresh map).
-        val subs = activeSublimations(params)
-        val pool =
-            mmProofPoolMemo.get()?.takeIf { it.first === params }?.second ?: run {
-                val equipmentsByItemType =
-                    groupAndFilterEquipments(
-                        excludedItems = params.excludedItems,
-                        forcedItems = params.forcedItems,
-                        maxRarity = params.maxRarity,
-                        excludedRarities = params.excludedRarities,
-                        character = params.character
-                    )
-                // The same domination pool the production solve searched: the bound then
-                // upper-bounds the exact optimum OF THAT SEARCH (domination is optimum-preserving).
-                val shape = dominationShape(params, subs) ?: return MostMasteriesProof.Unavailable
-                WakfuBuildSolver
-                    .filterDominatedPoolMemoizedForTest(equipmentsByItemType, shape)
-                    .also { mmProofPoolMemo.set(params to it) }
-            }
-        val bound =
-            MostMasteriesCertificate.bound(params, pool, runes, subs, blockGate = !quick, shouldContinue = shouldContinue)
-                ?: return MostMasteriesProof.Unavailable
+        val bound = mostMasteriesQualityBound(params, shouldContinue) ?: return MostMasteriesProof.Unavailable
+        return compareMostMasteriesQuality(params, bound, result)
+    }
+
+    /**
+     * COMPUTE half of [proveMostMasteriesQuality]: the incumbent-free full-tier bound for [params],
+     * over the full eligible + dominated pool (no heuristic top-8 prefilter). Memoized per request and
+     * single-flight ([MostMasteriesBoundCache]): the search's tail warm-up usually has it ready (or in
+     * flight — then this waits for it); otherwise it is computed here, on every stage worker. Null =
+     * the certificate bails on this shape, or [shouldContinue] turned false first.
+     */
+    internal fun mostMasteriesQualityBound(
+        params: WakfuBestBuildParams,
+        shouldContinue: () -> Boolean = { true },
+    ): MostMasteriesCertificate.Result? {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return null
+        return MostMasteriesBoundCache.bound(params, shouldContinue = shouldContinue)
+    }
+
+    /**
+     * COMPARE half of [proveMostMasteriesQuality]: the verdict for [result] against a [bound] computed
+     * for the same [params] — pure arithmetic, instant. Picks the bound's read in the result's units
+     * (folded with required targets, the bare core without), self-checks soundness, and returns
+     * ProvenOptimal (incumbent reaches the bound), ProvenWithin(bound / incumbent − 1) or Unavailable.
+     */
+    internal fun compareMostMasteriesQuality(
+        params: WakfuBestBuildParams,
+        bound: MostMasteriesCertificate.Result,
+        result: SolverResult<BuildCombination>,
+    ): MostMasteriesProof {
+        if (WakfuBuildSolver.needsItemPrefilter(params.targetStats)) return MostMasteriesProof.Unavailable
+        if (result.isOptimal) return MostMasteriesProof.ProvenOptimal
+        val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
+        if (incumbent <= 0) return MostMasteriesProof.Unavailable
         // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
         val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
-        val upper = if (hasRequiredTargets) bound.foldedBound else bound.coreBound
+        // T3 (plan §8.18): a HARD-leg result is optimal among the targets-met builds — it is compared with the
+        // certificate's targets-met read; the soft read also bounds target-missing builds the hard leg never returns.
+        val upper = bound.comparableUpper(result.mostMasteriesHardConstraintsMet, hasRequiredTargets)
         // Self-check (mandatory, mirrors the max-damage siblings): the certificate is a sound
         // upper bound on a FEASIBLE incumbent, so a strictly greater incumbent can only mean
         // the certifier under-counted on live data — suppress the badge and log loudly.
@@ -370,6 +498,20 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     /**
+     * Stops the optimality work the engine itself started beside the latest search and left running once it ended (E10: a
+     * normally completed search keeps its max-damage certificate warm-up and its most-masteries quality-bound warm-up so
+     * the post-search proof can join them instead of recomputing). For a front-end whose user stopped the proof or
+     * declined it: both computes bail within a stage and cache nothing, and a later proof simply recomputes. Idempotent;
+     * a no-op when nothing runs. Call it only while NO search is running — it would otherwise cancel that search's own
+     * warm-ups (the max-damage one is what lets the search stop early once its certificate lands). Cancel the proof you
+     * launched first: a proof still waiting on a warm-up that is cancelled under it starts its own compute.
+     */
+    fun cancelBackgroundProofs() {
+        MaxDamageSearch.cancelCertificateWarmup()
+        MostMasteriesBoundCache.supersedeAll()
+    }
+
+    /**
      * SILENT-REFINEMENT entry (journal 2026-07-21): after [proveMaxDamageOptimality] returned a soft-leg
      * `ProvenWithin`, re-bound the conditional partition with the per-carrier exact closure and return the
      * improved verdict — [MaxDamageSearch.MaxDamageProof.ProvenOptimal] when the refined union meets the
@@ -410,11 +552,16 @@ object WakfuBestBuildFinderAlgorithm {
      * delegates to [WakfuBuildSolver.dpConstructProvenOptimum], which re-solves a tiny restricted pool and returns the
      * build ONLY when it provably reaches the DP bound (SOUND — else null ⇒ the caller keeps [result]). Meant to run
      * async right after a `ProvenWithin` verdict: it reuses that same cached ledger, so it adds ~one explain-pass DP.
-     * Returns null for a non-max-damage / required-target request, or when construction can't reach the bound.
+     * Returns null for a non-max-damage request, one carrying a required (non-maximized) target — a MAXIMIZED-mastery
+     * row such as the GUI's default "distance mastery 1" does not count, max-damage ignores it, nor does a floor (a row of
+     * target 0, which the construct enforces) — or when construction can't reach the bound. Bounded: its open-ended full-pool fallback gives up after
+     * [WakfuBuildSolver.E8_FALLBACK_WALL_CAP_SECONDS]; [isCancelled] (polled during the whole rescue — the GUI passes its
+     * proof-cancel flag) abandons it early when the proof is superseded.
      */
     fun constructMaxDamageProvenOptimum(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
+        isCancelled: () -> Boolean = { false },
     ): SolverResult<BuildCombination>? {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
         val incumbent = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return null
@@ -427,7 +574,14 @@ object WakfuBestBuildFinderAlgorithm {
                 character = params.character
             )
         return runBlocking {
-            WakfuBuildSolver.dpConstructProvenOptimum(params, equipmentsByItemType, runes, activeSublimations(params), incumbentObjective = incumbent)
+            WakfuBuildSolver.dpConstructProvenOptimum(
+                params,
+                equipmentsByItemType,
+                runes,
+                activeSublimations(params),
+                incumbentObjective = incumbent,
+                isCancelled = isCancelled
+            )
         }
     }
 
@@ -453,6 +607,19 @@ object WakfuBestBuildFinderAlgorithm {
             }
     }
 
+    /**
+     * The filtered, slot-grouped pool a production search of [params] runs on (before domination), every item resolved at
+     * the character's level ([Equipment.atLevel]).
+     */
+    internal fun poolFor(params: WakfuBestBuildParams): Map<ItemType, List<Equipment>> =
+        groupAndFilterEquipments(
+            excludedItems = params.excludedItems,
+            forcedItems = params.forcedItems,
+            maxRarity = params.maxRarity,
+            excludedRarities = params.excludedRarities,
+            character = params.character
+        )
+
     private fun groupAndFilterEquipments(
         excludedItems: List<String>,
         forcedItems: List<String>,
@@ -461,7 +628,6 @@ object WakfuBestBuildFinderAlgorithm {
         character: Character,
     ): Map<ItemType, List<Equipment>> {
         val itemsExcluded = excludedItems.map { it.lowercase() }
-        val itemsToForce = forcedItems.map { it.lowercase() }
         val eligibleEquipments =
             equipments
                 .asSequence()
@@ -471,18 +637,31 @@ object WakfuBestBuildFinderAlgorithm {
                     equipment.isLevelExemptCompanion ||
                         (equipment.level <= character.level && equipment.level >= character.minLevel)
                 }.filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
+                // The static EQUIP conditions: an item no character can wear, and another class's emblem / amulet, go.
+                .filter { equipment -> equipment.isWearableBy(character.clazz) }
+                // Level-scaled lines (the Dofus Pourpre's "100% of level as Elemental Mastery") resolved at the
+                // character's level HERE, once per request: every consumer of the pool (domination, prefilter, CP-SAT
+                // model, scorers, both certificates, the build handed to the GUI / CLI / Zenith) then reads plain stats.
+                .map { equipment -> equipment.atLevel(character.level) }
                 .toList()
+        // Only the USER's forced names narrow a slot (the model's `Σ same-name ≥ 1` then equips each of them); what a
+        // forced item requires (a forced nation sword's ring) is kept beside them in that slot, never narrows one on its
+        // own — the model's `sword ≤ ring` equips it. The RING slot is never narrowed: a build wears TWO rings, so
+        // forcing one (or a sword, whose key ring takes one) leaves the second free — narrowing it to the forced rings
+        // took that second ring away, and CP-SAT then proved OPTIMAL a build worse than the true forced-item optimum.
+        val userForced = forcedItems.mapTo(HashSet()) { it.lowercase() }
+        val itemsToKeep = forcedNamesWithRequirements(forcedItems, eligibleEquipments)
         val forcedWeaponTypes =
             eligibleEquipments
-                .filter { it.name.fr.lowercase() in itemsToForce }
+                .filter { it.name.fr.lowercase() in userForced }
                 .map { it.itemType }
                 .toSet()
         val equipmentsByItemType =
             eligibleEquipments
                 .groupBy { it.itemType }
-                .mapValues { (_, value) ->
-                    if (value.any { it.name.fr.lowercase() in itemsToForce }) {
-                        value.filter { it.name.fr.lowercase() in itemsToForce || itemsToForce.isEmpty() }
+                .mapValues { (type, value) ->
+                    if (type != ItemType.RING && value.any { it.name.fr.lowercase() in userForced }) {
+                        value.filter { it.name.fr.lowercase() in itemsToKeep }
                     } else {
                         value
                     }
@@ -493,7 +672,32 @@ object WakfuBestBuildFinderAlgorithm {
         } else if (ItemType.ONE_HANDED_WEAPONS in forcedWeaponTypes || ItemType.OFF_HAND_WEAPONS in forcedWeaponTypes) {
             equipmentsByItemType.remove(ItemType.TWO_HANDED_WEAPONS)
         }
-        return equipmentsByItemType
+        // An item whose required item did not make it into the pool (above the rarity cap, out of the level band,
+        // excluded by name, crowded out of a forced slot) can't be worn in this request: it goes too.
+        return withRequirementsMet(equipmentsByItemType)
+    }
+
+    /**
+     * The lower-cased French [forcedItems] names plus the names of the items they require (a nation sword's ring), to a
+     * fixpoint, resolved among [catalog] — what "forcing" an item means for the pool: its slot keeps it AND whatever it
+     * can't be worn without.
+     */
+    internal fun forcedNamesWithRequirements(
+        forcedItems: List<String>,
+        catalog: List<Equipment>,
+    ): Set<String> {
+        val byId = catalog.associateBy { it.equipmentId }
+        val names = forcedItems.mapTo(LinkedHashSet()) { it.lowercase() }
+        var frontier: Set<String> = names.toSet()
+        while (frontier.isNotEmpty()) {
+            frontier =
+                catalog
+                    .filter { it.name.fr.lowercase() in frontier }
+                    .flatMap { it.requiredItemIds }
+                    .mapNotNull { byId[it]?.name?.fr?.lowercase() }
+                    .filterTo(LinkedHashSet()) { names.add(it) }
+        }
+        return names
     }
 
     /**
@@ -504,11 +708,16 @@ object WakfuBestBuildFinderAlgorithm {
      * rarity above [WakfuBestBuildParams.maxRarity] / in [WakfuBestBuildParams.excludedRarities]); a forced
      * item that is also excluded; more distinct forced items than a slot can host (1 per slot, 2 rings); a
      * forced two-handed weapon combined with a forced one-handed / off-hand weapon (a 2H occupies both hands);
-     * more than one forced epic / relic ITEM (a build equips at most one of each); more than one forced epic /
+     * more than one forced item of the epic / relic exclusivity group (a build equips at most one of each; the epic group
+     * also holds two COMMON items — [me.chosante.common.ExclusiveGroup]); more than one forced epic /
      * relic SUBLIMATION (same ≤1 rule); a forced epic/relic sublimation whose carrier-item rarity the search
-     * excludes (it could never be socketed); and more forced sublimations than a build can host (10). A forced
-     * item/sub name that matches nothing is ignored (a typo can't be equipped). [allEquipments] /
-     * [allSublimations] are injectable for tests.
+     * excludes (it could never be socketed); and more forced sublimations than a build can host (10). The item EQUIP
+     * conditions add: a forced item the game never lets anyone wear, another class's item, an item whose required item
+     * the search can't equip (a nation sword whose ring is excluded or above the rarity cap), and two forced items that
+     * exclude each other, a forced item whose stat gate caps a stat below a target row ([RequestValidationProblem.ForcedItemStatGateContradictsTarget])
+     * — and a forced item's required items count as forced in the slot and rarity budgets (the
+     * sword's EPIC ring takes a ring slot and the epic budget). A forced item/sub name that matches nothing is ignored
+     * (a typo can't be equipped). [allEquipments] / [allSublimations] are injectable for tests.
      */
     fun validateRequest(
         params: WakfuBestBuildParams,
@@ -532,6 +741,10 @@ object WakfuBestBuildFinderAlgorithm {
                 .associateWith { name -> allEquipments.filter { it.name.fr.lowercase() == name } }
                 .filterValues { it.isNotEmpty() }
 
+        val catalogById = allEquipments.associateBy { it.equipmentId }
+
+        // Whether the search could equip [item] at all: level / rarity band, not excluded by name, its class's.
+        fun searchCanEquip(item: Equipment) = item.isEquippableFor(params) && item.name.fr.lowercase() !in excludedNames && item.isWearableBy(character.clazz)
         for ((name, matches) in forcedItemMatches) {
             if (matches.none { it.isEquippableFor(params) }) {
                 problems += RequestValidationProblem.ForcedItemNotEquippable(matches.first(), character.minLevel, character.level)
@@ -539,13 +752,84 @@ object WakfuBestBuildFinderAlgorithm {
             if (name in excludedNames) {
                 problems += RequestValidationProblem.ForcedItemAlsoExcluded(matches.first())
             }
+            // The item EQUIP conditions the game checks before anything else (AGENTS.md §4 "Item equip conditions").
+            if (matches.all { it.equipCriterion?.never == true }) {
+                problems += RequestValidationProblem.ForcedItemNeverEquippable(matches.first())
+            } else if (matches.none { it.isWearableBy(character.clazz) }) {
+                val classes = matches.flatMap { it.equipCriterion?.classes.orEmpty() }.distinct()
+                problems += RequestValidationProblem.ForcedItemWrongClass(matches.first(), classes, character.clazz)
+            }
+            // A forced item needs its required items equippable too (a nation sword needs its EPIC ring: a rarity cap
+            // below epic, or excluding the ring, makes the sword impossible). Reported when EVERY otherwise
+            // equippable match of the name misses one of its requirements.
+            val wearable = matches.filter(::searchCanEquip)
+            val missing = wearable.map { item -> item.requiredItemIds.firstOrNull { id -> catalogById[id]?.let(::searchCanEquip) != true } }
+            if (wearable.isNotEmpty() && missing.all { it != null }) {
+                val requiredId = missing.first()!!
+                val requiredName = catalogById[requiredId]?.name ?: I18nText("#$requiredId", "#$requiredId", "#$requiredId", "#$requiredId")
+                problems += RequestValidationProblem.ForcedItemRequirementUnavailable(wearable.first(), requiredName)
+            }
+        }
+
+        // A forced item whose stat gate caps a stat BELOW what a required target row asks for (forced Cartes And — range ≤ 3 out
+        // of combat — with a range target of 4): the game would show the item inactive on any build meeting the target. Only an
+        // upper gate is read, and only when the target exceeds it by more than every in-combat-only bonus the search could add
+        // (start-of-combat / conditional sublimation effects on that stat, summed over every sub in play — a sound over-estimate;
+        // a conversion INTO the stat makes it give up). Reported when EVERY match of the name carries such a gate.
+        val subNamesForced = params.forcedSublimations.map { it.lowercase() }.toSet()
+        val subsInPlay =
+            allSublimations.filter { sub ->
+                (sub.solverChoosable && params.useSublimations) || sub.name.fr.lowercase() in subNamesForced || sub.name.en.lowercase() in subNamesForced
+            }
+
+        fun inCombatHeadroom(characteristic: Characteristic): Int? {
+            if (subsInPlay.any { it.conversion?.to?.foldedToUsableStat() == characteristic }) return null
+            return subsInPlay
+                .filter { it.kind != SublimationKind.COMBAT_CONDITIONAL }
+                .flatMap { it.effects.filterIsInstance<SublimationEffect.StatEffect>() }
+                .filter { !it.appliesBeforeCombat && it.characteristic.foldedToUsableStat() == characteristic }
+                .sumOf { it.magnitudeAtLevel(character.level).coerceAtLeast(0) }
+        }
+        for ((_, matches) in forcedItemMatches) {
+            val contradictions =
+                matches.map { item ->
+                    item.statGates.firstNotNullOfOrNull { gate ->
+                        if (gate.comparison != CriterionComparison.LE && gate.comparison != CriterionComparison.LT) return@firstNotNullOfOrNull null
+                        val cap = if (gate.comparison == CriterionComparison.LT) gate.value - 1 else gate.value
+                        val row =
+                            params.targetStats.firstOrNull { it.characteristic.foldedToUsableStat() == gate.sheetCharacteristic && it.target > 0 }
+                                ?: return@firstNotNullOfOrNull null
+                        val headroom = inCombatHeadroom(gate.sheetCharacteristic) ?: return@firstNotNullOfOrNull null
+                        if (row.target > cap + headroom) RequestValidationProblem.ForcedItemStatGateContradictsTarget(item, gate, row.target) else null
+                    }
+                }
+            if (contradictions.all { it != null }) problems += contradictions.first()!!
+        }
+
+        // Forcing an item forces what it needs (a nation sword brings its ring — the pool does the same), so the slot
+        // and rarity budgets below count those required items as forced too.
+        val forcedWithRequirements: Map<String, List<Equipment>> =
+            forcedNamesWithRequirements(forcedItemMatches.keys.toList(), allEquipments)
+                .associateWith { name -> allEquipments.filter { it.name.fr.lowercase() == name } }
+                .filterValues { it.isNotEmpty() }
+
+        // Two forced items the game refuses together (an equip condition forbids one with the other; either way round).
+        val forcedNames = forcedWithRequirements.keys.toList()
+        for (i in forcedNames.indices) {
+            for (j in i + 1 until forcedNames.size) {
+                val a = forcedWithRequirements.getValue(forcedNames[i])
+                val b = forcedWithRequirements.getValue(forcedNames[j])
+                if (a.all { x -> b.all { y -> equipConflict(x, y) } }) {
+                    problems += RequestValidationProblem.ForcedItemsMutuallyExclusive(listOf(a.first().name, b.first().name))
+                }
+            }
         }
 
         // Slot contention among DISTINCT forced names: every slot hosts one item, except rings (two slots —
         // and two forced rings are always distinct names here, so both can equip). Weapons are checked as a
         // cross-type conflict below (a two-handed weapon occupies both hands).
         val weaponTypes = setOf(ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
-        val forcedByType = forcedItemMatches.values.map { it.first() }.groupBy { it.itemType }
+        val forcedByType = forcedWithRequirements.values.map { it.first() }.groupBy { it.itemType }
         for ((type, items) in forcedByType) {
             val capacity = if (type == ItemType.RING) 2 else 1
             if (items.size > capacity) {
@@ -558,16 +842,16 @@ object WakfuBestBuildFinderAlgorithm {
             problems += RequestValidationProblem.ForcedWeaponsConflict((forcedTwoHanded + forcedOtherHands).map { it.name })
         }
 
-        // Item rarity budget: a valid build equips at most one EPIC and one RELIC item. A name counts against
-        // the budget only when EVERY item it resolves to has that rarity (an ambiguous multi-rarity name could
-        // still be satisfied by another variant).
-        for (rarity in listOf(Rarity.EPIC, Rarity.RELIC)) {
-            val ofRarity =
-                forcedItemMatches.values
-                    .filter { matches -> matches.all { it.rarity == rarity } }
+        // Exclusivity budget: a valid build equips at most one item of the EPIC group (every EPIC item and two COMMON ones,
+        // [Equipment.exclusiveGroup]) and one of the RELIC group. A name counts against a budget only when EVERY item it
+        // resolves to is in that group (an ambiguous multi-rarity name could still be satisfied by another variant).
+        for ((group, rarity) in listOf(ExclusiveGroup.EPIC to Rarity.EPIC, ExclusiveGroup.RELIC to Rarity.RELIC)) {
+            val inGroup =
+                forcedWithRequirements.values
+                    .filter { matches -> matches.all { it.exclusiveGroup == group } }
                     .map { it.first() }
-            if (ofRarity.size > 1) {
-                problems += RequestValidationProblem.ForcedItemRarityBudgetExceeded(rarity, ofRarity.map { it.name })
+            if (inGroup.size > 1) {
+                problems += RequestValidationProblem.ForcedItemRarityBudgetExceeded(rarity, inGroup.map { it.name })
             }
         }
 
@@ -646,6 +930,42 @@ sealed interface RequestValidationProblem {
         val item: Equipment,
     ) : RequestValidationProblem
 
+    /** A forced [item] is reserved to other [classes] by its equip condition; a [characterClass] can't wear it. */
+    data class ForcedItemWrongClass(
+        val item: Equipment,
+        val classes: List<CharacterClass>,
+        val characterClass: CharacterClass,
+    ) : RequestValidationProblem
+
+    /** A forced [item] can never be equipped in the game (its equip condition is `False`). */
+    data class ForcedItemNeverEquippable(
+        val item: Equipment,
+    ) : RequestValidationProblem
+
+    /**
+     * A forced [item] can only be worn together with [required] (its equip condition), which this search can't equip
+     * (its level or rarity is outside the search, it is excluded, or it is another class's item).
+     */
+    data class ForcedItemRequirementUnavailable(
+        val item: Equipment,
+        val required: I18nText,
+    ) : RequestValidationProblem
+
+    /**
+     * A forced [item]'s stat [gate] caps a stat below the [target] a request row asks for (forced Cartes And — range ≤ 3 out of
+     * combat — with a range target of 4), beyond what any in-combat-only bonus could add: the item would be inactive in game.
+     */
+    data class ForcedItemStatGateContradictsTarget(
+        val item: Equipment,
+        val gate: ItemStatGate,
+        val target: Int,
+    ) : RequestValidationProblem
+
+    /** Two forced [items] the game refuses together (an equip condition of one forbids the other). */
+    data class ForcedItemsMutuallyExclusive(
+        val items: List<I18nText>,
+    ) : RequestValidationProblem
+
     /** More distinct forced [items] than the [itemType] slot can host ([capacity]: 1, rings 2). */
     data class ForcedItemsSlotConflict(
         val itemType: ItemType,
@@ -658,7 +978,10 @@ sealed interface RequestValidationProblem {
         val items: List<I18nText>,
     ) : RequestValidationProblem
 
-    /** More than one forced item of [rarity] (epic or relic); a valid build equips at most one of each. */
+    /**
+     * More than one forced item of the [rarity] exclusivity group (epic or relic — [me.chosante.common.ExclusiveGroup]: the
+     * EPIC group also holds two COMMON items); a valid build equips at most one of each.
+     */
     data class ForcedItemRarityBudgetExceeded(
         val rarity: Rarity,
         val items: List<I18nText>,
@@ -700,12 +1023,23 @@ fun RequestValidationProblem.describe(): String =
             "forced item '${item.name.en}' can't be equipped (level/rarity outside the search)"
         is RequestValidationProblem.ForcedItemAlsoExcluded ->
             "'${item.name.en}' is both forced and excluded"
+        is RequestValidationProblem.ForcedItemWrongClass ->
+            "forced item '${item.name.en}' is for ${classes.joinToString()} only, not $characterClass"
+        is RequestValidationProblem.ForcedItemNeverEquippable ->
+            "forced item '${item.name.en}' can never be equipped in the game"
+        is RequestValidationProblem.ForcedItemRequirementUnavailable ->
+            "forced item '${item.name.en}' can only be worn with '${required.en}', which this search can't equip"
+        is RequestValidationProblem.ForcedItemStatGateContradictsTarget ->
+            "forced item '${item.name.en}' is only active with ${gate.characteristic} ${gate.comparison.symbol} ${gate.value} out of combat, " +
+                "but the request asks for $target"
+        is RequestValidationProblem.ForcedItemsMutuallyExclusive ->
+            "these forced items can't be worn together: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedItemsSlotConflict ->
             "the $itemType slot can host $capacity forced item(s), got: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedWeaponsConflict ->
             "a forced two-handed weapon can't be combined with a forced one-handed/off-hand weapon: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedItemRarityBudgetExceeded ->
-            "a build equips at most one $rarity item, got: ${items.joinToString { it.en }}"
+            "a build equips at most one item of the $rarity exclusivity group, got: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedSublimationRarityExceeded ->
             "a build hosts at most one $rarity sublimation, got: ${sublimations.joinToString { it.en }}"
         is RequestValidationProblem.ForcedSublimationNoCarrier ->

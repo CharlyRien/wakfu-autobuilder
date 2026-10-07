@@ -11,7 +11,6 @@ import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -21,9 +20,15 @@ import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.forbiddenItemIds
+import me.chosante.autobuilder.domain.isWearableBy
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.requirementClosure
 import me.chosante.autobuilder.genetic.SolverResult
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Passive
 import me.chosante.common.Rarity
@@ -41,7 +46,6 @@ import java.math.BigInteger
 import java.math.RoundingMode
 import kotlin.math.ceil
 import kotlin.math.min
-import kotlin.math.roundToLong
 
 /**
  * Two-tier max-damage certificate for a single element (see `docs/CERTIFICATE_PROD_PLAN.md` §P3). All
@@ -108,6 +112,7 @@ internal const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
 internal const val STAT_WITH_PERCENT_ABS_MAX = STAT_ABS_MAX + (PRODUCT_ABS_MAX / 100) + 10
 internal const val MAX_POWER_TABLE_INDEX = 2_000
 internal const val MAX_PENALTY_MULTIPLIER = 1_000_000L
+internal const val MIN_PENALTY_MULTIPLIER = 1L // floor of every power-table bucket — see [penaltyMultiplier].
 internal const val MAX_NORMAL_SUBLIMATIONS = 10L // Wakfu: at most 10 NORMAL sublimations (one per socketed gear slot).
 internal const val MAX_SUBLIMATIONS_TOTAL = MAX_NORMAL_SUBLIMATIONS + 2L // + 1 epic + 1 relic (dedicated slots) = 12.
 internal const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation needs a 3-socket carrier for its ordered colour pattern.
@@ -134,6 +139,43 @@ internal const val EHP_HP_MAX = 1_000_000L
 internal const val EHP_AVG_RESIST_CAP = 80L
 internal const val EHP_MAX = EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP) / 100L
 internal const val PRECISION_OVERFLOW_BOUND = 1_000_000_000L
+
+/**
+ * Scale of the required-target penalty power table over buckets `0..maxIndex`: `maxIndex⁶ /
+ * MAX_PENALTY_MULTIPLIER` (1 for small tables), so the top bucket maps to ≈ [MAX_PENALTY_MULTIPLIER].
+ */
+internal fun penaltyPowScale(maxIndex: Long): BigInteger {
+    val maxPow = BigInteger.valueOf(maxIndex).pow(6)
+    val target = BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)
+    return if (maxPow > target) maxPow.divide(target) else BigInteger.ONE
+}
+
+/**
+ * The required-target penalty multiplier of bucket [index]: `max(MIN_PENALTY_MULTIPLIER, index⁶ / powScale)`,
+ * [powScale] from [penaltyPowScale]. The ONE definition every mirror shares — the CP-SAT soft objective
+ * ([WakfuBuildSolver.applyConstraintPenalty]), both soft certificates ([MostMasteriesCertificate],
+ * [MaxDamageSoftCertificate]) and their research harnesses — so a certificate can never price a bucket below
+ * the solver (an under-count). The re-scorers cap their continuous factor at [MAX_PENALTY_MULTIPLIER], the same
+ * floor relative to a target-meeting build.
+ *
+ * Why the floor: the integer division maps every bucket with `(index / maxIndex)⁶ < 1 / MAX_PENALTY_MULTIPLIER`
+ * (a weighted target ratio below ~10%) to 0. When the targets were that far out of reach for EVERY build,
+ * `core × 0` made the soft objective flat: the empty build tied the optimum and multi-worker solves returned
+ * it. Flooring at 1 keeps the core's gradient there (those builds rank by the core alone, at ≈1e-6 of a
+ * target-meeting build) and leaves every entry already ≥ 1 — so every objective value outside that region —
+ * bit-identical. The table stays monotone non-decreasing in [index], which the certificates' soundness rests
+ * on (an over-counted bucket never lowers the multiplier).
+ */
+internal fun penaltyMultiplier(
+    index: Long,
+    powScale: BigInteger,
+): Long =
+    BigInteger
+        .valueOf(index)
+        .pow(6)
+        .divide(powScale)
+        .toLong()
+        .coerceAtLeast(MIN_PENALTY_MULTIPLIER)
 
 object WakfuBuildSolver {
     private val logger = KotlinLogging.logger {}
@@ -214,8 +256,174 @@ object WakfuBuildSolver {
      * soft certificate gets the same low-read fixes (signed AP + MAX_AP, start-of-combat lines out of
      * the LOW dims, low-read/block-only subs kept), the outside-read constants (assume worlds, critZero
      * arm), the Major AP point always staged, and a bail on secondary lines outside the first-turn read.
+     * 39: the required-target penalty multiplier is floored at 1 ([penaltyMultiplier]) in the solver AND
+     * both soft certificates (MM `PenaltyGeometry.power6`, the max-damage collapse table and
+     * `PenaltyProfile.multiplier`): buckets whose `index⁶ / powScale` floored to 0 (weighted target ratio
+     * below ~10%) now price `core × 1` instead of 0 — the soft objective was flat there, so the empty build
+     * tied the optimum. Entries already ≥ 1 are unchanged (bounds outside that region are bit-identical),
+     * but every cached soft bound/union priced those states at 0 — an under-count against the new objective.
+     * 40: the most-masteries certificate prunes every stage's options to their exact Pareto front
+     * (`paretoPrune`) and advances on primitive maps ([LongLongMaxMap]) — bound and core bit-identical (S2
+     * full tier 85 s → 9 s, 4.6M → 45k states); bumped per the standing rule, like v16's indexed harvest.
+     * 41: most-masteries certificate T5 (MOST_MASTERIES_PERF_PLAN §8.18) — the 10-slot normal-sub knapsack is
+     * EXACT per subset (stats summed raw and rounded once in the DP instead of once per copy; DI signed, so a
+     * carried sub's negative rider pays; every other sub's DI is its NET, clamped at 0), plus two latent
+     * under-counts found on the way: the AP/MP dims saturated at the 16/8 out-of-combat cap although
+     * sublimations land above it (a target above the cap read one short), and a sub whose only tracked effect
+     * is a negative pre-combat AP (Carapace II's −1 MAX_AP) was dropped instead of relaxing the assume-AP read.
+     * 42: most-masteries certificate T1 — in the assume-CC worlds the start-of-combat crit of the subs a path
+     * actually carries rides a saturating state dim (`soc`, the exact normal packing included) instead of the
+     * budget-free `outsideReadMax(CRITICAL_HIT)` constant, which now keeps only passives, ramps and never-staged
+     * subs (world-B subs' crit rides their per-state `extra`, no longer double-counted).
+     * 43: most-masteries certificate T3 — the same DP pass is read twice at the collapse: the soft read, and a
+     * TARGETS-MET read (states whose over-counted reads meet every required target > 0, folded at the full-targets
+     * multiplier) that bounds the hard leg's feasible set; a result flagged
+     * [me.chosante.autobuilder.genetic.SolverResult.mostMasteriesHardConstraintsMet] is compared with the latter.
+     * 44: max-damage AP-cell coverage + two under-count fixes. (a) The GENERAL single-type rune fold — what any
+     * HP / resistance / dodge / lock / initiative / off-scenario-mastery target row (even 0-valued, i.e. every
+     * GUI-default request) puts in the model — is mirrored instead of bailing every cell: one per-item option per
+     * rune pick, a non-damage pick being a zero-delta option the best damage rune dominates (an over-count).
+     * (b) The pools' long-standing DROP of the Neutralité family (`each secondary mastery ≤ 0`) and of the EPIC block
+     * sub Mesure under-counted any build whose optimum carries one (reproduced on seeded 4-item pools); each family
+     * now gets AUX worlds (secondary-capped N / N×C, block-assumed M / N×M), run at the fast tier and folded into
+     * every tier as a per-cell floor ([certifierAuxFloor]). Cells can only RISE vs v43 (v41–v43 changed only the
+     * most-masteries certificate) — every cached bound is stale.
+     * 45: most-masteries certificate — ONE source for the request-level bails (`requestShape`, MOST_MASTERIES_PERF_PLAN
+     * §8.20), read by `bound` (every world) and `supportsRequest` (the search-time warm-up's gate, which had missed the
+     * final-stat-upper conversion bail, the AP/MP field overflow, the cap-sub count/rarity bails and the second-ramp
+     * bail). Hardening bails on shapes no current request reaches: one stat required twice (the fold read one row per
+     * stat — an under-count), a choosable sub converting into DI or a tracked CC / HP / block (its moved value rode no
+     * option — an under-count), and the CC / HP / block packed-field overflows (exceptions before). Bounds bit-identical
+     * otherwise.
+     * 46: most-masteries certificate COVERAGE (§8.20) — a 0-valued required row of any stat is an exact skip (the model
+     * weighs it 0 in the penalty and the overshoot and its hard leg skips it; the objective still folds), and RANGE
+     * targets get a saturating state dim (items, runes, subs incl. the exact packing, the Major "Range and damage"
+     * point, passives, world-B / assumed credits; positive lines only; a target ≤ 31, no conversion into range). The
+     * GUI-default request (RANGE 4, wind resistance 0, dodge 0) no longer bails; requests without RANGE or 0-valued rows
+     * are bit-identical.
+     * 47: most-masteries certificate — the %HP skill's share of late-staged sub HP (§8.20): the EPIC / RELIC sub stages
+     * (after the skills) and the world-B / assumed cap subs (collapse-time credits) added flat HP the skills stage never
+     * scaled — an under-count of any HP read (no choosable sub carries HP on 1.93). That HP is now scaled by the largest
+     * reachable %HP (an over-count). Bounds bit-identical on the current catalog.
+     * 48: the max-damage aux-world SCHEDULE ([certifierAuxPlan]): the six secondary-capped aux worlds are bounded by ONE relaxed
+     * world (weapon split relaxed, Critical Secret / the block sub credited as slot-free constants) and their exact
+     * split only runs when that bound exceeds the value it would floor — every certified value is the v44 value
+     * (locked by the relaxed-vs-split equality test), at 3 instead of 8 eager aux passes; aux worlds also re-read the
+     * thread count per world (a warm-up whose search ends midway fans out). Bumped per the standing rule.
+     * 49: max-damage AP-cell certifier under-count B1 (`docs/perf-review-backlog.md` §E) — with an MP→DI ramp sub
+     * modeled (Poids Plume III, choosable by default) the paired Major "Movement Point and damage" point (+1 MP AND +20
+     * elemental mastery) fit neither the pure-MP list nor the graw fill of the skill-branch cells and was DROPPED in the
+     * fast, tier-1.5, exact and explain passes — its mastery and the MP it feeds into the ramp lost (−5.3 % on a
+     * repro cell; a wrong ProvenOptimal on a 3.8 % sub-optimal build). MP+graw skill vars now get their own exact split
+     * (`mpGrawSplits`: each point rides the MP axis AND adds its graw) in all four, plus bails on the two var shapes no
+     * list could hold (a DI var carrying another value axis, a negative MP+graw line). Cells can only RISE (the
+     * zero-point split is the old cell): the lvl-245 fast ledger rose 0.3–3.4 % on AP 2–15, its max cell unchanged.
+     * The extra Pareto points cost the 245 warm-up ledger +41 %, so a value-exact MP saturation clamp follows the skill
+     * stages (`mpSaturationClamp`: MP past every ramp's saturation, later debits included, is rewritten to the clamp —
+     * no path changes value) and brings it back to the v48 time.
+     * 50: A1 — the assume worlds' LOW dims (the capped crit / AP read of an AT_MOST cap sub:
+     * Constance, Mesure III, Inflexibilité) were floored at 0 after every stage, in the most-masteries certificate AND
+     * the max-damage soft twin. The real pre-combat read goes negative (a −10-crit ring staged first), so the floored dim
+     * rose above it and rejected the real carrier in its own world — an under-count (−15.4 % on the 3-item repro,
+     * −0.81 % on real level-245 items, −4.8 % on the soft twin). The dims are now stored with an OFFSET grown by each
+     * stage's worst negative delta (seed, items, knapsack and sub stages alike), so no transition floors them; the field
+     * takes the key's 2 spare bits @61 (AP 7 bits, raw CC 9 bits — the level-245 catalog needs 118 + 51 ≤ 511) and a
+     * world whose offset still outgrows it bails. Bounds only rise (S2 / S3 / GUI-default bit-identical).
+     * 51: the A1 / B1 review follow-ups (`docs/perf-review-backlog.md` §E) — bails on shapes no shipped item or sub
+     * reaches, each of which would under-count: in the most-masteries certificate a NEGATIVE capped-stat line (crit,
+     * AP / MAX_ACTION_POINT) on a cap sub or a world-B sub (never staged into an assume world's LOW dim, yet in the
+     * solver's pre-combat read), and a POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line on an item or a sub (no AP /
+     * MP read folds it); in the max-damage soft twin the assumed cap sub's own negative capped-stat line (its world-B
+     * cappers are staged, no bail needed) and the same positive MAX_* riders; in the AP-cell certifier's secondary-capped
+     * world N a FLAT sub's ramp into a secondary mastery (priced as a read source). Plus the MM / soft provenance replay
+     * undoing each stage's LOW-offset shift (instrument only) and the soft certificate's never-set `mpCapMinus` removed.
+     * Bounds bit-identical (S2 / S3 locked).
+     * 52: the TARGET-AWARE AP-cell certificate (`docs/CERTIFICATE_PROD_PLAN.md` §P5.6, research memo track 1). A HARD-LEG
+     * result's ledger ([StatBuilder.certifierTargetAware]) enforces the request's required AP / MP / CC / RANGE rows in every
+     * pass — fast, tier-1.5, exact and the aux worlds: cells below the AP row read 0, crit steps below the CC row are skipped,
+     * a frontier point whose over-counted MP cannot reach the MP row is dropped (the v49 MP clamp raised to keep that test
+     * exact, and clamping the axis on its own when no ramp is modeled), and RANGE rides a saturating lowest key digit
+     * (items floored at 0, the Major range point exact; base, passives and every sub's positive range a free constant —
+     * Furie II's `RANGE_AT_LEAST 4` excluded, its condition already implies the row) with a suffix-reachability prune. Each
+     * filter reads a sound over-estimate of the build's own stat, so no targets-met build is ever dropped: the bound covers
+     * exactly what the hard leg can return (under the dim the fast pass applies its item stages widest-first — values
+     * unchanged). The flag keys the in-memory and disk caches; soft-leg and free results keep the target-blind ledger (a
+     * row-less request gets it bit for bit even with the flag set — locked). GUI-default badge on the production-shaped
+     * proof (4-core, 420 s incumbents): 7.83 % → 2.71 % at level 110, 13.05 % → 7.03 % at 200, 8.15 % → 3.70 % at 245.
+     * Plus two PRE-EXISTING under-counts its fixtures exposed, both of which only raise a bound: the exact pass's ring
+     * collapse dropped every graw-≤-0 ring — also one carrying AP / crit (a cell read 0 against a real build wearing it) —
+     * and no pass listed an EPIC / RELIC item carrying no stat the scenario reads, although it is the carrier an epic /
+     * relic sub needs (−15 % on the repro).
+     * 53: the domination pre-filter's contract ([dominationShape], `docs/perf-review-backlog.md` §E) — the certificates
+     * read the SAME reduced pool as the search, and that pool changes: an EPIC / RELIC item is only dominated by another
+     * one while an epic / relic sub is modelled (a non-epic item used to evict the only carrier of Mesure III: the search
+     * and the certificate both settled 16.7 % below the optimum with a ProvenOptimal badge — the PR #222 review repro); a
+     * ring only when its dominators span two names (the same-name rule); a rune carrier only by an item whose level caps
+     * its runes at least as high (EXACTLY as high, with equal sockets under the max-damage one-type-per-item model, when a
+     * modelled rune type is a capped stat). Pools only grow, so every cached bound computed on a v52 pool is stale. Plus
+     * a latent bail of the target-aware RANGE row: a RANGE_AT_LEAST sub whose own +range line is permanent (no shipped sub).
+     * 54: max-damage rune-choice collapse books its best M-feeding rune under the rune's OWN characteristic,
+     * preserving the equip-var substitution and the crit swap's suppression. Elemental runes no longer pay
+     * the Neutralité family's secondary-mastery budget. The AP-cell mirror accepts those actual keys and
+     * splits the crit option using the actual default; world N now reads an elemental default as E instead
+     * of D, including its suppression delta. Old bounds could under-count the corrected model, so invalidate
+     * every cached cell. CI locks the free/general-fold Neutralité repro and the elemental-default crit swap.
+     * Carriers with a secondary default read by a cap also retain explicit rune picks: a smaller elemental
+     * choice can free secondary budget for skills (the signed-rear helmet repro). The mirror handles those
+     * picks beside the remaining collapsed defaults, without dropping equip-var aliases from item terms.
+     * Those picks are the carrier's Pareto set over every read of the model ([MaxDamageRuneReads]): the cap was then
+     * read as the SUM of all six secondaries (crit included) at weight 1 — wrong, see 56 — so equal-valued distance /
+     * rear / crit runes cost the same budget and one represented them; a choice only a choosable cap keeps is gated on those subs
+     * ([RuneModel.choiceGates]). Both cut dominated builds only, so the mirror reads the same (or a smaller) pick set
+     * and the optimum it bounds is unchanged.
+     * 55: the POOL DATA changes, not the certifier. The Dofus Pourpre's
+     * "100% of the level as Elemental Mastery" (action 999, which the equipments extractor used to drop) is now
+     * [me.chosante.common.Equipment.percentOfLevel], resolved into the item's stats when the request's pool is built
+     * ([me.chosante.common.Equipment.atLevel]): +170 to +245 elemental mastery on every pool from level 170, and domination
+     * keeps the item where Dofushu used to evict it (level ≥ 230). Both certificates read that pool, so every cached bound
+     * computed on the old one (memory or disk, keyed by this version and the unchanged data version) is stale.
+     * 56: the Neutralité family's `SECONDARY_MASTERIES_AT_MOST` holds EACH secondary mastery ≤ t on its own — the
+     * game's criterion is an `and` of six per-stat atoms (State 67 → StaticEffect 68) — not their SUM, which let a
+     * positive mastery be offset by a negative one (the reported Xelor build: distance +76 and crit +240 against rear
+     * −304 and berserk −12 credited Neutralité III, Ambition III and Inflexibilité II). The model and the re-scorers now
+     * read it per stat, and the certificates' inputs change with it: the max-damage rune choice collapse reads one bound
+     * per secondary ([MaxDamageRuneReads]), so equal-valued distance / rear / crit runes are distinct picks again and the
+     * AP-cell mirror reads that larger pick set. Every certificate read of the condition was a SUM budget — a RELAXATION
+     * of the per-stat rule (each ≤ t ⇒ any k of them sum to ≤ k·t), sound as it stands for t ≤ 0 and now read at
+     * [secondaryMasteriesSumBound] (6·t for t ≥ 0, t below — the raw t is stricter than the rule for t > 0; equal for
+     * the shipped t = 0): world N's Lagrangian (S ≤ 0), the soft certificate's secZero arm, the MM world-B knapsack. One
+     * cheap per-stat tightening: the MM world-B M-cap is also bounded by Σ over the requested masteries of (t + what
+     * lands outside the first-turn read). The true optimum can only fall (the rule is stricter), so old bounds were
+     * sound but may be loose — and the pick set changed: invalidate every cached cell.
+     * 57: the item EQUIP conditions (`item-criteria.json`, AGENTS.md §4 "Item equip conditions") change the POOL every
+     * certificate reads, not the certifiers: a never-equippable item and another class's emblem / amulet leave it, so does an
+     * item whose required item can't be worn in the request (a nation sword whose EPIC ring is above the rarity cap), and the
+     * domination pre-filter keeps every required item (the four stat-identical, zero-stat nation rings used to evict each
+     * other — and any 4-socket ring evicted them) while an item with a requirement / an exclusion only dominates one with at
+     * least the same. And the certifiers read REQUIRES: the AP-cell certifier splits every world in two
+     * ([CertWorld.bundle]) — the builds wearing no nation sword (the swords removed) and the builds wearing one (the sword
+     * and its ring as ONE ring-stage entry, the weapon slot left to off-hands), so the epic budget and the ring slot the
+     * ring takes are counted exactly; the most-masteries and soft certificates offer the sword FUSED with its ring in its
+     * own slot (the epic budget counted, the ring slot over-counted by at most one ring). FORBIDS stay a relaxation (two
+     * rings that exclude each other may pair in a bound). Every bound stays an upper bound of the constrained optimum; the
+     * lvl-245 ledger's cells 12–17 fell 1.0–2.3 % (the v56 proven optimum wore Épée de Brâkmar without its ring).
+     * Still 57 — no release shipped it (1.14.2 has 56), so its follow-ups reuse it; a bound cached by an earlier v57 build
+     * stays an upper bound, as each follow-up only drops builds the game refuses. The epic / relic budgets follow the game's
+     * "only one equipped at a time" GROUPS ([me.chosante.common.ExclusiveGroup], the CDN item properties 12 / 8), not the
+     * rarity: the EPIC group also holds two COMMON items (18691 Piquants du Guerrier Trool anciens, AP +1; 18693 Sain Turastil
+     * ancienne, MP +1), which the game refuses beside an epic item. Every certificate's epic bit is now the group's — the
+     * budget exact, an EPIC-group COMMON item also passing for an epic-SUB carrier (a sound over-count: the carrier is the
+     * rarity) — and the domination pre-filter's budget clause reads the group too (the lvl-245 ledger closes AP cell 17). And
+     * FORBIDS, the first v57 build's relaxation, are priced exactly: every ring pairing that tightens a bound reads
+     * [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of rings that exclude each
+     * other (the five excluding triples of the data) — so no bound pairs two rings the game refuses together (the review of
+     * #246 measured up to +16 % on seeded pools); the soft certificate's max-debit cap, which more pairs only raise, keeps
+     * the name rule. And the item STAT GATES (`GetCharac("RANGE") <= 3`, read on the out-of-combat sheet —
+     * `StatBuilder.applyItemStatGates`) are enforced: they only REMOVE builds, so the certifiers ignore them (a relaxation, every
+     * bound stays an upper bound of the gated optimum) and the domination pre-filter only keeps MORE items (a gated item never
+     * evicts an ungated one; a swap never moves a gated total the wrong way) — a bound cached before stays an upper bound.
      */
-    const val CERTIFIER_VERSION: Int = 38
+    const val CERTIFIER_VERSION: Int = 57
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -230,6 +438,15 @@ object WakfuBuildSolver {
     // fast path misses the bound — before the fallback existed those shapes produced NO construction at
     // all — so a generous budget trades bounded extra latency (async, badge-only path) for reliability.
     private const val E8_FALLBACK_DETERMINISTIC_BUDGET = 300.0
+
+    // ...and its WALL-CLOCK cap (model build included). The det budget alone is no bound on a user's wait: it
+    // measured ~265 s of single-thread CPU when it FAILS (2026-10 perf pass, probe P4, 4-core profile, level 110: fast
+    // tier short, fallback exhausted → null after 269 s) — and the GUI keeps its "proven within X%" badge up with a "still
+    // proving" cue for the whole attempt. Every measured construct SUCCESS comes from the fast
+    // tier (level 245: 2.7 s), so the fallback only has to cover the "bound reachable, but not by the provenance items"
+    // shape, which is a first-solution feasibility search; a minute is generous for that and bounds a futile attempt
+    // to ~1/4 of the former wait. On expiry the rescue gives up (null) and the caller keeps the incumbent — sound.
+    internal const val E8_FALLBACK_WALL_CAP_SECONDS = 60.0
 
     // FAST tier-1 certifier (P2): crit-grid step for the per-segment 3-D passes. Each segment folds point
     // graw at its top crit, so the fold looseness on the critM slice is bounded by ~step/c — smaller = tighter
@@ -254,15 +471,6 @@ object WakfuBuildSolver {
     // See [withOvershootTieBreaker].
     // Internal (not private) so the §8.2 S-A outer driver can fold interval bounds in the same units.
     internal const val OVERSHOOT_SCALE = 10_000L
-
-    // The GA scorers weight each target by a Double = (100 / target) * userDefinedWeight, which is
-    // almost always < 1 for high targets (e.g. HP target 2000 -> 0.05). Truncating that to Long with
-    // .toLong() collapsed those weights to 0, silently dropping HP and any target > 100 from the
-    // objective. We instead carry the weight in fixed-point (x WEIGHT_SCALE), which preserves both
-    // the per-target 100/target normalization and userDefinedWeight. Because the same scale is
-    // applied to the expected and the actual score, the success ratio that drives the penalty is
-    // unchanged.
-    private const val WEIGHT_SCALE = 1_000L
 
     internal val NON_ELEMENTARY_MASTERIES =
         listOf(
@@ -333,24 +541,16 @@ object WakfuBuildSolver {
         solver.solve(model)
     }
 
-    /** Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic. */
-    internal fun TargetStats.scaledWeight(targetStat: TargetStat): Long = (weight(targetStat) * WEIGHT_SCALE).roundToLong()
+    /**
+     * Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic — the one definition
+     * ([fixedPointWeight], × [TARGET_WEIGHT_SCALE]) the scorers' per-element-row objective ([ElementRowObjective]) reads too.
+     */
+    internal fun TargetStats.scaledWeight(targetStat: TargetStat): Long = fixedPointWeight(targetStat)
 
-    internal val ELEMENTARY_MASTERIES =
-        listOf(
-            Characteristic.MASTERY_ELEMENTARY_WATER,
-            Characteristic.MASTERY_ELEMENTARY_FIRE,
-            Characteristic.MASTERY_ELEMENTARY_EARTH,
-            Characteristic.MASTERY_ELEMENTARY_WIND
-        )
+    // The canonical element order of every multi-element fold — shared with the scorers through [ElementFamily].
+    internal val ELEMENTARY_MASTERIES = ElementFamily.MASTERY.elements
 
-    internal val ELEMENTARY_RESISTANCES =
-        listOf(
-            Characteristic.RESISTANCE_ELEMENTARY_WATER,
-            Characteristic.RESISTANCE_ELEMENTARY_FIRE,
-            Characteristic.RESISTANCE_ELEMENTARY_EARTH,
-            Characteristic.RESISTANCE_ELEMENTARY_WIND
-        )
+    internal val ELEMENTARY_RESISTANCES = ElementFamily.RESISTANCE.elements
 
     // Upper bound for the "exceed the target once everything is met" tie-breaker. Far above any
     // realistic scaled overflow, so the clamp never triggers in practice while keeping the
@@ -365,23 +565,13 @@ object WakfuBuildSolver {
 
     // Per-element random lines paired with how many distinct elements each rolls onto. Used to fold
     // random masteries/resistances into specific elements exactly as the scorers do.
-    internal val MASTERY_RANDOM_BY_COUNT =
-        listOf(
-            Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
-            Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
-            Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
-        )
+    internal val MASTERY_RANDOM_BY_COUNT = ElementFamily.MASTERY.randomByCount
 
-    internal val RESISTANCE_RANDOM_BY_COUNT =
-        listOf(
-            Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
-            Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
-            Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
-        )
+    internal val RESISTANCE_RANDOM_BY_COUNT = ElementFamily.RESISTANCE.randomByCount
 
     /**
-     * The prefilter (a top-N-per-stat HEURISTIC that trades global optimality for tractability) is needed
-     * only when a single elemental fold has **more than one** wanted element: that is exactly the case where
+     * The prefilter (a top-N-per-stat plus top-N-by-combined-mastery HEURISTIC that trades global optimality for
+     * tractability) is needed only when a single elemental fold has **more than one** wanted element: that is exactly the case where
      * [applyGreedyRandom] mints the per-item × per-element assignment booleans + O(elements²) ordering
      * constraints that explode the full late-game pool. A SINGLE specific element (the common request, e.g.
      * "fire mastery") takes the cheap `effectiveCount == elementCount` random branch with no assignment vars,
@@ -390,13 +580,25 @@ object WakfuBuildSolver {
      * tractability gain, so we now solve those on the full pool. Multi-element / aggregate requests still
      * prefilter (the explosion is real for them); pool dominance-pruning to drop it there too is future work.
      */
-    internal fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.size > 1 || targetStats.resistanceElementsWanted.size > 1
+    internal fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.needsItemPrefilter
 
     /**
      * Restricts each slot to the items that can plausibly matter for the requested stats. The full
      * pool produces a CP-SAT model with tens of thousands of booleans that presolve cannot reduce in
      * time; keeping only the strongest items per requested characteristic (plus forced items) shrinks
      * the model dramatically, so presolve stays fast and the search reaches strong solutions.
+     *
+     * Per slot it keeps the forced items, then the top [topPerCharacteristic] items of every relevant
+     * characteristic, then the top [topPerCharacteristic] by [combinedMasteryScore]. Two rankings read that
+     * score, because a well-rounded item (395 random-element + 395 distance mastery) is the best on no
+     * single stat yet is what a multi-element optimum wears:
+     *  - it breaks ties on a characteristic's own value. AP / MP / range / crit are small integers, so the
+     *    cut falls inside a tie group of a dozen items and, ranked by value alone, pool order decided who
+     *    survived; a stable sort keeps pool order for what is still tied, so the result stays deterministic;
+     *  - it is a ranking of its own, so an item that ranks 9th on every stat still gets in on its overall
+     *    mastery.
+     * Still a heuristic: a build that needs an item ranked low on all of those is lost, so a prefiltered
+     * request never earns an optimality badge (see [needsItemPrefilter]).
      */
     private fun prefilterRelevantEquipments(
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
@@ -406,20 +608,74 @@ object WakfuBuildSolver {
         val relevant = relevantCharacteristics(params.targetStats)
         if (relevant.isEmpty()) return equipmentsByItemType
         val forced = params.forcedItems.map { it.lowercase() }.toSet()
+        val wantedElements = params.targetStats.masteryElementsToMinimize
+        val wantedNonElemental =
+            params.targetStats
+                .map { it.characteristic }
+                .filter { it in NON_ELEMENTARY_MASTERIES }
+                .distinct()
 
-        return equipmentsByItemType.mapValues { (_, items) ->
-            val keep = LinkedHashSet<Equipment>()
-            items.filter { it.name.fr.lowercase() in forced }.forEach { keep.add(it) }
-            for (characteristic in relevant) {
-                items
+        val kept =
+            equipmentsByItemType.mapValues { (_, items) ->
+                val keep = LinkedHashSet<Equipment>()
+                items.filter { it.name.fr.lowercase() in forced }.forEach { keep.add(it) }
+                // Scored once per slot: the rankings below read it for every characteristic.
+                val scored = items.map { it to combinedMasteryScore(it, wantedElements, wantedNonElemental) }
+                for (characteristic in relevant) {
+                    scored
+                        .asSequence()
+                        .filter { (item, _) -> item.valueFor(characteristic) > 0 }
+                        .sortedWith(
+                            compareByDescending<Pair<Equipment, Int>> { (item, _) -> item.valueFor(characteristic) }
+                                .thenByDescending { (_, combined) -> combined }
+                        ).take(topPerCharacteristic)
+                        .forEach { (item, _) -> keep.add(item) }
+                }
+                scored
                     .asSequence()
-                    .filter { it.valueFor(characteristic) > 0 }
-                    .sortedByDescending { it.valueFor(characteristic) }
+                    .filter { (_, combined) -> combined > 0 }
+                    .sortedByDescending { (_, combined) -> combined }
                     .take(topPerCharacteristic)
-                    .forEach { keep.add(it) }
+                    .forEach { (item, _) -> keep.add(item) }
+                if (keep.isEmpty()) items else keep.toList()
             }
-            if (keep.isEmpty()) items else keep.toList()
+        // A kept item keeps what it can't be worn without (a nation sword's ring: no stat, so no ranking keeps it) —
+        // the closure runs over every slot, to a fixpoint (a key's own keys).
+        val allById = equipmentsByItemType.values.flatten().associateBy { it.equipmentId }
+        val closed = kept.mapValues { (_, items) -> LinkedHashSet(items) }.toMutableMap()
+        var frontier = kept.values.flatten()
+        while (frontier.isNotEmpty()) {
+            frontier =
+                frontier
+                    .flatMap { it.requiredItemIds }
+                    .mapNotNull { allById[it] }
+                    .filter { key -> closed.getOrPut(key.itemType) { LinkedHashSet() }.add(key) }
         }
+        return closed.mapValues { (_, items) -> items.toList() }
+    }
+
+    /**
+     * How much of the requested mastery an item can give across ALL the wanted elements at once — the prefilter's
+     * answer to the item that is the best on no single stat. The most-masteries objective takes the minimum
+     * over the [wantedElements], so what an item is worth is its share on every element, not its peak on one:
+     * the sum over the wanted elements of the specific mastery it carries, plus the generic
+     * [Characteristic.MASTERY_ELEMENTARY] once per element, plus each random-element line (rolled on k elements)
+     * on `min(k, elements)` of them, plus every requested non-elemental mastery ([wantedNonElemental], e.g.
+     * distance) once per element — an upper bound of its share of that minimum. Zero when no elemental mastery
+     * is wanted (a resistance-only request ranks as before). Pure and integer, so equal inputs rank equally.
+     */
+    private fun combinedMasteryScore(
+        equipment: Equipment,
+        wantedElements: List<Characteristic>,
+        wantedNonElemental: List<Characteristic>,
+    ): Int {
+        val elements = wantedElements.size
+        if (elements == 0) return 0
+        var total = elements * equipment.valueFor(Characteristic.MASTERY_ELEMENTARY)
+        for (element in wantedElements) total += equipment.valueFor(element)
+        for ((randomLine, rolledOn) in MASTERY_RANDOM_BY_COUNT) total += min(rolledOn, elements) * equipment.valueFor(randomLine)
+        for (mastery in wantedNonElemental) total += elements * equipment.valueFor(mastery)
+        return total
     }
 
     private fun relevantCharacteristics(targetStats: TargetStats): Set<Characteristic> {
@@ -489,10 +745,12 @@ object WakfuBuildSolver {
         // see [MostMasteriesWarmStart]) on the tuned path. Default false keeps every existing
         // deterministic test byte-identical; production follows its own gate in [optimize].
         val greedyWarmStart: Boolean = false,
-        // E8 fallback: stop the search at the FIRST solution instead of running the budget out. Only
-        // meaningful together with [optimize]'s `maxDamageRawFloor` — there ANY feasible solution already
-        // sits at the certificate bound (the floor is a sound per-cell upper bound), so proving optimality
-        // on top is pure waste; the final emission delivers the stopped-at solution.
+        // Stop the search at the FIRST solution instead of running the budget out; the final emission delivers
+        // the stopped-at solution. Two uses: the E8 fallback, with [optimize]'s `maxDamageRawFloor` — there ANY
+        // feasible solution already sits at the certificate bound (the floor is a sound per-cell upper bound), so
+        // proving optimality on top is pure waste; and tests that need the WEAKEST incumbent a search can hand
+        // over — with 1 worker + interleave it is the same on every machine, however long the model takes to
+        // reach it (a fixed det budget can end before the first solution once the model grows).
         val stopAtFirstSolution: Boolean = false,
         // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
         // receive CP-SAT's own search log lines (dual-bound trajectory + per-subsolver attribution) —
@@ -544,6 +802,10 @@ object WakfuBuildSolver {
         val mmHardTargetsAsAssumptions: Boolean = false,
         val mmInfeasibilityCoreCapture: ((Set<Characteristic>) -> Unit)? = null,
         val mmSoftNoGoodCore: Set<Characteristic>? = null,
+        // Relax-then-check ([relaxThenCheck]) on the TUNED path: production always solves a most-masteries request with floors
+        // that way; a deterministic solve opts in here (its deterministic time split like the wall budget), so every existing
+        // tuned test keeps the direct floored solve.
+        val relaxFloorsFirst: Boolean = false,
     )
 
     fun optimize(
@@ -609,6 +871,8 @@ object WakfuBuildSolver {
                     .AtomicReference<CpSolver?>()
             val job =
                 launch(Dispatchers.IO) {
+                    // The leg's start: relax-then-check runs its two stages against ONE deadline from here.
+                    val legStartMs = System.currentTimeMillis()
                     // C8(3) greedy warm start — computed BEFORE buildModel (which is ~seconds on the lvl-245
                     // max-damage shape and used to gate the first emission at ~6.4 s): the greedy needs only
                     // the raw pre-filtered pool, so the first build streams in ~0.3 s. The CP-SAT hint is
@@ -641,6 +905,56 @@ object WakfuBuildSolver {
                             hardConstraints &&
                             params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
                             params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
+                    // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
+                    // the MM SOFT leg only (penalized units = the certificate's foldedBound units). NOT on
+                    // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
+                    // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
+                    // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
+                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). The hard
+                    // leg is CONVERTED instead ([mmHardLegMultiplier] below), never stamped raw.
+                    val mmObjectiveComparable =
+                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
+                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
+                            // The measurement seams replace the searched objective — never comparable.
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                    // ...but the hard leg IS convertible: every emission meets the targets, so the same
+                    // build's soft objective is `core × fullTargetsMultiplier × SCALE + bonus`. Not for the
+                    // P2b two-stage solve (its stage 1 searches the bare primary, no overshoot bonus).
+                    val mmHardLegMultiplier =
+                        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            hardConstraints &&
+                            !mmTwoStage &&
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                        ) {
+                            MostMasteriesCertificate.fullTargetsMultiplier(params)
+                        } else {
+                            null
+                        }
+                    // A most-masteries request with FLOORS: the relaxed model first, then the floored one ([relaxThenCheck]).
+                    if (relaxesFloorsFirst(params, tuning, mmTwoStage, maxDamageRawFloor)) {
+                        val outcome =
+                            relaxThenCheck(
+                                this@callbackFlow,
+                                params,
+                                equipmentsByItemType,
+                                runes,
+                                sublimations,
+                                tuning,
+                                hardConstraints,
+                                warmStart,
+                                warmScore,
+                                legStartMs,
+                                solverHandle,
+                                mmObjectiveComparable,
+                                mmHardLegMultiplier
+                            )
+                        onTermination?.invoke(outcome)
+                        close()
+                        return@launch
+                    }
                     val built =
                         buildModel(
                             params,
@@ -671,6 +985,10 @@ object WakfuBuildSolver {
                         close()
                         return@launch
                     }
+                    // The model build above is blocking and cannot be cancelled mid-way. A flow torn down meanwhile
+                    // (the E8 construct's wall cap / a superseded proof) found no solver to stop in `awaitClose` and
+                    // has no consumer left — never start the native solve for it, or it would run out its whole budget.
+                    if (!isActive) return@launch
                     // E8 fallback floor — see the parameter doc. rawScore is always populated in max-damage
                     // mode; a null (another mode) simply ignores the floor, and E8 never calls those modes.
                     if (maxDamageRawFloor != null) {
@@ -689,34 +1007,6 @@ object WakfuBuildSolver {
                     tuning?.assignmentHint?.let { hint ->
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
-                    // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
-                    // the MM SOFT leg only (penalized units = the certificate's foldedBound units). NOT on
-                    // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
-                    // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
-                    // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
-                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). The hard
-                    // leg is CONVERTED instead ([mmHardLegMultiplier] below), never stamped raw.
-                    val mmObjectiveComparable =
-                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
-                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
-                            // The measurement seams replace the searched objective — never comparable.
-                            tuning?.mmPenaltyBucketInterval == null &&
-                            tuning?.mmDiFactorInterval == null
-                    // ...but the hard leg IS convertible: every emission meets the targets, so the same
-                    // build's soft objective is `core × fullTargetsMultiplier × SCALE + bonus`. Not for the
-                    // P2b two-stage solve (its stage 1 searches the bare primary, no overshoot bonus).
-                    val mmHardLegMultiplier =
-                        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                            hardConstraints &&
-                            !mmTwoStage &&
-                            tuning?.mmPenaltyBucketInterval == null &&
-                            tuning?.mmDiFactorInterval == null
-                        ) {
-                            MostMasteriesCertificate.fullTargetsMultiplier(params)
-                        } else {
-                            null
-                        }
                     val outcome =
                         executeSolverAndEmitResults(
                             built.model,
@@ -839,6 +1129,393 @@ object WakfuBuildSolver {
             built.subModel.copyVars.values
                 .flatten()
 
+    /** The share of a relax-then-check leg's budget its relaxed stage may spend at most ([relaxThenCheck]). */
+    internal const val RELAXED_STAGE_SHARE = 0.5
+
+    /** The share of a relax-then-check leg's budget its check of the relaxed value may spend at most ([relaxThenCheck]). */
+    internal const val CHECK_STAGE_SHARE = 0.1
+
+    /**
+     * The check of [relaxThenCheck] may run as long as the relaxed stage's solve did (at least this, in seconds — or the same in
+     * deterministic units on a tuned solve). Finding a floored build at the relaxed optimum takes a presolve and the hint: 0.4-0.7 of
+     * the relaxed solve's time on the GUI's default request (9 workers), whether the relaxed solution keeps its floors or another
+     * build at the same objective does. Proving that none exists — a floor that binds — took 2.5-3.8 times it: past the cap the check
+     * gives up, and the floored stage, which needs no such proof, takes over.
+     */
+    private const val MIN_CHECK_TIME = 1.0
+
+    // The smallest stage budget worth a solve (wall seconds or deterministic units): OR-Tools reads a limit of 0 as no limit.
+    private const val MIN_STAGE_BUDGET = 0.05
+
+    // Below this magnitude (2^52) a double carries every integer exactly: CP-SAT's objective value, read back as one, is exact there.
+    private const val EXACT_DOUBLE_INTEGER_LIMIT = 4_503_599_627_370_496.0
+
+    /**
+     * Whether [optimize] solves this leg by [relaxThenCheck]: a most-masteries request with floors — in production, or on a tuned
+     * solve that opts in ([SolverTuning.relaxFloorsFirst]) and sets none of the measurement seams, which read a single model. Not
+     * a request with a negative target or priority (a CLI-only shape): its objective no longer only grows with every stat a row
+     * reads, which the relaxation's argument needs.
+     */
+    private fun relaxesFloorsFirst(
+        params: WakfuBestBuildParams,
+        tuning: SolverTuning?,
+        mmTwoStage: Boolean,
+        maxDamageRawFloor: Long?,
+    ): Boolean =
+        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+            params.targetStats.hasFloors &&
+            params.targetStats.none { it.target < 0 || it.userDefinedWeight < 0 } &&
+            !mmTwoStage &&
+            maxDamageRawFloor == null &&
+            (
+                tuning == null ||
+                    (
+                        tuning.relaxFloorsFirst &&
+                            tuning.assignmentHint == null &&
+                            tuning.captureAssignment == null &&
+                            tuning.mmMasteryScoreUpperBound == null &&
+                            tuning.mmPenaltyBucketInterval == null &&
+                            tuning.mmPenaltyBucketSolutionCapture == null &&
+                            tuning.mmDiFactorInterval == null &&
+                            !tuning.mmHardTargetsAsAssumptions &&
+                            tuning.mmInfeasibilityCoreCapture == null &&
+                            tuning.mmSoftNoGoodCore == null
+                    )
+            )
+
+    /**
+     * Relax-then-check's stage budgets out of a leg's [total] (wall milliseconds, or a tuned solve's deterministic time) once [spent]
+     * of it is gone: the RELAXED stage at most [RELAXED_STAGE_SHARE] of it and the CHECK at most [CHECK_STAGE_SHARE], neither past
+     * its end; the FLOORED stage whatever is left. Never negative — so the stages never add up to more than [total].
+     */
+    internal fun relaxedStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = minOf(total * RELAXED_STAGE_SHARE, total - spent).coerceAtLeast(0.0)
+
+    internal fun checkStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = minOf(total * CHECK_STAGE_SHARE, total - spent).coerceAtLeast(0.0)
+
+    internal fun flooredStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = (total - spent).coerceAtLeast(0.0)
+
+    /**
+     * Whether [build] is a build of [params]' FLOORED leg as the scorers read it: every floor held and, on the hard leg, every
+     * target met ([hardLegHolds]). What the relaxed stage of [relaxThenCheck] may show on the hard leg, and what its check must find.
+     */
+    private fun keepsFloors(
+        params: WakfuBestBuildParams,
+        build: BuildCombination,
+        hardLeg: Boolean,
+    ): Boolean {
+        val stats = FindMostMasteriesFromInputScoring.resolvedStats(params.targetStats, build, params.character.baseCharacteristicValues)
+        return if (hardLeg) params.targetStats.hardLegHolds(stats) else !params.targetStats.floorBroken(stats)
+    }
+
+    /**
+     * RELAX THEN CHECK — how [optimize] solves a most-masteries leg, hard or soft, of a request with FLOORS (rows of target 0 on a
+     * required stat: the GUI's default "air resistance 0" / "dodge 0"). The floors slow CP-SAT's proof down (a `≥ 0` per floor on
+     * the hard leg, a reified halving on the soft one), yet the best build very often keeps them anyway. So:
+     *
+     *  1. the RELAXED stage solves the same leg WITHOUT the floors ([StatBuilder.relaxFloors]: no floor read — no `≥ 0`, no
+     *     halving — each resistance family folded over its wanted elements alone), on at most [RELAXED_STAGE_SHARE] of the budget.
+     *     It shows a build only when it scores no less than one already shown and, on the hard leg, keeps every floor and meets every
+     *     target in the scorers' exact read ([keepsFloors]); on the soft leg every build is one of the leg's, its score halved when a
+     *     floor breaks, as the soft leg scores it. It stamps none with a certificate-comparable objective (its objective is the
+     *     relaxed one), and its final build follows the same rule: never the leg's result by itself;
+     *  2. the CHECK: the floored model with `objective = w`, w the relaxed stage's objective value (read EXACTLY: the objective
+     *     variable's value, taken only when the response's own objective reads the same), hinted with the relaxed solution, on at most
+     *     [CHECK_STAGE_SHARE] of the budget and as long as the relaxed solve ran ([MIN_CHECK_TIME]). Its build, once the scorers' read
+     *     confirms it keeps every floor, is a floored build worth w: when the relaxed stage PROVED w to be its optimum v, that is the
+     *     floored optimum (the argument below) — the leg's result, proven; when the relaxed stage ran out unproven, it is shown and
+     *     handed to the floored stage as its hint (a floored build, where the relaxed incumbent may break a floor);
+     *  3. otherwise — a floor binds (the check proves no floored build reaches v), the check ran out, or the relaxed stage was
+     *     unproven — the FLOORED stage solves the real leg on what is left of the budget, hinted, and NOT cut: a redundant
+     *     `objective ≤ v` made CP-SAT's floored proof 5-10× slower on a floor that binds (measured), so the relaxed optimum only
+     *     serves the check. Its final is the leg's result, its OPTIMAL CP-SAT's own proof.
+     * The leg's optimality stamp comes from the check (by the argument) or from the floored stage's OPTIMAL — never from the relaxed
+     * stage.
+     *
+     * THE ARGUMENT — for every build x, `floored objective(x) ≤ relaxed objective(x)`:
+     *  - hard leg: both objectives are the mastery × DI core then the targets' overshoot, and neither reads a floor; the floored leg
+     *    only forbids builds the relaxed one allows;
+     *  - soft leg: the floored objective halves the core while a floor is broken — the core is ≥ 0, so that only lowers it — and
+     *    is the relaxed one otherwise;
+     *  - the random-element rolls: each relaxed fold reads the wanted elements alone and places every roll as the game lets it
+     *    ([rollCover]: a positive roll on as many of them as it reaches, a negative one on as few as it must), so for any in-game
+     *    placement — the floored model's included — it has one that reads every wanted element at least as high, and both
+     *    objectives only grow with the wanted elements (every target and priority being ≥ 0, [relaxesFloorsFirst]).
+     * So `floored objective(x) ≤ relaxed objective(x) ≤ v` for every build x once the relaxed stage proved its optimum v: no
+     * floored build is worth more than v, and a floored build worth v — what the check looks for, its model accepting nothing else
+     * — is the floored optimum. When the relaxed optimum keeps every floor at the same objective (the common case), the hint hands
+     * the check that build at once. A relaxed stage proven INFEASIBLE proves the floored leg infeasible (it allows every floored
+     * build).
+     *
+     * BUDGET — ONE deadline for the leg, from its start ([legStartMs], before any model build): the relaxed stage gets at most
+     * [RELAXED_STAGE_SHARE] of the budget, the check at most [CHECK_STAGE_SHARE], the floored stage what is left when it starts
+     * ([relaxedStageBudget], [checkStageBudget], [flooredStageBudget]) — never more than the request's budget in all (stages each
+     * given the whole budget would burn several times it). A tuned solve splits its deterministic time the same way. A floored
+     * stage with no budget left, or that ends unproven below the best build the relaxed stage showed (or with none), delivers that
+     * build instead, unproven. A relaxed stage that found no solution at all leaves the floored stage the greedy warm start, as the
+     * direct solve hints it. The price of splitting one budget: a leg that needs more than half of it to find ANY solution, with no
+     * warm start to begin from, can end with no build where the direct solve, given all of it, finds one (the slow fuzz's two-element
+     * soft legs, on 1 worker with no warm start, need up to ~17 deterministic units to their first solution and its proof; production
+     * always hints the warm start).
+     */
+    private suspend fun relaxThenCheck(
+        scope: ProducerScope<SolverResult<BuildCombination>>,
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        tuning: SolverTuning?,
+        hardConstraints: Boolean,
+        warmStart: BuildCombination?,
+        warmScore: BigDecimal?,
+        legStartMs: Long,
+        solverHandle: java.util.concurrent.atomic.AtomicReference<CpSolver?>,
+        mmObjectiveComparable: Boolean,
+        mmHardLegMultiplier: Long?,
+    ): SolveOutcome? {
+        fun model(relaxFloors: Boolean) =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
+                maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
+                hardConstraints = hardConstraints,
+                mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
+                mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT,
+                relaxFloors = relaxFloors
+            )
+        val totalWallMs = params.searchDuration.inWholeMilliseconds.toDouble()
+
+        fun elapsedMs() = (System.currentTimeMillis() - legStartMs).toDouble()
+
+        // The best build shown so far — on the hard leg one that keeps its floors and meets its targets, on the soft leg any (its score
+        // halved when a floor breaks, as the soft leg scores it): the display never regresses, and a floored stage that misses delivers it.
+        val shown =
+            java.util.concurrent.atomic
+                .AtomicReference<Pair<BuildCombination, BigDecimal>?>(null)
+
+        fun offer(
+            build: BuildCombination,
+            score: BigDecimal,
+        ): Boolean {
+            if (hardConstraints && !keepsFloors(params, build, hardLeg = true)) return false
+            val best = shown.get()
+            if (best != null && score < best.second) return false
+            shown.set(build to score)
+            return true
+        }
+
+        // ---- 1. The RELAXED stage.
+        val relaxed = model(relaxFloors = true)
+        // The relaxed leg allows every floored build: nothing for it, nothing for the floored leg.
+        if (relaxed.maxDamageStaticallyInfeasible || !scope.isActive) return null
+        warmStart?.let { combination ->
+            val picked = combination.equipments.toHashSet()
+            for ((equip, v) in relaxed.equipVars) relaxed.model.addHint(v, if (equip in picked) 1L else 0L)
+        }
+        var relaxedSolver: CpSolver? = null
+        val relaxedSolveStartMs = System.currentTimeMillis()
+        val relaxedOutcome =
+            executeSolverAndEmitResults(
+                relaxed.model,
+                params,
+                relaxed.allEquips,
+                relaxed.equipVars,
+                relaxed.skillVars,
+                relaxed.runeModel,
+                relaxed.subModel,
+                relaxed.maxDamageRawScore,
+                scope,
+                tuning,
+                onSolverReady = {
+                    solverHandle.set(it)
+                    relaxedSolver = it
+                },
+                suppressBelowScore = warmScore,
+                maxWallSecondsOverride = (relaxedStageBudget(totalWallMs, elapsedMs()) / 1000.0).coerceAtLeast(MIN_STAGE_BUDGET),
+                maxDeterministicTimeOverride = tuning?.let { relaxedStageBudget(it.maxDeterministicTime, 0.0) },
+                emitFilter = ::offer,
+                sendFinal = false,
+                progressStartMs = legStartMs
+            )
+        val relaxedSolveSeconds = (System.currentTimeMillis() - relaxedSolveStartMs) / 1000.0
+        if (!scope.isActive) return relaxedOutcome
+        val relaxedStatus = relaxedOutcome?.status
+        if (relaxedStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) return relaxedOutcome
+        val solver = relaxedSolver
+        val relaxedSolved =
+            relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                relaxedStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        val relaxedProven = relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+        // w: the relaxed incumbent's objective (v, the relaxed OPTIMUM, when proven), EXACT — the objective variable's value, taken only
+        // when the response's own objective (a double, exact below 2^52) reads the same: two reads of one number, or no check.
+        val relaxedValue =
+            if (relaxedSolved && solver != null) {
+                runCatching {
+                    val value = solver.value(relaxed.objective)
+                    val reported = solver.objectiveValue()
+                    value.takeIf { kotlin.math.abs(reported) < EXACT_DOUBLE_INTEGER_LIMIT && reported == value.toDouble() }
+                }.getOrNull()
+            } else {
+                null
+            }
+        // Same params ⇒ the same decision variables, by name, in every model (the floors only change how the stats are read).
+        var hint = if (relaxedSolved && solver != null) runCatching { diagnosticVars(relaxed).associate { it.name to solver.value(it) } }.getOrNull() else null
+        // The relaxed final build is no result of the leg by itself, but [offer]'s rule may still deliver it at the end.
+        val relaxedFinal = relaxedOutcome?.finalBuild
+        val relaxedFinalScore = relaxedOutcome?.finalScore
+        if (relaxedFinal != null && relaxedFinalScore != null) offer(relaxedFinal, relaxedFinalScore)
+        var spentDeterministic = relaxedOutcome?.deterministicTime ?: 0.0
+
+        // The later stages start from the relaxed (or checked) solution; with none, from the greedy warm start, as the direct solve does.
+        fun hinted(built: BuiltModel) =
+            built.also {
+                val values = hint
+                if (values != null) {
+                    for (v in diagnosticVars(built)) values[v.name]?.let { built.model.addHint(v, it) }
+                } else {
+                    warmStart?.let { combination ->
+                        val picked = combination.equipments.toHashSet()
+                        for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
+                    }
+                }
+            }
+
+        // ---- 2. The CHECK: a floored build at the relaxed stage's value w. When w is the PROVEN relaxed optimum v, that build is the
+        // floored optimum; when the relaxed stage ran out unproven, it is no proof but the best start the floored stage can get.
+        if (relaxedValue != null) {
+            val check = model(relaxFloors = false)
+            // No build can keep a floor (or meet a target): nothing to deliver — the relaxed stage showed none either.
+            if (check.maxDamageStaticallyInfeasible) return null
+            if (!scope.isActive) return relaxedOutcome
+            check.model.addEquality(check.objective, relaxedValue)
+            hinted(check)
+            var checkSolver: CpSolver? = null
+            // As long as the relaxed solve ran at most, so a floor that binds costs the check little.
+            val checkWallSeconds = minOf(checkStageBudget(totalWallMs, elapsedMs()) / 1000.0, maxOf(relaxedSolveSeconds, MIN_CHECK_TIME))
+            val checkDeterministic =
+                tuning?.let { minOf(checkStageBudget(it.maxDeterministicTime, spentDeterministic), maxOf(relaxedOutcome?.deterministicTime ?: 0.0, MIN_CHECK_TIME)) }
+            if ((checkDeterministic ?: checkWallSeconds) >= MIN_STAGE_BUDGET) {
+                val checked =
+                    executeSolverAndEmitResults(
+                        check.model,
+                        params,
+                        check.allEquips,
+                        check.equipVars,
+                        check.skillVars,
+                        check.runeModel,
+                        check.subModel,
+                        check.maxDamageRawScore,
+                        scope,
+                        tuning,
+                        onSolverReady = {
+                            solverHandle.set(it)
+                            checkSolver = it
+                        },
+                        // Silent: its one build is sent below, once read back and verified.
+                        emitFilter = { _, _ -> false },
+                        sendFinal = false,
+                        maxWallSecondsOverride = checkWallSeconds,
+                        maxDeterministicTimeOverride = checkDeterministic,
+                        progressStartMs = legStartMs
+                    )
+                // Found: a floored build worth w, once the scorers' read confirms it keeps its floors (and targets).
+                val checkedBuild = checked?.finalBuild
+                val checkedScore = checked?.finalScore
+                if (checkedBuild != null && checkedScore != null) {
+                    if (keepsFloors(params, checkedBuild, hardConstraints)) {
+                        // w = v proven: the floored optimum, the leg's result — stamped with v, its objective (fixed by the check's model).
+                        if (relaxedProven) {
+                            if (scope.isActive) {
+                                scope.send(
+                                    SolverResult(
+                                        individual = checkedBuild,
+                                        matchPercentage = checkedScore,
+                                        progressPercentage = 100,
+                                        isOptimal = !needsItemPrefilter(params.targetStats),
+                                        mostMasteriesObjective = mmStampedObjective(relaxedValue, mmObjectiveComparable, mmHardLegMultiplier, null)
+                                    )
+                                )
+                            }
+                            return checked
+                        }
+                        // Unproven w: shown (its floored objective is w, fixed by the check's model), and the floored stage starts from
+                        // it — a floored build, unlike the relaxed incumbent.
+                        if (offer(checkedBuild, checkedScore) && scope.isActive) {
+                            scope.trySend(
+                                SolverResult(
+                                    individual = checkedBuild,
+                                    matchPercentage = checkedScore,
+                                    progressPercentage = (elapsedMs() / totalWallMs * 100).toInt().coerceIn(0, 99),
+                                    mostMasteriesObjective = mmStampedObjective(relaxedValue, mmObjectiveComparable, mmHardLegMultiplier, null)
+                                )
+                            )
+                        }
+                        checkSolver?.let { found -> hint = runCatching { diagnosticVars(check).associate { it.name to found.value(it) } }.getOrNull() ?: hint }
+                    } else {
+                        logger.error { "Relax-then-check: the check's build reads a broken floor in the scorers' read — solving the floored leg instead." }
+                    }
+                }
+                spentDeterministic += checked?.deterministicTime ?: 0.0
+            }
+            if (!scope.isActive) return relaxedOutcome
+        }
+
+        // ---- 3. The FLOORED stage: the real leg, hinted, with no cut.
+        val floored = model(relaxFloors = false)
+        // No build can keep a floor (or meet a target): nothing to deliver — the relaxed stage showed none either.
+        if (floored.maxDamageStaticallyInfeasible) return null
+        if (!scope.isActive) return relaxedOutcome
+        hinted(floored)
+        val wallLeftSeconds = flooredStageBudget(totalWallMs, elapsedMs()) / 1000.0
+        val deterministicLeft = tuning?.let { flooredStageBudget(it.maxDeterministicTime, spentDeterministic) }
+        val flooredOutcome =
+            if ((deterministicLeft ?: wallLeftSeconds) < MIN_STAGE_BUDGET) {
+                null
+            } else {
+                executeSolverAndEmitResults(
+                    floored.model,
+                    params,
+                    floored.allEquips,
+                    floored.equipVars,
+                    floored.skillVars,
+                    floored.runeModel,
+                    floored.subModel,
+                    floored.maxDamageRawScore,
+                    scope,
+                    tuning,
+                    onSolverReady = { solverHandle.set(it) },
+                    suppressBelowScore = listOfNotNull(warmScore, shown.get()?.second).maxOrNull(),
+                    maxWallSecondsOverride = wallLeftSeconds,
+                    maxDeterministicTimeOverride = deterministicLeft,
+                    progressStartMs = legStartMs,
+                    mmObjectiveComparable = mmObjectiveComparable,
+                    mmHardLegMultiplier = mmHardLegMultiplier
+                )
+            }
+        // Unproven, the floored stage never ends below what the relaxed stage showed: that build is the leg's result then.
+        val best = shown.get()
+        val flooredScore = flooredOutcome?.finalScore
+        if (best != null &&
+            flooredOutcome?.status != com.google.ortools.sat.CpSolverStatus.OPTIMAL &&
+            (flooredScore == null || flooredScore < best.second) &&
+            scope.isActive
+        ) {
+            scope.send(SolverResult(best.first, best.second, 100))
+        }
+        return flooredOutcome ?: relaxedOutcome
+    }
+
     private class BuiltModel(
         val model: CpModel,
         val objective: IntVar,
@@ -886,6 +1563,18 @@ object WakfuBuildSolver {
         // Test/research partition seam: resolved sheet-stat vars used by exact region oracles.
         // Keeping them on BuiltModel avoids rebuilding a second StatBuilder after the objective.
         val actualStatVars: Map<Characteristic, IntVar> = emptyMap(),
+        // Max-damage only (v44): the AUX worlds' per-cell fast bound alone (already folded into the certifier
+        // maps above), captured when certifyAllApForTest = true. Empty when the shape has no aux world.
+        val certifierAuxObjectivesForTest: Map<Int, Long> = emptyMap(),
+        // Max-damage only (v47): per AP cell, the relaxed capped aux world's objective vs the exact capped split's.
+        val certifierAuxRelaxedVsSplitForTest: Map<Int, Pair<Long, Long>> = emptyMap(),
+        // Test seam ([elementRowSolveForTest]): the per-element vars the request's elemental target rows read — each
+        // family's fold — so a lock compares the model's claimed per-element values with the scorer's.
+        val elementRowReads: Map<Characteristic, IntVar> = emptyMap(),
+        // Test seam ([elementRowSolveForTest]): the floors the model reads ([StatBuilder.floorReads]) and the boolean that
+        // halves its objective (precision's, or a soft leg's floor penalty), when the model built them.
+        val floorReads: List<Pair<Characteristic, IntVar>> = emptyList(),
+        val halvingFlag: IntVar? = null,
     )
 
     /**
@@ -934,7 +1623,7 @@ object WakfuBuildSolver {
             }
         // getOrPut on the concurrent inner map may double-compute under a race, but [filterDominatedPool] is a pure
         // deterministic function, so both threads produce a structurally-identical pool — a benign, idempotent race.
-        return perShape.getOrPut(shape) { filterDominatedPool(basePool, shape.pinned, shape.compared, shape.minimized) }
+        return perShape.getOrPut(shape) { filterDominatedPool(basePool, shape) }
     }
 
     /**
@@ -959,6 +1648,10 @@ object WakfuBuildSolver {
         // Test seam: force the rune socket cap back to `≤` (disable exact fill), so a test can assert
         // most-masteries exact fill preserves the ≤-model optimum (exact-fill optimum == ≤ optimum).
         forceRuneLeq: Boolean = false,
+        // Test seams (the pruning-exactness lock): false keeps every max-damage collapse candidate rune on every carrier
+        // (no Pareto pruning), resp. posts no choice gate ([RuneModel.choiceGates]). Production keeps both on.
+        runeChoicePruning: Boolean = true,
+        runeChoiceGating: Boolean = true,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -1021,6 +1714,12 @@ object WakfuBuildSolver {
         // B8: polled once per certifier DP stage; when it flips true the certifier bails (sound) so a cancelled
         // proof stops promptly. Default never-cancel keeps the deterministic test/model builds byte-identical.
         certifierCancelled: () -> Boolean = { false },
+        // CERTIFIER_VERSION 52: the certificate is for a HARD-LEG result ⇒ the target-aware ledger (see
+        // [StatBuilder.certifierTargetAware]). False keeps the target-blind certifier.
+        certifierTargetAware: Boolean = false,
+        // Most-masteries only: the model WITHOUT the request's floors ([StatBuilder.relaxFloors]) — relax-then-check's relaxed
+        // stage ([relaxThenCheck]).
+        relaxFloors: Boolean = false,
     ): BuiltModel {
         // Phase timing (WAKFU_BUILD_MODEL_TIMING=1): where the ~seconds of model construction go on the
         // big shapes — one stderr line per buildModel call. No behavior change.
@@ -1069,6 +1768,10 @@ object WakfuBuildSolver {
         // MIX can be optimal, which the fold can't express. Every solver-choosable secondary-cap sub has
         // N=0 (⇒ all-elemental, no mix), so the default search folds; this guard future-proofs the data and
         // a forced sub with N>0.
+        // KNOWN GAP (OPEN, docs/perf-review-backlog.md §E): N=0 does not rule a mix out — an item's NEGATIVE
+        // secondary line gives that secondary's cap (the cap holds EACH secondary mastery on its own) a positive
+        // budget, which a mixed item can fill exactly. The per-stat count model beat the fold by 0.03–0.48 % on 6
+        // seeded pools of the 2026-10-04 review fuzz (measured under the old SUM reading of the cap).
         val forcedSubNames = params.forcedSublimations.map { it.lowercase() }.toSet()
         val secondaryCapMixSubInPlay =
             sublimations.any { sub ->
@@ -1078,9 +1781,27 @@ object WakfuBuildSolver {
                     (sub.condition?.value ?: 0) > 0
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
-        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, dominationShape?.pinned, forceRuneLeq)
+        val runeModel =
+            model.createRuneModel(
+                params,
+                allEquips,
+                equipVars,
+                runes,
+                allowRuneFold,
+                dominationShape?.pinned,
+                forceRuneLeq,
+                reads = maxDamageRuneReads(params, sublimations, buildSkillTerms(skillVars).percent.keys),
+                choicePruning = runeChoicePruning,
+                choiceGating = runeChoiceGating
+            )
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
+        // The collapse's gated rune choices (`pick ≤ Σ subVar`): the reads come from the same modelled-sub list, so
+        // every gate sub has a var; a missing one leaves its pick ungated (no cut — sound).
+        for ((pick, subs) in runeModel.choiceGates) {
+            val subVars = subs.mapNotNull { subModel.subVars[it] }
+            if (subVars.size == subs.size) model.addLessOrEqual(pick, LinearExpr.sum(subVars.toTypedArray()))
+        }
         bmMark("subModel")
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
@@ -1088,7 +1809,7 @@ object WakfuBuildSolver {
         // ≤1-normal-sub-per-item cap live in createSublimationModel; rune capacity (Σ runes ≤ sockets) lives in
         // createRuneModel. The two no longer share a socket budget.
 
-        model.addBuildValidityConstraints(allEquips, equipVars)
+        model.addBuildValidityConstraints(allEquips, equipVars, params.character.clazz)
         model.addForcedItemsEquippedConstraints(params, allEquips, equipVars)
         bmMark("validity")
 
@@ -1098,6 +1819,8 @@ object WakfuBuildSolver {
         var certifierObjectives: Map<Int, Long> = emptyMap()
         var certifierFastObjectives: Map<Int, Long> = emptyMap()
         var certifierTier15Objectives: Map<Int, Long> = emptyMap()
+        var certifierAuxObjectives: Map<Int, Long> = emptyMap()
+        var certifierAuxRelaxedVsSplit: Map<Int, Pair<Long, Long>> = emptyMap()
         var certifierLedger: CertLedger? = null
         var certifierExplain: List<String> = emptyList()
         var certifierExplainItemIds: List<Int> = emptyList()
@@ -1109,6 +1832,10 @@ object WakfuBuildSolver {
         // §8.5 S-D: the hard leg's assumption literals (target → literal).
         var mmAssumptionLits: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null
         var actualStatVars: Map<Characteristic, IntVar> = emptyMap()
+        var elementRowReads: Map<Characteristic, IntVar> = emptyMap()
+        var floorReads: List<Pair<Characteristic, IntVar>> = emptyList()
+        var halvingFlag: IntVar? = null
+        var mmStatBuilder: StatBuilder? = null
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
@@ -1132,8 +1859,15 @@ object WakfuBuildSolver {
                             mmDiFactorInterval,
                             mmDiFactorFoldedObjective,
                             mmHardTargetsAsAssumptions,
-                            mmSoftNoGoodCore
+                            mmSoftNoGoodCore,
+                            relaxFloors = relaxFloors,
+                            onStatBuilder = { mmStatBuilder = it }
                         )
+                    mmStatBuilder?.let { statBuilder ->
+                        elementRowReads = statBuilder.elementRowReads
+                        floorReads = statBuilder.floorReadsForTest()
+                        halvingFlag = statBuilder.halvingFlagForTest
+                    }
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
                     mmPenaltyProbeVars = mm.penaltyBucketProbeVars
                     mmAssumptionLits = mm.assumptionLiterals
@@ -1160,6 +1894,9 @@ object WakfuBuildSolver {
                         )
                     val obj = model.buildPrecisionObjective(params, statBuilder)
                     precisionTracked = statBuilder.tracker.tracked()
+                    elementRowReads = statBuilder.elementRowReads
+                    floorReads = statBuilder.floorReadsForTest()
+                    halvingFlag = statBuilder.halvingFlagForTest
                     obj
                 }
 
@@ -1191,7 +1928,8 @@ object WakfuBuildSolver {
                             certifyLedgerPrecomputedTier15 = certifyLedgerPrecomputedTier15,
                             certifyLedgerPrecomputedExact = certifyLedgerPrecomputedExact,
                             certifyLedgerPrecomputedProv = certifyLedgerPrecomputedProv,
-                            certifierCancelled = certifierCancelled
+                            certifierCancelled = certifierCancelled,
+                            certifierTargetAware = certifierTargetAware
                         )
                     val built =
                         model.buildMaxDamageObjective(
@@ -1210,10 +1948,15 @@ object WakfuBuildSolver {
                     certifierObjectives = statBuilder.certifierObjectivesForTest
                     certifierFastObjectives = statBuilder.certifierFastObjectivesForTest
                     certifierTier15Objectives = statBuilder.certifierTier15ObjectivesForTest
+                    certifierAuxObjectives = statBuilder.certifierAuxObjectivesForTest
+                    certifierAuxRelaxedVsSplit = statBuilder.certifierAuxRelaxedVsSplitForTest
                     certifierLedger = statBuilder.certifierLedgerForTest
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
                     critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
+                    elementRowReads = statBuilder.elementRowReads
+                    floorReads = statBuilder.floorReadsForTest()
+                    halvingFlag = statBuilder.halvingFlagForTest
                     // Proof/research profiles only (stat-bound pins + reported actual stats): building
                     // actualStat(HP) adds the pre-HP sum + %HP product chain to every PRODUCTION model
                     // that has no HP target (pre-release review 2026-10-01 — main never paid it).
@@ -1260,7 +2003,12 @@ object WakfuBuildSolver {
             critDiffJointCutBound,
             mmPenaltyProbeVars,
             mmAssumptionLits,
-            actualStatVars
+            actualStatVars,
+            certifierAuxObjectives,
+            certifierAuxRelaxedVsSplit,
+            elementRowReads,
+            floorReads,
+            halvingFlag
         )
     }
 
@@ -2451,6 +3199,8 @@ object WakfuBuildSolver {
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
+        // v52: the hard-leg (target-aware) passes — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): Triple<Map<Int, Long>, Map<Int, Long>, Map<Int, Long>> =
         buildModel(
             params,
@@ -2458,7 +3208,8 @@ object WakfuBuildSolver {
             runes,
             sublimations,
             applyDomination = applyDomination,
-            certifyAllApForTest = true
+            certifyAllApForTest = true,
+            certifierTargetAware = targetAware
         ).let { Triple(it.certifierObjectivesForTest, it.certifierFastObjectivesForTest, it.certifierTier15ObjectivesForTest) }
 
     /**
@@ -2473,6 +3224,8 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
         threads: Int = 1,
+        // v52: the hard-leg (target-aware) pass — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): Map<Int, Long> =
         buildModel(
             params,
@@ -2482,8 +3235,59 @@ object WakfuBuildSolver {
             applyDomination = applyDomination,
             certifyAllApForTest = true,
             certifyFastThreadsForTest = threads,
-            certifyFastOnlyForTest = true
+            certifyFastOnlyForTest = true,
+            certifierTargetAware = targetAware
         ).certifierFastObjectivesForTest
+
+    /**
+     * Test-only (v44): the FAST per-cell ledger together with the AUX worlds' share of it — `(fast, aux)`, both in
+     * objective units; `aux` is empty when the shape has no aux world ([certifierAuxWorlds]). Lets a harness see
+     * whether the secondary-capped / block-assumed worlds BIND (aux ≥ the normal worlds) on a real shape.
+     */
+    internal fun certifierFastAndAuxCellObjectivesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        threads: Int = 1,
+        // v52: the hard-leg (target-aware) pass — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
+    ): Pair<Map<Int, Long>, Map<Int, Long>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true,
+            certifyFastThreadsForTest = threads,
+            certifyFastOnlyForTest = true,
+            certifierTargetAware = targetAware
+        ).let { it.certifierFastObjectivesForTest to it.certifierAuxObjectivesForTest }
+
+    /**
+     * Test-only (v47): per AP cell, `(relaxed, split)` — the relaxed capped aux world's objective and the max over the
+     * exact capped split it stands for ([certifierAuxPlan]); empty when the shape has no relaxed world. The relaxation
+     * must dominate the split at every cell (`relaxed ≥ split`, -1 = a bail).
+     */
+    internal fun certifierAuxRelaxedVsSplitForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+    ): Map<Int, Pair<Long, Long>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true,
+            certifyFastThreadsForTest = 1,
+            certifyFastOnlyForTest = true
+        ).certifierAuxRelaxedVsSplitForTest
 
     /**
      * Default worker-thread count for the certificate orchestrator (P3.2). Memory-aware (B2): the parallel path
@@ -2568,7 +3372,8 @@ object WakfuBuildSolver {
      * Returns `null` when no certificate is available: a **multi-element / boss** scenario (the model's
      * per-element certifier seam only fires for one candidate element — compose per element instead), a
      * non-max-damage mode, or a forced-rune / forced-sublimation shape the certifier bails on. A non-null
-     * result is a sound upper-bound ledger in OBJECTIVE units (directly comparable to CP-SAT objectives).
+     * result is a sound upper-bound ledger in OBJECTIVE units (directly comparable to CP-SAT objectives). The item STAT GATES
+     * are not read (`StatBuilder.applyItemStatGates`): they only remove builds, so the ledger bounds the gated optimum too.
      *
      * @param incumbentObjective a feasible objective (the best build found) — cells whose bound is `≤` it are
      *   eliminated on the fast value; `null` confirms every non-bailed cell exactly.
@@ -2600,6 +3405,10 @@ object WakfuBuildSolver {
         precomputedTier15: Map<Int, Long>? = null,
         precomputedExact: Map<Int, Long>? = null,
         precomputedProv: Map<Int, CellProvenance>? = null,
+        // CERTIFIER_VERSION 52: certify a HARD-LEG result — the ledger then bounds the targets-met builds only (every pass
+        // enforces the request's AP / MP / CC / RANGE rows, see [StatBuilder.certifierTargetAware]). The caller keys its cache
+        // on it ([MaxDamageCertificateCache]); false (soft leg / free request) is the target-blind ledger.
+        targetAware: Boolean = false,
     ): CertLedger? {
         // The ledger's AT_MOST windows read apConst/critConst, which fold the passives' flat stats,
         // while the solver's pre-combat read excludes passives — a passive granting AP or crit would
@@ -2640,7 +3449,8 @@ object WakfuBuildSolver {
                 certifyLedgerPrecomputedTier15 = precomputedTier15,
                 certifyLedgerPrecomputedExact = precomputedExact,
                 certifyLedgerPrecomputedProv = precomputedProv,
-                certifierCancelled = isCancelled
+                certifierCancelled = isCancelled,
+                certifierTargetAware = targetAware
             ).certifierLedgerForTest
         // A cancelled run may have bailed mid-way (a sound but incomplete ledger). Never surface or cache it.
         return if (isCancelled()) null else ledger
@@ -2660,6 +3470,8 @@ object WakfuBuildSolver {
         incumbentObjective: Long? = null,
         forceTier2All: Boolean = false,
         threads: Int = 1,
+        // v52: the hard-leg (target-aware) ledger — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): CertLedger =
         buildModel(
             params,
@@ -2670,7 +3482,8 @@ object WakfuBuildSolver {
             certifyFastThreadsForTest = threads,
             certifyLedgerForTest = true,
             certifyLedgerIncumbentForTest = incumbentObjective,
-            certifyLedgerForceTier2AllForTest = forceTier2All
+            certifyLedgerForceTier2AllForTest = forceTier2All,
+            certifierTargetAware = targetAware
         ).certifierLedgerForTest!!
 
     /** Test-only PROVENANCE: the backtracked composition of [cell]'s winning certificate state. */
@@ -2703,6 +3516,9 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
         cell: Int,
+        // Polled once per certifier DP stage (B8): a cancelled scan bails with NO ids, which the E8 caller reads
+        // as "no provenance" — it checks its own cancel flag right after, so the construct stops instead of falling back.
+        isCancelled: () -> Boolean = { false },
     ): List<Int> =
         buildModel(
             params,
@@ -2710,7 +3526,8 @@ object WakfuBuildSolver {
             runes,
             sublimations,
             applyDomination = applyDomination,
-            certifyExplainCellForTest = cell
+            certifyExplainCellForTest = cell,
+            certifierCancelled = isCancelled
         ).certifierExplainItemIds
 
     /**
@@ -2726,6 +3543,7 @@ object WakfuBuildSolver {
         applyDomination: Boolean = false,
         cell: Int,
         provenance: CellProvenance,
+        isCancelled: () -> Boolean = { false },
     ): List<Int> =
         buildModel(
             params,
@@ -2734,7 +3552,8 @@ object WakfuBuildSolver {
             sublimations,
             applyDomination = applyDomination,
             certifyExplainCellForTest = cell,
-            certifyExplainProvenanceForTest = provenance
+            certifyExplainProvenanceForTest = provenance,
+            certifierCancelled = isCancelled
         ).certifierExplainItemIds
 
     /**
@@ -2752,7 +3571,16 @@ object WakfuBuildSolver {
      * returned ONLY when a re-solved raw proxy REACHES that bound (`proxy ≥ cellBound`) — which certifies the build
      * IS the global optimum. Returns null when neither tier can (a loose bound, an invalid build) ⇒ the caller
      * keeps the incumbent, so best-effort construction is safe (a miss only costs the badge, never correctness).
-     * Free single-element max-damage only (the DP-provable shape).
+     * Free single-element max-damage only (the DP-provable shape): a request whose rows constrain the problem
+     * (a required AP / MP / range / HP… target) is refused, but a MAXIMIZED-mastery row — which max-damage
+     * ignores — is not (see [isFreeMaxDamageShape]), nor a FLOOR (a required row of target 0): the fast re-solve then
+     * runs the hard leg, so the constructed build meets every floor (the ledger, which ignores them, still bounds it), and
+     * the full-pool fallback is skipped — a fast miss there most likely means a binding floor, which it cannot get past.
+     *
+     * BOUNDED + CANCELLABLE: [isCancelled] is polled between the steps and while a re-solve runs (the native solve
+     * is stopped through the flow's teardown), so a superseded search / proof abandons the rescue at once; and the
+     * full-pool fallback — the only open-ended step — gives up after [fallbackWallCapSeconds] of wall clock. Either
+     * way the answer is null (keep the incumbent), never a wrong "proven".
      */
     internal suspend fun dpConstructProvenOptimum(
         params: WakfuBestBuildParams,
@@ -2764,9 +3592,13 @@ object WakfuBuildSolver {
         // cache round-trip — a cascaded PARTIAL entry cannot always be reconstructed for this incumbent,
         // and recomputing it here would pay the full tier-1.5 batch the cascade exists to avoid.
         precomputedLedger: CertLedger? = null,
+        isCancelled: () -> Boolean = { false },
+        fallbackWallCapSeconds: Double = E8_FALLBACK_WALL_CAP_SECONDS,
     ): SolverResult<BuildCombination>? {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
-        if (params.targetStats.any { it.target > 0 }) return null // free shapes only — the DP can't model targets
+        // Free shapes only — the DP can't model required targets. A maximized-mastery row is not a constraint.
+        if (!isFreeMaxDamageShape(params.targetStats)) return null
+        if (isCancelled()) return null
         val ledger =
             if (precomputedLedger != null) {
                 precomputedLedger
@@ -2783,7 +3615,8 @@ object WakfuBuildSolver {
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
                     threads = certifierDefaultThreads(),
-                    cascadeTier15 = true
+                    cascadeTier15 = true,
+                    isCancelled = isCancelled
                 ) ?: return null
             } else {
                 // Standalone (no incumbent, e.g. the manual proof test): force EVERY cell to the exact tier so any
@@ -2816,13 +3649,15 @@ object WakfuBuildSolver {
                     sublimations,
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
-                    threads = certifierDefaultThreads()
+                    threads = certifierDefaultThreads(),
+                    isCancelled = isCancelled
                 ) ?: return null
             argmax =
                 constructLedger.cellObjectives.entries
                     .filter { it.value >= 0 }
                     .maxByOrNull { it.value } ?: return null
         }
+        if (isCancelled()) return null
         val cell = argmax.key
         val bound = argmax.value
         // E8 item A: recover the argmax cell's winning items as typed equipmentIds (no fragile `slot:`-string parse).
@@ -2839,11 +3674,32 @@ object WakfuBuildSolver {
                         sublimations,
                         applyDomination = true,
                         cell = cell,
-                        provenance = prov
+                        provenance = prov,
+                        isCancelled = isCancelled
                     )
-                } ?: certifierExplainItemIdsForTest(params, equipmentsByItemType, runes, sublimations, applyDomination = true, cell = cell)
+                } ?: certifierExplainItemIdsForTest(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    applyDomination = true,
+                    cell = cell,
+                    isCancelled = isCancelled
+                )
             ).toSet()
+                // The certifier ignores the item EQUIP conditions (a relaxation), so its argmax may wear a nation sword
+                // without the ring the sword needs: the restricted re-solve gets the ring too, or it could never wear it.
+                .let { ids -> requirementClosure(ids, equipmentsByItemType.values.flatten()) }
+        // A cancelled explain bailed with no ids — stop here instead of falling through to the full-pool fallback.
+        if (isCancelled()) return null
         val debug = System.getenv("WAKFU_E8_DEBUG") == "1"
+        // The request's FLOORS (rows of target 0 on a required stat — "air resistance 0", "dodge 0") are the one constraint a
+        // free shape still carries: the ledger ignores them (a relaxation, so its bound stays an upper bound of the floored
+        // optimum), but the build constructed here must meet them, or the badge would crown a build the search's hard leg
+        // forbids. So the re-solve runs the hard leg — `actual ≥ 0` on every floor, the plain damage objective — whenever the
+        // request has floors (and the full-pool fallback is skipped, see below); without one the hard leg adds nothing, and the
+        // plain solve stays as it was.
+        val hardFloors = params.targetStats.hasFloors
         // FAST path: re-solve the pool restricted to the provenance items — ~seconds, and reaches the bound on
         // most shapes (measured: free lvl-110 / lvl-245 construct in one tiny re-solve).
         val fast =
@@ -2855,18 +3711,41 @@ object WakfuBuildSolver {
                 if (restricted.isEmpty()) {
                     null
                 } else {
-                    optimize(params.copy(maxDamageApTarget = cell), restricted, runes, sublimations, SolverTuning(maxDeterministicTime = 120.0))
-                        .toList()
-                        .maxByOrNull { it.matchPercentage }
+                    // Cancellable, not wall-capped: the tiny restricted pool answers in seconds, its own det-120 budget bounds it.
+                    collectWithinBudget(
+                        optimize(
+                            params.copy(maxDamageApTarget = cell),
+                            restricted,
+                            runes,
+                            sublimations,
+                            SolverTuning(maxDeterministicTime = 120.0),
+                            hardConstraints = hardFloors
+                        ),
+                        budgetMillis = null,
+                        isCancelled = isCancelled
+                    ).items.maxByOrNull { it.matchPercentage }
                 }
             } else {
                 null
             }
+        if (isCancelled()) return null
         // For a FREE shape objective == raw proxy (no penalty); maxDamageObjective is always populated, the raw
         // proxy only when its var survives — so fall back. Both are the ledger-comparable scaled units.
         val fastProxy = fast?.let { it.maxDamageRawProxy ?: it.maxDamageObjective }
-        if (debug) System.err.println("E8_DBG fast cell=$cell bound=$bound proxy=$fastProxy valid=${fast?.individual?.isValid()}")
-        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid()) return fast.copy(isOptimal = true)
+        if (debug) System.err.println("E8_DBG fast cell=$cell bound=$bound proxy=$fastProxy valid=${fast?.individual?.isValid(params.character.clazz)}")
+        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid(params.character.clazz)) {
+            // A floored re-solve is a hard leg: the build meets every floor in the solver's exact arithmetic.
+            return fast.copy(isOptimal = true, maxDamageHardConstraintsMet = hardFloors)
+        }
+        // A request with FLOORS whose fast re-solve fell short: the ledger's bound ignores the floors, so the likeliest reason is a
+        // floor the argmax cell's best build breaks — and then no floored build reaches the bound, and the full-pool feasibility
+        // search below can only run out its wall cap (twice per search: in it, competing with CP-SAT, and after it). Skipped: the
+        // incumbent keeps its "within X%" badge. (Every measured construct success comes from the fast tier anyway, see
+        // [E8_FALLBACK_WALL_CAP_SECONDS].)
+        if (hardFloors) {
+            if (debug) System.err.println("E8_DBG floored fast tier missed cell=$cell bound=$bound proxy=$fastProxy — fallback skipped")
+            return null
+        }
         // FALLBACK: the provenance item-set need not REALIZE the bound — the certifier's frontier abstraction can
         // credit a sublimation whose value only a slightly different item set unlocks (e.g. the 10th normal sub on
         // a fuller sub loadout), so the restricted re-solve tops out below the bound. Re-solve the FULL pool at the
@@ -2875,23 +3754,34 @@ object WakfuBuildSolver {
         // part the timed search couldn't close), stopped at the first solution, under the canonical deterministic
         // protocol (1 worker + interleave) so the construction is machine-reproducible. A loose (unreachable)
         // bound comes back INFEASIBLE ⇒ empty flow ⇒ null — the caller keeps the incumbent, soundness untouched.
-        val fallback =
-            optimize(
-                params.copy(maxDamageApTarget = cell),
-                equipmentsByItemType,
-                runes,
-                sublimations,
-                SolverTuning(
-                    numSearchWorkers = 1,
-                    interleaveSearch = true,
-                    maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
-                    stopAtFirstSolution = true
+        // Open-ended otherwise (the bound can be loose yet not provably unreachable), hence the wall-clock cap
+        // [fallbackWallCapSeconds] and the cooperative cancel: on either, the solve is stopped and the rescue gives up.
+        val fallbackRun =
+            collectWithinBudget(
+                optimize(
+                    params.copy(maxDamageApTarget = cell),
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    SolverTuning(
+                        numSearchWorkers = 1,
+                        interleaveSearch = true,
+                        maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
+                        stopAtFirstSolution = true
+                    ),
+                    maxDamageRawFloor = bound
                 ),
-                maxDamageRawFloor = bound
-            ).toList().maxByOrNull { it.matchPercentage } ?: return null
+                budgetMillis = (fallbackWallCapSeconds * 1000.0).toLong(),
+                isCancelled = isCancelled
+            )
+        if (fallbackRun.end == CollectEnd.TIMED_OUT) {
+            logger.info { "E8 construct: the full-pool fallback gave up after ${fallbackWallCapSeconds}s (cell=$cell bound=$bound) — keeping the incumbent." }
+        }
+        if (fallbackRun.end == CollectEnd.CANCELLED || isCancelled()) return null
+        val fallback = fallbackRun.items.maxByOrNull { it.matchPercentage } ?: return null
         val proxy = fallback.maxDamageRawProxy ?: fallback.maxDamageObjective ?: return null
-        if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid()}")
-        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true) else null
+        if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid(params.character.clazz)}")
+        return if (proxy >= bound && fallback.individual.isValid(params.character.clazz)) fallback.copy(isOptimal = true) else null
     }
 
     /**
@@ -2913,6 +3803,11 @@ object WakfuBuildSolver {
         // Enforce the required targets as HARD `actual ≥ target` constraints (INFEASIBLE ⇒ hasSolution false),
         // matching the production hard-constraints-first pass. Default false keeps existing callers byte-identical.
         hardConstraints: Boolean = false,
+        // Reference solve for the heuristic-prefilter soundness lock (any scoring mode).
+        forceFullPool: Boolean = false,
+        // The rune-choice pruning-exactness lock: see [buildModel].
+        runeChoicePruning: Boolean = true,
+        runeChoiceGating: Boolean = true,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -2924,7 +3819,10 @@ object WakfuBuildSolver {
                 forceRuneCountModel = forceRuneCountModel,
                 applyDomination = applyDomination,
                 forceRuneLeq = forceRuneLeq,
+                runeChoicePruning = runeChoicePruning,
+                runeChoiceGating = runeChoiceGating,
                 hardConstraints = hardConstraints,
+                forceFullPool = forceFullPool,
                 maxDamageExperiment = tuning.maxDamageExperiment
             )
         val solver = deterministicMaxDamageSolver(tuning)
@@ -2949,11 +3847,97 @@ object WakfuBuildSolver {
         )
     }
 
+    /** Result of [elementRowSolveForTest]. */
+    internal class ElementRowSolve(
+        val status: com.google.ortools.sat.CpSolverStatus,
+        val objective: Long?,
+        val build: BuildCombination?,
+        // The model's claimed value of every per-element var the elemental target rows read (each family's fold).
+        val modelElementValues: Map<Characteristic, Long>,
+        // The model's value of every floor it reads (a required row of target 0 — StatBuilder.floorReads; a floor no build of
+        // the pool can break is not read), and whether it halved its objective (precision, or a soft leg's broken floor;
+        // null when the model has no such boolean — the hard legs).
+        val modelFloorValues: Map<Characteristic, Long> = emptyMap(),
+        val modelHalved: Boolean? = null,
+    ) {
+        val hasSolution: Boolean get() = objective != null
+        val isOptimal: Boolean get() = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+    }
+
+    /**
+     * Test seam (the per-element-row fold locks): builds the [params] model on exactly [equipmentsByItemType] (no
+     * prefilter, no domination, unless [forceFullPool] is false), the required targets as HARD constraints when
+     * [hardConstraints], optionally PINS a build — [pinnedEquipmentIds] (every other item off), [pinSkillsToZero] (no skill
+     * point spent) and/or [pinnedDecisions] (every decision var by name, an absent one 0) — solves it with the deterministic
+     * [tuning], and returns the solved build beside the model's own claimed value of every per-element var its rows read.
+     * [relaxFloors]: the most-masteries model without the request's floors, relax-then-check's relaxed stage ([relaxThenCheck]).
+     */
+    internal fun elementRowSolveForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+        hardConstraints: Boolean,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        pinnedEquipmentIds: Set<Int>? = null,
+        pinSkillsToZero: Boolean = false,
+        pinnedDecisions: Map<String, Long>? = null,
+        forceFullPool: Boolean = true,
+        relaxFloors: Boolean = false,
+    ): ElementRowSolve {
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                forceFullPool = forceFullPool,
+                hardConstraints = hardConstraints,
+                maxDamageExperiment = tuning.maxDamageExperiment,
+                relaxFloors = relaxFloors
+            )
+        if (built.maxDamageStaticallyInfeasible) {
+            return ElementRowSolve(com.google.ortools.sat.CpSolverStatus.INFEASIBLE, null, null, emptyMap())
+        }
+        pinnedEquipmentIds?.let { ids ->
+            for ((equip, v) in built.equipVars) built.model.addEquality(v, if (equip.equipmentId in ids) 1L else 0L)
+        }
+        if (pinSkillsToZero) for (v in built.skillVars.values) built.model.addEquality(v, 0L)
+        pinnedDecisions?.let { values ->
+            val decisions = diagnosticVars(built)
+            val missing = values.keys - decisions.map { it.name }.toSet()
+            require(missing.isEmpty()) { "pinned decisions absent from the model: $missing" }
+            for (v in decisions) built.model.addEquality(v, values[v.name] ?: 0L)
+        }
+        val solver = CpSolver()
+        solver.parameters.logSearchProgress = false
+        solver.parameters.numSearchWorkers = tuning.numSearchWorkers
+        solver.parameters.randomSeed = tuning.randomSeed
+        solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
+        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) solver.parameters.linearizationLevel = 2
+        val status = solver.solve(built.model)
+        val hasSolution =
+            status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        if (!hasSolution) return ElementRowSolve(status, null, null, emptyMap())
+        val build = solutionToBuild(params, built.allEquips, built.equipVars, built.skillVars, built.runeModel, built.subModel) { solver.value(it) }
+        return ElementRowSolve(
+            status = status,
+            // Rounded, not truncated: the objective comes back as a double (961354.9999 must read 961355).
+            objective = Math.round(solver.objectiveValue()),
+            build = build,
+            modelElementValues = built.elementRowReads.mapValues { (_, v) -> solver.value(v) },
+            modelFloorValues = built.floorReads.associate { (characteristic, v) -> characteristic to solver.value(v) },
+            modelHalved = built.halvingFlag?.let { solver.value(it) == 1L }
+        )
+    }
+
     /** Test seam: the per-slot domination pre-filter applied to [pool], pinning [pinned] to equality (empty = full). */
     internal fun filterDominatedPoolForTest(
         pool: Map<ItemType, List<Equipment>>,
         pinned: Set<Characteristic> = emptySet(),
-    ): Map<ItemType, List<Equipment>> = filterDominatedPool(pool, pinned)
+    ): Map<ItemType, List<Equipment>> = filterDominatedPool(pool, DominationShape(pinned))
 
     /** A tracked objective-chain var's solved value against its declared reachable `[lo, hi]`. */
     internal data class MaxDamageVarBound(
@@ -3164,6 +4148,28 @@ object WakfuBuildSolver {
         )
     }
 
+    /** Test seam: the items the multi-element prefilter ([prefilterRelevantEquipments]) keeps of [equipmentsByItemType]. */
+    internal fun prefilteredPoolForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Map<ItemType, List<Equipment>> = prefilterRelevantEquipments(equipmentsByItemType, params)
+
+    /**
+     * Test-only: the size of the production model of [params] — (variables, constraints, items after the domination pre-filter) —
+     * built like a production solve (domination on), no solve. The stat-gate perf report reads it.
+     */
+    internal fun modelSizeForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+    ): Triple<Int, Int, Int> {
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = true, hardConstraints = hardConstraints)
+        val proto = built.model.model()
+        return Triple(proto.variablesCount, proto.constraintsCount, built.allEquips.size)
+    }
+
     /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
     internal fun gatedPoolSizeForTest(
         params: WakfuBestBuildParams,
@@ -3248,6 +4254,7 @@ object WakfuBuildSolver {
     private fun CpModel.addBuildValidityConstraints(
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
+        characterClass: CharacterClass,
     ) {
         val itemTypesLimits =
             mapOf(
@@ -3298,15 +4305,14 @@ object WakfuBuildSolver {
             1L
         )
 
-        // Rarity rules
-        val relics = allEquips.filter { it.rarity == Rarity.RELIC }.map { equipVars.getValue(it) }.toTypedArray()
-        if (relics.isNotEmpty()) {
-            addLessOrEqual(LinearExpr.sum(relics), 1L)
-        }
-
-        val epics = allEquips.filter { it.rarity == Rarity.EPIC }.map { equipVars.getValue(it) }.toTypedArray()
-        if (epics.isNotEmpty()) {
-            addLessOrEqual(LinearExpr.sum(epics), 1L)
+        // "Only one equipped at a time" groups ([Equipment.exclusiveGroup], the CDN item properties 8 / 12): at most one RELIC
+        // item, and at most one item of the EPIC group — every EPIC item AND the two COMMON items the game counts with them.
+        // (The epic / relic SUBLIMATION carrier stays the item's rarity — see [SublimationModelBuilder].)
+        for (group in listOf(ExclusiveGroup.RELIC, ExclusiveGroup.EPIC)) {
+            val members = allEquips.filter { it.exclusiveGroup == group }.map { equipVars.getValue(it) }.toTypedArray()
+            if (members.isNotEmpty()) {
+                addLessOrEqual(LinearExpr.sum(members), 1L)
+            }
         }
 
         // Same ring name is not allowed
@@ -3318,6 +4324,44 @@ object WakfuBuildSolver {
             if (equips.size > 1) {
                 val sumExpr = LinearExpr.sum(equips.map { equipVars.getValue(it) }.toTypedArray())
                 addLessOrEqual(sumExpr, 1L)
+            }
+        }
+        addEquipConditionConstraints(allEquips, equipVars, characterClass)
+    }
+
+    /**
+     * The item EQUIP conditions of the pool (AGENTS.md §4 "Item equip conditions"): an item a [characterClass] can't wear
+     * (another class's emblem / amulet, a never-equippable `False` item) is forced off — the production pool
+     * ([WakfuBestBuildFinderAlgorithm.poolFor]) already filtered them, but a raw pool (the lvl-245 oracle's, a research
+     * harness's) still carries them; an item is worn only with each item it requires — `x_item ≤ x_key`, and a key the
+     * pool lacks forces the item off (the pool filter normally dropped it already) — and two items either of which
+     * forbids the other are never worn together — `x_a + x_b ≤ 1`, once per unordered pair (the symmetric closure).
+     */
+    private fun CpModel.addEquipConditionConstraints(
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        characterClass: CharacterClass,
+    ) {
+        val byId = allEquips.associateBy { it.equipmentId }
+        val excludedPairs = HashSet<Pair<Int, Int>>()
+        for (item in allEquips) {
+            val itemVar = equipVars.getValue(item)
+            if (!item.isWearableBy(characterClass)) {
+                addEquality(itemVar, 0L)
+                continue
+            }
+            for (keyId in item.requiredItemIds) {
+                val key = byId[keyId]
+                if (key == null) {
+                    addEquality(itemVar, 0L)
+                } else {
+                    addLessOrEqual(LinearExpr.weightedSum(arrayOf(itemVar, equipVars.getValue(key)), longArrayOf(1L, -1L)), 0L)
+                }
+            }
+            for (forbiddenId in item.forbiddenItemIds) {
+                val other = byId[forbiddenId] ?: continue
+                val pair = minOf(item.equipmentId, forbiddenId) to maxOf(item.equipmentId, forbiddenId)
+                if (excludedPairs.add(pair)) addLessOrEqual(LinearExpr.sum(arrayOf(itemVar, equipVars.getValue(other))), 1L)
             }
         }
     }
@@ -3403,6 +4447,10 @@ object WakfuBuildSolver {
         // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
         mmHardTargetsAsAssumptions: Boolean = false,
         mmSoftNoGoodCore: Set<Characteristic>? = null,
+        // Relax-then-check's relaxed stage: the model without the request's floors ([StatBuilder.relaxFloors]).
+        relaxFloors: Boolean = false,
+        // Hands the stat builder to [buildModel] (its row-read test seam); no effect on the model.
+        onStatBuilder: (StatBuilder) -> Unit = {},
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -3417,8 +4465,9 @@ object WakfuBuildSolver {
                 // big-Ms and declared domains consume the same reachable ranges. CURRENT is byte-identical.
                 tight = mmProductEncoding != MmProductEncoding.CURRENT,
                 // Decouple from the max-damage experiment default (see [MaxDamageExperimentConfig.NON_MAX_DAMAGE]).
-                maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE
-            )
+                maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE,
+                relaxFloors = relaxFloors
+            ).also(onStatBuilder)
         statBuilder.applyOutOfCombatCaps()
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
@@ -3652,8 +4701,9 @@ object WakfuBuildSolver {
      *
      * Because the table is normalised so the at-or-above-floor bucket maps to [MAX_SURVIVABILITY_MULTIPLIER]
      * and we divide the product back out by that same max, meeting the floor is an exact no-op
-     * (`score · max / max = score`) and missing it scales the score down by `bucket^2 / maxIndex^2` — a
-     * smooth soft tax that vanishes at the floor. The result is clamped back onto [DAMAGE_PERTURN_ABS_MAX]
+     * (`score · max / max = score`) and missing it scales the score down by `bucket^2 / maxIndex^2` (at
+     * most ×1/[MAX_SURVIVABILITY_MULTIPLIER] — the table is floored at 1, so a hopeless floor still ranks
+     * builds by damage) — a smooth soft tax that vanishes at the floor. The result is clamped back onto [DAMAGE_PERTURN_ABS_MAX]
      * so downstream bounds are unchanged.
      */
     private fun CpModel.applySurvivabilityFloor(
@@ -3696,8 +4746,17 @@ object WakfuBuildSolver {
      * Wraps a build-dependent [coreScore] (mastery sum or expected damage) with the required-target
      * shortfall penalty: when no required targets exist the core score is the objective; otherwise it
      * is multiplied by a power-6 penalty multiplier driven by how fully the AP/MP/range/… constraints
-     * are met. Returns the penalized objective var and the absolute bound of its domain — the latter is
-     * what the most-masteries overshoot tie-breaker needs. [coreScoreAbsMax] bounds the result.
+     * are met — floored at 1 ([penaltyMultiplier]), so a request whose targets are far out of reach for
+     * every build still ranks builds by their core instead of collapsing to a flat 0. Returns the
+     * penalized objective var and the absolute bound of its domain — the latter is what the
+     * most-masteries overshoot tie-breaker needs. [coreScoreAbsMax] bounds the result.
+     *
+     * A FLOOR below 0 (a required row of target 0, [StatBuilder.floorReads]) HALVES that product — once, however many floors
+     * are below 0, as precision halves: the core is halved (truncated) before it meets the multiplier. A row of target 0 has
+     * no share of the power-6 ratio (its expected score is 0), so the halving is its penalty: a factor ≤ 1, so the leg stays
+     * feasible, never raises an objective (every certificate's bound, which ignores the floors, stays an upper bound of it),
+     * and it applies on top of the multiplier floor, so even a build whose targets are hopeless still pays it. The scorers
+     * divide by 2 on top of their shortfall factor.
      */
     private fun CpModel.applyConstraintPenalty(
         params: WakfuBestBuildParams,
@@ -3720,15 +4779,35 @@ object WakfuBuildSolver {
         val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
 
         val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
-        val powerTable = buildPowerTable(maxIndex.toLong(), coreScoreAbsMax)
+        val powerTable = buildPowerTable(maxIndex.toLong())
 
         val multiplier = newIntVar(0, powerTable.maxValue, "penaltyMultiplier")
         addElement(indexVar, powerTable.values, multiplier)
 
+        // The floors' halving is taken on the CORE, before the product: the product's domain is near int64's limit (CP-SAT
+        // refuses a model whose variable domains sum past it), the core's is small. `⌊core / 2⌋ × multiplier` is the halved
+        // objective up to the truncation of an odd core — still ≤ the unhalved one, which is all the certificates rely on.
+        val floorBroken = statBuilder.floorViolation
+        val core =
+            if (floorBroken == null) {
+                coreScore
+            } else {
+                // Declared on the core's own domain (CP-SAT's division truncates toward 0, like Kotlin's), so the product below
+                // keeps the core's tight bounds — a loose factor would weaken its relaxation.
+                val coreDomain = coreScore.domain
+                val (lo, hi) = coreDomain.min() to coreDomain.max()
+                val halved = newIntVar(lo / 2, hi / 2, "coreHalved")
+                addDivisionEquality(halved, coreScore, newConstant(2L))
+                val penalized = newIntVar(minOf(lo, lo / 2), maxOf(hi, hi / 2), "coreFloorPenalized")
+                addEquality(penalized, coreScore).onlyEnforceIf(floorBroken.not())
+                addEquality(penalized, halved).onlyEnforceIf(floorBroken)
+                penalized
+            }
+
         val maxObjective = safeMultiply(coreScoreAbsMax, powerTable.maxValue)
         val objectiveBound = maxObjective.coerceAtMost(Long.MAX_VALUE / 2)
         val objective = newIntVar(-objectiveBound, objectiveBound, "objectiveScore")
-        addMultiplicationEquality(objective, coreScore, multiplier)
+        addMultiplicationEquality(objective, core, multiplier)
         return PenalizedObjective(objective, objectiveBound)
     }
 
@@ -3777,6 +4856,9 @@ object WakfuBuildSolver {
     ): BucketIntervalCore? {
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
         if (requiredTargets.isEmpty()) return null
+        // These measurement seams price the bucket's power-6 multiplier only, not the floors' halving (applyConstraintPenalty):
+        // refuse a request with a floor rather than search a model that is not the soft leg's.
+        require(!targetStats.hasFloors) { "the penalty-bucket seams do not model the floors' halving" }
         val totalExpectedScore =
             requiredTargets
                 .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
@@ -3784,7 +4866,7 @@ object WakfuBuildSolver {
         val totalActualScore = statBuilder.totalActualScore(requiredTargets, totalExpectedScore, targetStats)
         val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
         val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
-        val powerTable = buildPowerTable(maxIndex.toLong(), coreAbsMax)
+        val powerTable = buildPowerTable(maxIndex.toLong())
         geometryProbe?.invoke(maxIndex, powerTable.values, totalExpectedScore)
 
         val lo = interval.first.coerceIn(0, maxIndex).toLong()
@@ -3889,16 +4971,10 @@ object WakfuBuildSolver {
                 .bestAcrossElements(combination, params.character, params.character.clazz, params.damageScenario)
                 .totalExpectedDamage
                 .toBigDecimal()
-        val stats =
-            computeCharacteristicsValues(
-                buildCombination = combination,
-                characterBaseCharacteristics = params.character.baseCharacteristicValues,
-                masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                // Pass the real resistance targets so the penalty's stats see RESISTANCE_ELEMENTARY / per-
-                // element resistances (an emptyMap made them read 0, mis-ranking builds when the user sets a
-                // required resistance in max-damage mode).
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
-            )
+        // The scorer's own stats (FindMaxDamageScoring.penaltyStats): the real resistance targets — an emptyMap read them as 0,
+        // mis-ranking builds when the user sets a required resistance in max-damage mode — their rolls (and a floor's) placed
+        // where the solver's joint fold places them, and the scenario-gated sublimation effects applied as the model applies them.
+        val stats = FindMaxDamageScoring.penaltyStats(params.targetStats, combination, params.character.baseCharacteristicValues, params.damageScenario)
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return rotationDamage.divide(penalty, 4, RoundingMode.FLOOR)
     }
@@ -3941,6 +5017,15 @@ object WakfuBuildSolver {
         // primary — stamp the PINNED stage-1 primary instead so the final displayed emission keeps
         // a certificate-comparable objective (else the backup badge gate reads null and never runs).
         mmObjectiveOverride: Long? = null,
+        // Relax-then-check ([relaxThenCheck]) — the knobs of its stages:
+        //  - the TUNED path's deterministic budget of this stage (null = the tuning's whole budget);
+        maxDeterministicTimeOverride: Double? = null,
+        //  - an intermediate build is shown only when this accepts it (the relaxed stage: its floors held in the scorers' read);
+        emitFilter: ((BuildCombination, BigDecimal) -> Boolean)? = null,
+        //  - false: no final send (the relaxed stage's final build is no result of the leg — its outcome carries it instead);
+        sendFinal: Boolean = true,
+        //  - the leg's start, which the progress percentage counts from (null = this solve's own start).
+        progressStartMs: Long? = null,
     ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
@@ -3980,7 +5065,7 @@ object WakfuBuildSolver {
             // optimality proof finishes quickly.
             solver.parameters.numSearchWorkers = tuning.numSearchWorkers
             solver.parameters.randomSeed = tuning.randomSeed
-            solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+            solver.parameters.maxDeterministicTime = maxDeterministicTimeOverride ?: tuning.maxDeterministicTime
             if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
             tuning.maxPresolveIterationsOverride?.let { solver.parameters.maxPresolveIterations = it }
             tuning.linearizationLevelOverride?.let { solver.parameters.linearizationLevel = it }
@@ -3995,7 +5080,10 @@ object WakfuBuildSolver {
         }
 
         val startTime = System.currentTimeMillis()
+        val progressOrigin = progressStartMs ?: startTime
 
+        val stopAtMatch = params.stopWhenBuildMatch && params.scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        var firstMatchingBuild: Pair<BuildCombination, BigDecimal>? = null
         val cb =
             object : CpSolverSolutionCallback() {
                 private var lastEmitMs = 0L
@@ -4018,6 +5106,26 @@ object WakfuBuildSolver {
                         return
                     }
 
+                    // Check EVERY solution before the emission throttle. Retain the first match: another native
+                    // worker may improve the incumbent while stopSearch winds down. A deliberate stop earns no proof.
+                    if (stopAtMatch) {
+                        if (firstMatchingBuild == null) {
+                            val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
+                            val capped =
+                                FindClosestBuildFromInputScoring.computeScore(
+                                    params.targetStats,
+                                    combination,
+                                    params.character.baseCharacteristicValues,
+                                    includeOverflow = false
+                                )
+                            if (capped >= BigDecimal(100)) firstMatchingBuild = combination to scoreFor(params, combination)
+                        }
+                        if (firstMatchingBuild != null) {
+                            stopSearch()
+                            return
+                        }
+                    }
+
                     // Throttle the heavy rescore: building + scoring every improving solution on the solve
                     // thread starves the search. Snapshots are best-effort progress (trySend, consumers keep
                     // only the last), so skipping some is invisible — the proven final build is emitted
@@ -4029,8 +5137,9 @@ object WakfuBuildSolver {
                     val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
                     val actualScore = scoreFor(params, combination)
                     if (suppressBelowScore != null && actualScore < suppressBelowScore) return
+                    if (emitFilter != null && !emitFilter(combination, actualScore)) return
 
-                    val progress = ((now - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
+                    val progress = ((now - progressOrigin).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
                     scope.trySend(
                         SolverResult(
                             combination,
@@ -4051,18 +5160,23 @@ object WakfuBuildSolver {
             logger.debug { "Solver response stats:\n${solver.responseStats()}" }
 
             if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
-                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { solver.value(it) }
-                val finalScore = scoreFor(params, finalComb)
+                val finalComb = firstMatchingBuild?.first ?: solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { solver.value(it) }
+                val finalScore = firstMatchingBuild?.second ?: scoreFor(params, finalComb)
                 // Guaranteed delivery (suspending send, not trySend): intermediate best-so-far
                 // emissions are best-effort progress and may be dropped under back-pressure, but the
                 // final/optimal build must never be lost to a saturated callbackFlow buffer.
-                if (scope.isActive) {
+                if (sendFinal && scope.isActive) {
                     scope.send(
                         SolverResult(
                             individual = finalComb,
                             matchPercentage = finalScore,
                             progressPercentage = 100,
-                            isOptimal = finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL),
+                            // OPTIMAL (including stage 1's override) proves only the searched pool. The
+                            // heuristic top-8 prefilter can discard the global optimum in EVERY mode.
+                            isOptimal =
+                                firstMatchingBuild == null &&
+                                    !needsItemPrefilter(params.targetStats) &&
+                                    (finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL)),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,
                             mostMasteriesObjective =
@@ -4076,7 +5190,9 @@ object WakfuBuildSolver {
                     bestObjectiveBound = solver.bestObjectiveBound().toLong(),
                     deterministicTime = deterministicTimeFrom(solver.responseStats()),
                     branches = solver.numBranches(),
-                    conflicts = solver.numConflicts()
+                    conflicts = solver.numConflicts(),
+                    finalBuild = finalComb,
+                    finalScore = finalScore
                 )
             } else {
                 SolveOutcome(
@@ -4106,6 +5222,9 @@ object WakfuBuildSolver {
         val deterministicTime: Double,
         val branches: Long,
         val conflicts: Long,
+        // The solve's final build and its score, when it has one — sent or not (relax-then-check's relaxed stage sends none).
+        val finalBuild: BuildCombination? = null,
+        val finalScore: BigDecimal? = null,
     )
 
     /**
@@ -4437,27 +5556,10 @@ object WakfuBuildSolver {
         return bucketVar to maxIndex
     }
 
-    private fun buildPowerTable(
-        maxIndex: Long,
-        maxMasteryAbs: Long,
-    ): PowerTable {
-        val maxMultiplierTarget = MAX_PENALTY_MULTIPLIER
-        val maxPow = BigInteger.valueOf(maxIndex).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(maxMultiplierTarget)) {
-                maxPow.divide(BigInteger.valueOf(maxMultiplierTarget))
-            } else {
-                BigInteger.ONE
-            }
-
-        val table =
-            LongArray(maxIndex.toInt() + 1) { index ->
-                BigInteger
-                    .valueOf(index.toLong())
-                    .pow(6)
-                    .divide(powScale)
-                    .toLong()
-            }
+    /** The required-target power table over buckets `0..maxIndex` — every entry is [penaltyMultiplier]'s, floor included. */
+    private fun buildPowerTable(maxIndex: Long): PowerTable {
+        val powScale = penaltyPowScale(maxIndex)
+        val table = LongArray(maxIndex.toInt() + 1) { index -> penaltyMultiplier(index.toLong(), powScale) }
 
         return PowerTable(
             values = table,
@@ -4470,6 +5572,8 @@ object WakfuBuildSolver {
      * the top bucket equals [MAX_SURVIVABILITY_MULTIPLIER]. Like [buildPowerTable] but with the much
      * smaller power-2 exponent, so the implied damage tax for missing the EHP floor stays mild (a build at
      * half the floor keeps ~1/4 of its score from this factor) instead of the near-veto a power-6 imposes.
+     * Floored at 1 like [penaltyMultiplier]: a floor far above every build's EHP (< ~3% reached) mapped every
+     * bucket to 0 and flattened the damage objective — the empty build tied the optimum.
      */
     private fun buildGentlePowerTable(maxIndex: Long): PowerTable {
         if (maxIndex <= 0) return PowerTable(longArrayOf(MAX_SURVIVABILITY_MULTIPLIER), MAX_SURVIVABILITY_MULTIPLIER)
@@ -4484,6 +5588,7 @@ object WakfuBuildSolver {
                     .pow(SURVIVABILITY_PENALTY_POWER)
                     .divide(powScale)
                     .toLong()
+                    .coerceAtLeast(MIN_PENALTY_MULTIPLIER)
             }
         return PowerTable(values = table, maxValue = table.last().coerceAtLeast(1L))
     }

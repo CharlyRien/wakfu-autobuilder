@@ -1,5 +1,147 @@
 # Changelog
 
+## [1.15.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.2...wakfu-autobuilder-1.15.0) (2026-10-07)
+
+
+### Features
+
+* badge saved builds a new search may improve as obsolete ([#245](https://github.com/CharlyRien/wakfu-autobuilder/issues/245)) ([f7ec4e1](https://github.com/CharlyRien/wakfu-autobuilder/commit/f7ec4e1bf715dc0d360365e1cba58a944d529b82))
+* bdata-extractor decodes the items' equip conditions into item-criteria.json ([3ae62c2](https://github.com/CharlyRien/wakfu-autobuilder/commit/3ae62c222628174e2971fa1691639dc7c83786e5))
+* equip conditions name the achievement they need ([ed38251](https://github.com/CharlyRien/wakfu-autobuilder/commit/ed3825183f72cfbeef007536fb8f402d72d9e46e))
+* **gui:** show each item's equip conditions in the picker and the item tooltips ([29d052f](https://github.com/CharlyRien/wakfu-autobuilder/commit/29d052f68069f6bd133450f4b4d285150c5ade4f))
+* remember the request being edited between launches ([350eff0](https://github.com/CharlyRien/wakfu-autobuilder/commit/350eff08862b8b1707b3b5b080dc2a9e15743f85))
+
+
+### Bug Fixes
+
+* "Stop at 100% match" stops a precision search at its first 100 % build ([f55bc98](https://github.com/CharlyRien/wakfu-autobuilder/commit/f55bc987486ddf81ec4320e2aef17c14ab365e47))
+* a blank target asks for nothing, and a reloaded build keeps no proof made on the old pre-filtered pool ([89a457c](https://github.com/CharlyRien/wakfu-autobuilder/commit/89a457c1737a7eba44ea8f2ddd1bfb2f5af0492d))
+* a floor counts the random rolls a player can put on it, and every max-damage reader sees what the solver sees ([214fddc](https://github.com/CharlyRien/wakfu-autobuilder/commit/214fddc2efbafa461354cb03fd879178c7133960))
+* a most-masteries leg with floors starts its floored stage from the warm start when the relaxed one found nothing ([42651c6](https://github.com/CharlyRien/wakfu-autobuilder/commit/42651c6d550c25b7e53aafd4efa50378114a4f41))
+* a negative random resistance lands where the game lets you put it, with or without a floor ([89bd0f4](https://github.com/CharlyRien/wakfu-autobuilder/commit/89bd0f480e329c2f738e5f47a81b0f1ae28036d5))
+* a reloaded build keeps no proof its older search could not make, blank fields included ([60d5a08](https://github.com/CharlyRien/wakfu-autobuilder/commit/60d5a08718ff3b4e8eec3d039cdf53b59ac708f0))
+* a target of 0 means never negative in every mode, and no longer adds an element to the request ([b445e9a](https://github.com/CharlyRien/wakfu-autobuilder/commit/b445e9acafeaaf9a63ffeb92ac9ac344f43dfbf3))
+* builds respect the items' equip conditions — nation swords need their ring, class items go to their class, excluding rings are never combined ([0d20246](https://github.com/CharlyRien/wakfu-autobuilder/commit/0d20246f1529959dfdab4bd5b33b3c3df00ce315))
+* **cli:** negative stat targets are rejected with a clear message instead of an empty search ([7b9d620](https://github.com/CharlyRien/wakfu-autobuilder/commit/7b9d620af347ea3f1737393efb8a6feba58211f1))
+* **cli:** the precision match never reads above 100% ([938bd65](https://github.com/CharlyRien/wakfu-autobuilder/commit/938bd65474279fca98ac1a59160e099786339095))
+* forcing a ring or a nation sword no longer empties the second ring slot ([80515d6](https://github.com/CharlyRien/wakfu-autobuilder/commit/80515d67d42e93a527cadb0a1f13495a3a00f50f))
+* **gui:** "Save as new" suggests a free name and never duplicates an existing build’s name ([2e482cb](https://github.com/CharlyRien/wakfu-autobuilder/commit/2e482cb00affeb0d96b98daeba0d6ea3b04b1ff8))
+* **gui:** a max-damage result without a mastery request no longer shows "Requested mastery 0" ([c09d9b4](https://github.com/CharlyRien/wakfu-autobuilder/commit/c09d9b46dc4a874cc547ac13e264cd5bf0407129))
+* **gui:** a passive's name is never cut in a narrow stats column ([3386dad](https://github.com/CharlyRien/wakfu-autobuilder/commit/3386dad94c83fb2377fcbd8811bc364afe541bfa))
+* **gui:** a saved build that breaks an equip condition loses its proven-optimal flag on load ([1b2dc65](https://github.com/CharlyRien/wakfu-autobuilder/commit/1b2dc650f81a5ceeea794183720c03e73651a064))
+* **gui:** a stopped Max Damage search keeps its per-position damage breakdown ([a77055b](https://github.com/CharlyRien/wakfu-autobuilder/commit/a77055b2c1069e7f7019c0b4b31de0e3a30d78b5))
+* **gui:** an older-engine proof looks the same on a card and after a reload, and the library waits for the search to end before re-scoring ([5a80a00](https://github.com/CharlyRien/wakfu-autobuilder/commit/5a80a003b209be11f0e1d8d34c38e39b6a846159))
+* **gui:** save, import and duplicate errors are explained in the player's language ([3c730ec](https://github.com/CharlyRien/wakfu-autobuilder/commit/3c730ec362038b121e36dac5db57fceebbf1d5f9))
+* **gui:** stat icon fallbacks follow the player's language ([f505756](https://github.com/CharlyRien/wakfu-autobuilder/commit/f505756288486b73fdcaf6da0a79bc50256a8afa))
+* **gui:** the empty-slot explanation shows after a finished search ([a5adfe4](https://github.com/CharlyRien/wakfu-autobuilder/commit/a5adfe40197650409b67bc3bc32d7f6e18709e92))
+* **gui:** the last English-only labels are translated ([08523df](https://github.com/CharlyRien/wakfu-autobuilder/commit/08523df38de10abf51dbaedfaa03eba647f75b15))
+* **gui:** viewing a build as damage shows its expected damage in the headline ([b20a049](https://github.com/CharlyRien/wakfu-autobuilder/commit/b20a049160e554f11d003716f243ae45f4501efa))
+* **gui:** widened stats reflow into two columns without truncating labels or values ([66b23b6](https://github.com/CharlyRien/wakfu-autobuilder/commit/66b23b6b97baa7a53daa624eb22effbea801bf12))
+* items with a stat condition are only worn when the build's out-of-combat sheet meets it ([#255](https://github.com/CharlyRien/wakfu-autobuilder/issues/255)) ([09ce499](https://github.com/CharlyRien/wakfu-autobuilder/commit/09ce499fcda483bb164beb6aba205ef9d6485aa2))
+* relax-then-check reads the relaxed value twice, verifies the checked build, and checks an unproven relaxed incumbent too ([3694d01](https://github.com/CharlyRien/wakfu-autobuilder/commit/3694d01af783bf942e2fa296b2d07ae03efe8f4f))
+* saved builds made before the item equip conditions read as obsolete (ENGINE_RESULTS_VERSION 2) ([1845e36](https://github.com/CharlyRien/wakfu-autobuilder/commit/1845e36332aa6782b4e895c71deb2f85abc60753))
+* the epic budget follows the game's exclusivity groups, and the optimality check prices excluding rings exactly ([8162154](https://github.com/CharlyRien/wakfu-autobuilder/commit/81621547c82200fbaefa35c8e94e172dd5881214))
+* the item picker lists every matching item, with a count and a slot filter ([4eb493a](https://github.com/CharlyRien/wakfu-autobuilder/commit/4eb493afaa8c4f6282134cab0ce18ff0f3fa0de7))
+
+
+### Performance Improvements
+
+* a floor that binds no longer slows the most-masteries proof down: the relaxed optimum is checked, not used as a cut ([53f8a72](https://github.com/CharlyRien/wakfu-autobuilder/commit/53f8a72822c3750e55a6e927aff4cd57715cc798))
+* most-masteries proves a request with floors as fast as one without, by relaxing them first ([15f134f](https://github.com/CharlyRien/wakfu-autobuilder/commit/15f134f6b3475b5ea39e3d805b0190c7293a7297))
+
+## [1.14.2](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.1...wakfu-autobuilder-1.14.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* a precision row of target 0 keeps the random roll that stops the score halving ([cabbe55](https://github.com/CharlyRien/wakfu-autobuilder/commit/cabbe555625c1974b23e7fb2e88697772dfb842c))
+* a saved build of a request on several elements of one family no longer restores a proof ([b818f55](https://github.com/CharlyRien/wakfu-autobuilder/commit/b818f5513f15a56f5bcff49dabb21dd34e0eacb2))
+* precision halves the score once, like the solver, however many rows of target 0 are below 0 ([1a72266](https://github.com/CharlyRien/wakfu-autobuilder/commit/1a7226617561481da2239ce107603e719586124b))
+* say why a request on several elements gets no optimality badge ([546bb55](https://github.com/CharlyRien/wakfu-autobuilder/commit/546bb553ade0e07993a33fdd89ce12debec8ece9))
+* targets on several elements count each random-element roll once ([ee8559d](https://github.com/CharlyRien/wakfu-autobuilder/commit/ee8559dc648f25645374b7ccd79a9d9103b7bb7f))
+* the multi-element item pre-selection keeps well-rounded items ([2761399](https://github.com/CharlyRien/wakfu-autobuilder/commit/276139960785bb173af93270d4e494adcf793f6d))
+* the scorer keeps random-element rolls once the targets are met ([0e6ed86](https://github.com/CharlyRien/wakfu-autobuilder/commit/0e6ed86815c4e8f567956bdfd066a86c393b4155))
+
+
+### Performance Improvements
+
+* a build's per-element-row placement is searched once, not on every read ([3ae3f5a](https://github.com/CharlyRien/wakfu-autobuilder/commit/3ae3f5a517c6921fb4a229e06e9ee2b0108063ed))
+
+## [1.14.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.0...wakfu-autobuilder-1.14.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* a build loaded from My Builds is re-scored with the current rules ([2f4ce1a](https://github.com/CharlyRien/wakfu-autobuilder/commit/2f4ce1a8acae64e724fd50bcd512bfe8d50e0904))
+* a reloaded build keeps its proof flag when nothing moved, and shows no stale search hint ([8284ec0](https://github.com/CharlyRien/wakfu-autobuilder/commit/8284ec080b26ffd955a8a27f4da96664903db61f))
+* Neutralité, Ambition and Inflexibilité now require each secondary mastery to be zero or below ([e075135](https://github.com/CharlyRien/wakfu-autobuilder/commit/e0751351fde2f5065977ee147eab0d20a4fcf448))
+
+## [1.14.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.13.0...wakfu-autobuilder-1.14.0) (2026-10-04)
+
+
+### Features
+
+* tighter "proven within X%" badge for Max Damage searches with targets ([379830d](https://github.com/CharlyRien/wakfu-autobuilder/commit/379830dade40e4541fdf053b7fa9c64d26ccc52e))
+
+
+### Bug Fixes
+
+* keep elemental runes out of secondary mastery caps ([8df8786](https://github.com/CharlyRien/wakfu-autobuilder/commit/8df8786432ddd4cd66e48e3977ef0538ee1f841a))
+* the Dofus Pourpre counts its Elemental Mastery equal to your level ([cc4b48e](https://github.com/CharlyRien/wakfu-autobuilder/commit/cc4b48e2efc0ad0a696124e0c1feda23f01091a4))
+* the domination pre-filter no longer evicts an item the optimum needs ([7e0f51f](https://github.com/CharlyRien/wakfu-autobuilder/commit/7e0f51f826a7a1860dea4e25b03057c0065c8b18))
+* withhold optimality proofs for prefiltered requests ([d4f69bb](https://github.com/CharlyRien/wakfu-autobuilder/commit/d4f69bbb4e7163377be0796baa4e26b9a57c32a8))
+
+
+### Performance Improvements
+
+* max-damage rune choices keep only what a sublimation cap can need ([f81b8b4](https://github.com/CharlyRien/wakfu-autobuilder/commit/f81b8b414468715b21881c05ef25bb5c9ffdbae4))
+
+## [1.13.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.12.0...wakfu-autobuilder-1.13.0) (2026-10-03)
+
+
+### Features
+
+* What's new shows player-facing release notes in the app language ([d3da862](https://github.com/CharlyRien/wakfu-autobuilder/commit/d3da86280d77d58d47e980fbf679a73d9b17c5dc))
+
+
+### Bug Fixes
+
+* a build saved with other game data now says so on its card and when loaded ([3aeaa69](https://github.com/CharlyRien/wakfu-autobuilder/commit/3aeaa69b6abe2215c9707b36e39df3ac7057798a))
+* boss names follow the app language, and the boss list loses its garbled entry ([433fa61](https://github.com/CharlyRien/wakfu-autobuilder/commit/433fa6186e4b93172222a0bc739b313fc989970a))
+* Max Damage builds show their damage and boss in My Builds and Compare ([b1c31a1](https://github.com/CharlyRien/wakfu-autobuilder/commit/b1c31a12930ab5f2ab40dc44074b3878791f29e6))
+* no "0" headline before a search, and no empty "Desired vs Achieved" card ([669fbc4](https://github.com/CharlyRien/wakfu-autobuilder/commit/669fbc4b46d8a4c180f407a29f9d21896396df4d))
+* request panel text no longer cut off, easier-to-read small text, clearer optimum badge ([65d6527](https://github.com/CharlyRien/wakfu-autobuilder/commit/65d6527c6a77d67b60f9545dceb4dd0f8bc8d37b))
+* stopping a search keeps the build usable ([779152d](https://github.com/CharlyRien/wakfu-autobuilder/commit/779152d91f277bd0989482f6eaa7de6f4b0bba8f))
+* switching the search mode keeps each mode's targets and results ([4a26ec8](https://github.com/CharlyRien/wakfu-autobuilder/commit/4a26ec8721cc221980dfcebdb6c24737f403ffc5))
+* the Precision match never reads above 100% ([007ddae](https://github.com/CharlyRien/wakfu-autobuilder/commit/007ddae47fcb7db0b58120b813ab35795c841388))
+* the Save dialog opens on the name field, closes with Esc and saves with Enter ([2867545](https://github.com/CharlyRien/wakfu-autobuilder/commit/286754562d6daefb9ae17dce70da1ff78e7e8c97))
+* Zenith links are made once per build, and Zenith errors are readable ([4ae86c2](https://github.com/CharlyRien/wakfu-autobuilder/commit/4ae86c24074572cc81734bdd8eaad772505abb70))
+
+## [1.12.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.11.0...wakfu-autobuilder-1.12.0) (2026-10-03)
+
+
+### Features
+
+* Max Damage: a search that keeps the default mastery row can now be upgraded to the proven best build ([644f3ef](https://github.com/CharlyRien/wakfu-autobuilder/commit/644f3ef6c31699c730d976dce769361f3bd03029))
+* Max Damage searches with the default targets now get a "proven within X%" badge ([9eecbf7](https://github.com/CharlyRien/wakfu-autobuilder/commit/9eecbf73d0cabc8950a383d34fbb943f55f20147))
+* Most Masteries searches with a Range target or targets set to 0 now get a "proven within X%" badge ([aa38b70](https://github.com/CharlyRien/wakfu-autobuilder/commit/aa38b70dac1b22b691966114aec326a3ee6c1751))
+* The optimality check that keeps running after a search now explains itself, and can be stopped or turned off ([a7d6a4a](https://github.com/CharlyRien/wakfu-autobuilder/commit/a7d6a4a542a2a2a259d2c3631f80cf8fdfdabb3e))
+* The Most Masteries "proven within X%" badge is ready as soon as the search ends ([d22d923](https://github.com/CharlyRien/wakfu-autobuilder/commit/d22d923900df75bade34dbc7ecdcb7cdea8e7658))
+* Tighter "proven within X%" badges in Most Masteries ([332b201](https://github.com/CharlyRien/wakfu-autobuilder/commit/332b201660f6cf6686fe6090136708882bc83e78))
+
+
+### Bug Fixes
+
+* **cli:** --wp sets the Wakfu-point target instead of movement points ([3f4a85e](https://github.com/CharlyRien/wakfu-autobuilder/commit/3f4a85e715c3384878960c5e93037e2b74110752))
+* Badges no longer claim a build is closer to the best than it is when items with negative critical hit are involved ([ec86d46](https://github.com/CharlyRien/wakfu-autobuilder/commit/ec86d4624d27a2c9a8f49a93c51b784fa5749dec))
+* Requests with targets far out of reach no longer return an empty build ([c367d1c](https://github.com/CharlyRien/wakfu-autobuilder/commit/c367d1c463b3cfa14d6f881c991e3340b21fc272))
+* Max Damage: the "proven optimal" badge could be wrong when the Featherweight sublimation was available (the Major "Movement Point and damage" skill was left out of the proof) ([a8528ec](https://github.com/CharlyRien/wakfu-autobuilder/commit/a8528ec70711319adc58b281f3f366a68e000624))
+
+
+### Performance Improvements
+
+* The Most Masteries "proven within X%" badge is computed about 7x faster ([e6571bc](https://github.com/CharlyRien/wakfu-autobuilder/commit/e6571bc4e56941d7dbcc2c50e94774560066fe9e))
+
 ## [1.11.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.10.0...wakfu-autobuilder-1.11.0) (2026-10-02)
 
 

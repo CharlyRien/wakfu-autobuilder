@@ -2,10 +2,15 @@ package me.chosante.equipmentextractor
 
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.equipmentextractor.dataretriever.WakfuData
+import me.chosante.equipmentextractor.dataretriever.dtos.Effect
+import me.chosante.equipmentextractor.dataretriever.dtos.EffectData
+import me.chosante.equipmentextractor.dataretriever.dtos.Item
+import me.chosante.equipmentextractor.dataretriever.dtos.ItemProperty
 
 val rarityIdToRarity =
     mapOf(
@@ -75,8 +80,72 @@ val edgeCaseCharacteristicDescription =
 
 val mutableSet = mutableSetOf<I18nText>()
 
+/** "Applies a state": a combat mechanic (procs, reactive buffs), never a sheet stat, so it is not modeled. */
+private const val ACTION_APPLY_STATE = 304
+
+/**
+ * "REG : niveau des enfants fonction du niveau du caster/cible de cet effet": runs its CHILD effects (the item's
+ * `subEffects`) at a percentage of the wearer's level, i.e. "X% of the level as <stat>". Decoded by [decodePercentOfLevel].
+ */
+private const val ACTION_PERCENT_OF_LEVEL = 999
+
+/**
+ * Equip actions with no description in actions.json that are known to grant no stat, so the extractor may skip them.
+ * Any OTHER undescribed action fails the extraction: its effect would otherwise vanish without a trace.
+ *  - 400 "NullEffect : Effet Vide": an empty placeholder on some mounts;
+ *  - 1020 "REG : niveau des enfants fonction de la valeur de l'effet déclencheur": a proc whose children scale with the
+ *    triggering hit (the level-0 ring Makabrano Zer deals damage with it), not a stat.
+ */
+private val STAT_FREE_UNDESCRIBED_ACTIONS = setOf(400, 1020)
+
+/**
+ * The CDN item properties that put an item in an "only one equipped at a time" group ([ExclusiveGroup]), by their
+ * `itemProperties.json` NAME (ids 8 and 12 on the 1.93 data) — resolved by name so a renumbering cannot silently swap them.
+ */
+private val EXCLUSIVE_GROUP_PROPERTIES =
+    mapOf(
+        "EXCLUSIVE_EQUIPMENT_ITEM" to ExclusiveGroup.RELIC,
+        "EXCLUSIVE_EQUIPMENT_ITEM_2" to ExclusiveGroup.EPIC
+    )
+
+/** The property id → exclusive group map of [itemProperties]; fails when the CDN no longer names both properties. */
+internal fun exclusiveGroupPropertyIds(itemProperties: List<ItemProperty>): Map<Int, ExclusiveGroup> {
+    val byName = itemProperties.associateBy { it.name }
+    return EXCLUSIVE_GROUP_PROPERTIES.entries.associate { (name, group) ->
+        val property =
+            checkNotNull(byName[name]) {
+                "itemProperties.json has no property $name: the epic / relic exclusivity groups can't be read (got ${itemProperties.map { it.name }})"
+            }
+        property.id to group
+    }
+}
+
+/**
+ * The "only one equipped at a time" group of the item [itemId] of [rarity] from its CDN [properties] ([groupByPropertyId]:
+ * see [exclusiveGroupPropertyIds]). Fails on an item in both groups, which the build budgets can't express, and on an EPIC /
+ * RELIC item outside its rarity's group: only an ADDITION to a group (a COMMON item in the EPIC one) is written into
+ * `equipments.json`, so an epic that loses its property never silently leaves the epic budget — review that data change.
+ */
+internal fun exclusiveGroupOf(
+    itemId: Int,
+    rarity: Rarity,
+    properties: List<Int>,
+    groupByPropertyId: Map<Int, ExclusiveGroup>,
+): ExclusiveGroup {
+    val groups = properties.mapNotNull { groupByPropertyId[it] }.distinct()
+    check(groups.size <= 1) { "Item $itemId is in several exclusivity groups $groups (properties $properties)" }
+    val group = groups.singleOrNull() ?: ExclusiveGroup.NONE
+    val rarityGroup = ExclusiveGroup.ofRarity(rarity)
+    check(rarityGroup == ExclusiveGroup.NONE || group == rarityGroup) {
+        "Item $itemId ($rarity) is in exclusivity group $group, not its rarity's $rarityGroup (properties $properties): only an " +
+            "addition to a group is written, an epic / relic item leaving its budget is a data change to review"
+    }
+    return group
+}
+
 fun extractData(wakfuData: WakfuData): List<Equipment> {
     val itemTypeIdToTypeName = wakfuData.itemTypes.associate { it.definition.id to it.title.fr.toItemType() }
+    val exclusiveGroupByPropertyId = exclusiveGroupPropertyIds(wakfuData.itemProperties)
     val effectsByEffectId = wakfuData.effects.associateBy { it.definition.id }
     val jobsDict = wakfuData.jobs.associate { it.definition.id to it.title.fr }
 
@@ -100,6 +169,9 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 )
             }
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
+        // The item's "only one equipped at a time" group, written only where it is not its rarity's (Equipment.exclusiveGroup):
+        // on the 1.93 data, the two COMMON items in the EPIC group (18691, 18693).
+        val exclusiveGroup = exclusiveGroupOf(equipment.definition.item.id, rarity, equipment.definition.item.properties, exclusiveGroupByPropertyId)
 
         // Number of enchantment sockets ("châsses") the item can hold — drives rune socketing in the
         // solver (Equipment.maxShardSlots). Must be carried through here or every regenerated build
@@ -133,14 +205,17 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         }
 
         val bonus = mutableMapOf<Characteristic, Int>()
+        val percentOfLevel = mutableMapOf<Characteristic, Int>()
         // Loop over each equipment bonus
         for (effect in equipment.definition.equipEffects) {
             val actionId = effect.effect.definition.actionId
             val params = effect.effect.definition.params
             val action = effectsByEffectId[actionId]
 
-            // Applies a state, I don’t know if it’s useful, nor how to materialize it.
-            if (actionId == 304) {
+            // Applies a state: a combat mechanic, not a sheet stat, so it is not modeled. Among them the Dofus Pourpre's
+            // state 9364 (→ 9365: +10% damage inflicted for one turn after being hit), deliberately left out: too
+            // situational for a build search.
+            if (actionId == ACTION_APPLY_STATE) {
                 continue
             }
 
@@ -149,59 +224,26 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 continue
             }
 
-            if (action?.description != null) {
-                mutableSet.add(action.description)
-                var description =
-                    if ((actionId == 39 || actionId == 40) && params[4] != 0.0) {
-                        "[#1] " + edgeCaseCharacteristicDescription.getValue(params[4].toInt())
-                    } else {
-                        action.description.fr
-                    }
-
-                // OLD effect, can be replaced by new 57 effect
-                if (actionId == 42) {
-                    description = effectsByEffectId.getValue(57).description!!.fr
-                }
-
-                description = description.replace("[el1]", "Feu")
-                description = description.replace("[el2]", "Eau")
-                description = description.replace("[el3]", "Terre")
-                description = description.replace("[el4]", "Air")
-                description = description.replace("{[>1]?s:}", "s")
-                description =
-                    description.replace("[#1]", ((params[1] * level + params[0]).toInt()).toString())
-
-                if ("Niv. aux sorts" in description) {
-                    continue
-                }
-
-                if (actionId == 1069 || actionId == 1068) {
-                    description = extractDynamicResistanceOrMasteries(description)
-                }
-
-                if (actionId == 2001) {
-                    description = sanitizeAction2001(description)
-                }
-
-                for ((i, param) in params.withIndex()) {
-                    val baliseParam = "[#${i + 1}]"
-                    description = description.replace(baliseParam, param.toInt().toString())
-                }
-
-                if (actionId == 2001) {
-                    val jobId =
-                        Regex("\\d+")
-                            .findAll(description)
-                            .last()
-                            .value
-                            .toInt()
-                    val jobName = jobsDict.getValue(jobId)
-                    description = description.replace(jobId.toString(), jobName)
-                }
-
-                val (characteristic, value) = description.toCharacteristic()
-                bonus[characteristic] = value
+            if (actionId == ACTION_PERCENT_OF_LEVEL) {
+                decodePercentOfLevel(itemId, effect) { child ->
+                    describedStat(child.actionId, child.params, level, effectsByEffectId, jobsDict)
+                }.forEach { (characteristic, percent) -> percentOfLevel.merge(characteristic, percent, Int::plus) }
+                continue
             }
+
+            // An action without a description in actions.json has no stat line to read. Skipping one silently is how the
+            // Dofus Pourpre lost its Elemental Mastery (its 999 above), so only the actions known to grant no stat may be.
+            if (action?.description == null) {
+                check(actionId in STAT_FREE_UNDESCRIBED_ACTIONS) {
+                    "Item $itemId (${name.fr}): equip action $actionId has no description in actions.json, so its effect " +
+                        "would be dropped. Decode it (like action $ACTION_PERCENT_OF_LEVEL) or, if it grants no stat, add it " +
+                        "to STAT_FREE_UNDESCRIBED_ACTIONS."
+                }
+                continue
+            }
+
+            val (characteristic, value) = describedStat(actionId, params, level, effectsByEffectId, jobsDict) ?: continue
+            bonus[characteristic] = value
         }
 
         val outputDict =
@@ -214,12 +256,114 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 itemType = itemType,
                 characteristics = bonus,
                 maxShardSlots = maxShardSlots,
-                levelRestricted = levelRestricted
+                levelRestricted = levelRestricted,
+                percentOfLevel = percentOfLevel,
+                exclusiveGroupOverride = exclusiveGroup.takeIf { it != ExclusiveGroup.ofRarity(rarity) }
             )
         equipments.add(outputDict)
     }
 
     return equipments
+}
+
+/**
+ * The stat line an equip effect grants, read from its action's French description in actions.json (`[#1]` = the value
+ * `params[0] + params[1]·level`), or null when the action has no description or the line is a spell-level bonus ("Niv.
+ * aux sorts"), which we don't model.
+ */
+private fun describedStat(
+    actionId: Int,
+    params: List<Double>,
+    level: Int,
+    effectsByEffectId: Map<Int, Effect>,
+    jobsDict: Map<Int, String>,
+): Pair<Characteristic, Int>? {
+    val action = effectsByEffectId[actionId]
+    val actionDescription = action?.description ?: return null
+    mutableSet.add(actionDescription)
+    var description =
+        if ((actionId == 39 || actionId == 40) && params[4] != 0.0) {
+            "[#1] " + edgeCaseCharacteristicDescription.getValue(params[4].toInt())
+        } else {
+            actionDescription.fr
+        }
+
+    // OLD effect, can be replaced by new 57 effect
+    if (actionId == 42) {
+        description = effectsByEffectId.getValue(57).description!!.fr
+    }
+
+    description = description.replace("[el1]", "Feu")
+    description = description.replace("[el2]", "Eau")
+    description = description.replace("[el3]", "Terre")
+    description = description.replace("[el4]", "Air")
+    description = description.replace("{[>1]?s:}", "s")
+    description =
+        description.replace("[#1]", ((params[1] * level + params[0]).toInt()).toString())
+
+    if ("Niv. aux sorts" in description) {
+        return null
+    }
+
+    if (actionId == 1069 || actionId == 1068) {
+        description = extractDynamicResistanceOrMasteries(description)
+    }
+
+    if (actionId == 2001) {
+        description = sanitizeAction2001(description)
+    }
+
+    for ((i, param) in params.withIndex()) {
+        val baliseParam = "[#${i + 1}]"
+        description = description.replace(baliseParam, param.toInt().toString())
+    }
+
+    if (actionId == 2001) {
+        val jobId =
+            Regex("\\d+")
+                .findAll(description)
+                .last()
+                .value
+                .toInt()
+        val jobName = jobsDict.getValue(jobId)
+        description = description.replace(jobId.toString(), jobName)
+    }
+
+    return description.toCharacteristic()
+}
+
+/**
+ * Decodes an "X% of the level as <stat>" equip line ([ACTION_PERCENT_OF_LEVEL]) into `stat → X` pairs for
+ * [Equipment.percentOfLevel]. The wrapper only carries X, its lone param > 1 (`params[14] = 100` on the Dofus Pourpre:
+ * the same reading as the bdata-extractor's sublimation decoder); each CHILD effect ([statOf] decodes it like any equip
+ * line) names the stat and must be worth exactly its own level (`0 + 1·level`: the Pourpre's 120 "Elemental Mastery"
+ * `[0, 1]`), so the stat is X% of the wearer's level. Any other shape throws rather than being dropped or mis-scaled.
+ */
+internal fun decodePercentOfLevel(
+    itemId: Int,
+    effect: Item.Definition.Effect,
+    statOf: (EffectData.EffectDefinition) -> Pair<Characteristic, Int>?,
+): List<Pair<Characteristic, Int>> {
+    val wrapper = effect.effect.definition
+    val percents = wrapper.params.filter { it > 1.0 }
+    check(percents.size == 1 && percents.single() % 1.0 == 0.0) {
+        "Item $itemId: action ${wrapper.actionId} must carry exactly one whole percentage (param > 1), got ${wrapper.params}"
+    }
+    val percent = percents.single().toInt()
+    val children = effect.subEffects.orEmpty()
+    check(children.isNotEmpty()) { "Item $itemId: action ${wrapper.actionId} has no child effect naming its stat" }
+    return children.map { child ->
+        val definition = child.effect.definition
+        check(child.subEffects.isNullOrEmpty() && definition.params.size >= 2 && definition.params[0] == 0.0 && definition.params[1] == 1.0) {
+            "Item $itemId: the child of action ${wrapper.actionId} must be one stat worth its level (params [0, 1]), " +
+                "got action ${definition.actionId} ${definition.params}"
+        }
+        val (characteristic, _) =
+            checkNotNull(statOf(definition)) {
+                "Item $itemId: the child action ${definition.actionId} of action ${wrapper.actionId} is not a stat line"
+            }
+        characteristic to percent
+    }
 }
 
 private fun String.toCharacteristic(): Pair<Characteristic, Int> {

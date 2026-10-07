@@ -20,6 +20,7 @@ import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.elementRowObjectives
 import me.chosante.common.Character
 import me.chosante.common.Characteristic.ACTION_POINT
 import me.chosante.common.Characteristic.MASTERY_CRITICAL
@@ -210,7 +211,11 @@ class BuildSearchModelE2ETest {
                         buildCombination = build,
                         characterBaseCharacteristics = Character(model.ui.clazz, model.ui.level, model.ui.minLevel).baseCharacteristicValues,
                         masteryElementsWanted = model.ui.toTargetStats().masteryElementsWanted,
-                        resistanceElementsWanted = model.ui.toTargetStats().resistanceElementsWanted
+                        resistanceElementsWanted = model.ui.toTargetStats().resistanceElementsWanted,
+                        scoreComputationMode = model.ui.mode,
+                        // The default "air resistance 0" row is a floor: air read on the joint fold, its random rolls placed as the
+                        // engine places them.
+                        elementRows = model.ui.toTargetStats().elementRowObjectives(model.ui.mode)
                     )
                 assertEquals(expectedAchieved, model.ui.achieved)
                 assertNotNull(model.ui.achieved[ACTION_POINT])
@@ -444,6 +449,7 @@ class BuildSearchModelE2ETest {
                             matchPercentage = BigDecimal("1000"),
                             progressPercentage = 100,
                             isOptimal = false,
+                            maxDamageHeuristicPhases = true,
                             maxDamageObjective = 5_000L
                         )
                     )
@@ -464,12 +470,15 @@ class BuildSearchModelE2ETest {
             model.search()
             // The certificate proof resolves to ProvenOptimal after the max-damage search completes.
             awaitUntil { model.ui.proofState == ProofState.ProvenOptimal }
+            assertTrue(model.ui.maxDamageStructural, "the search that just ended was structurally heuristic")
 
             // Loading a DIFFERENT build must clear the stale proof — otherwise StatsPanel would paint a green
             // "Proven optimal" on a build the certificate never saw (P4.4 wrong-badge bug).
             model.loadBuild("saved")
             assertEquals(Phase.Done, model.ui.phase)
             assertEquals(ProofState.Idle, model.ui.proofState)
+            // A save does not record that: the loaded build must not show the previous search's "structural" hint.
+            assertFalse(model.ui.maxDamageStructural)
         } finally {
             scope.cancel()
         }
@@ -529,6 +538,126 @@ class BuildSearchModelE2ETest {
                 scope.cancel()
             }
         }
+
+    @Test
+    fun `an un-proven most-masteries search gets its quality badge in one pass`(): Unit =
+        runBlocking {
+            val calls =
+                java.util.concurrent.atomic
+                    .AtomicInteger()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model =
+                mostMasteriesProofModel(scope) { _, _, _ ->
+                    calls.incrementAndGet()
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin(0.05)
+                }
+            try {
+                model.setDuration("1")
+                model.search()
+                awaitUntil { model.ui.proofState == ProofState.ProvenWithin(0.05) }
+                delay(200.milliseconds)
+                // §8.19: one full-tier pass (its bound computed in the search's tail) — no quick → full chain.
+                assertEquals(1, calls.get())
+                assertEquals(ProofState.ProvenWithin(0.05), model.ui.proofState)
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `a most-masteries proof waiting for its bound shows the spinner and a new search stops it`(): Unit =
+        runBlocking {
+            val release = java.util.concurrent.CountDownLatch(1)
+            val polls = java.util.concurrent.CopyOnWriteArrayList<() -> Boolean>()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model =
+                mostMasteriesProofModel(scope) { _, _, shouldContinue ->
+                    polls += shouldContinue
+                    val first = polls.size == 1
+                    // Like the real proof waiting on the in-flight bound: returns once released, or at once when cancelled.
+                    while (!release.await(10, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                        if (!shouldContinue()) return@mostMasteriesProofModel WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
+                    }
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin(if (first) 0.30 else 0.05)
+                }
+            try {
+                model.setDuration("1")
+                model.search()
+                awaitUntil { model.ui.proofState is ProofState.Proving && polls.size == 1 }
+
+                model.search()
+                assertFalse(polls[0](), "the superseded proof must see its cancel flag (its wait stops)")
+                awaitUntil { polls.size == 2 && model.ui.proofState is ProofState.Proving }
+                release.countDown()
+                awaitUntil { model.ui.proofState == ProofState.ProvenWithin(0.05) }
+                delay(200.milliseconds)
+                assertEquals(ProofState.ProvenWithin(0.05), model.ui.proofState, "a dead proof's verdict never lands")
+            } finally {
+                release.countDown()
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `a most-masteries result CP-SAT proved runs no quality proof`(): Unit =
+        runBlocking {
+            val calls =
+                java.util.concurrent.atomic
+                    .AtomicInteger()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model =
+                mostMasteriesProofModel(scope, optimal = true) { _, _, _ ->
+                    calls.incrementAndGet()
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal
+                }
+            try {
+                model.setDuration("1")
+                model.search()
+                awaitUntil { model.ui.phase == Phase.Done }
+                delay(200.milliseconds)
+                assertEquals(0, calls.get())
+                assertTrue(model.ui.optimal)
+                assertEquals(ProofState.Idle, model.ui.proofState)
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    /**
+     * A most-masteries model whose search instantly yields one build carrying a certificate-comparable objective
+     * (un-proven unless [optimal]); [prover] stands in for the quality proof.
+     */
+    private fun mostMasteriesProofModel(
+        scope: CoroutineScope,
+        optimal: Boolean = false,
+        prover: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof,
+    ): BuildSearchModel {
+        val fakeBuild = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110))
+        return BuildSearchModel(
+            scope = scope,
+            buildFinder = {
+                flowOf(
+                    SolverResult(
+                        individual = fakeBuild,
+                        matchPercentage = BigDecimal("1000"),
+                        progressPercentage = 100,
+                        isOptimal = optimal,
+                        mostMasteriesObjective = 1_000L
+                    )
+                )
+            },
+            mmQualityProver = prover,
+            zenithBuilder = { "" },
+            mainDispatcher = Dispatchers.Unconfined,
+            ioDispatcher = Dispatchers.Unconfined,
+            libraryPreferences = LibraryPreferences(null),
+            historyRepository =
+                HistoryRepository(
+                    baseDir = Files.createTempDirectory("wakfu-test-history"),
+                    ioDispatcher = Dispatchers.Unconfined
+                )
+        )
+    }
 
     /**
      * A max-damage model whose search instantly yields one build and whose optimality proof BLOCKS until

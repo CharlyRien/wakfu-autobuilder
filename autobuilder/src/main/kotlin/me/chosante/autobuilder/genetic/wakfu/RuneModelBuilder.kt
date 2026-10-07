@@ -8,6 +8,8 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTA
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationKind
 
 // RuneModelBuilder — the per-search rune CP-SAT modelling (single-type fold vs per-stat counts, socket caps,
 // equipped-only gating) extracted from the WakfuBuildSolver object (B1 of docs/code-review-followups.md).
@@ -31,6 +33,13 @@ internal fun CpModel.createRuneModel(
     subPinnedStats: Set<Characteristic>?,
     // Test seam: force the rune cap back to `≤` (no exact fill), for the exact-fill==≤ soundness lock.
     forceRuneLeq: Boolean,
+    // What the max-damage model reads from a collapse-candidate rune ([maxDamageRuneReads]); read only by the
+    // max-damage choice collapse.
+    reads: MaxDamageRuneReads = MaxDamageRuneReads.NONE,
+    // Test seams (the pruning-exactness lock): false keeps EVERY collapse candidate on every carrier (no Pareto
+    // pruning), resp. posts no choice gate. Production keeps both on.
+    choicePruning: Boolean = true,
+    choiceGating: Boolean = true,
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -127,48 +136,38 @@ internal fun CpModel.createRuneModel(
     val coefficientByVar = HashMap<IntVar, Long>()
     val extraTerms = mutableMapOf<Characteristic, MutableList<Term>>()
     val suppressedBy = HashMap<Pair<Equipment, Characteristic>, IntVar>()
+    // Insertion-ordered: the gates are posted in this order (a hash order of IntVar keys would vary between JVMs).
+    val choiceGates = LinkedHashMap<IntVar, Set<Sublimation>>()
     val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
     for (equip in allEquips) {
         val slots = equip.maxShardSlots
         if (slots <= 0) continue
         if (maxDamageRuneChoiceCollapse) {
-            // Pure max-damage only cares about two rune effects:
-            //  - M-feeding mastery (elemental/range/back/berserk/healing all enter the same M sum);
-            //  - critical mastery.
-            // Pick the best M-feeding rune for this carrier, then keep the crit-mastery alternative only
-            // when its carrier-specific value is larger. If crit's value is ≤ the M rune's value, M
-            // dominates it for every crit rate in [0,100] because dGraw/dM = 400+crit ≥ 5*crit = dGraw/dK.
-            // NOTE: this dominance is tied to perHitDamageScore's exact Graw coefficients (400·M, 5·K); if
-            // those ever change, re-verify the inequality before trusting this fold.
-            val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
-            val bestMasteryRune =
-                maxDamageMasteryRuneStats
-                    .mapNotNull { runeByCharacteristic[it] }
-                    .map { it to it.valueOn(equip.itemType, equip.level).toLong() }
-                    .maxByOrNull { it.second }
-            if (bestMasteryRune != null) {
-                choices[params.damageScenario.rangeBand.masteryCharacteristic] = bestMasteryRune
-            }
-            runeByCharacteristic[Characteristic.MASTERY_CRITICAL]?.let { critRune ->
-                val critValue = critRune.valueOn(equip.itemType, equip.level).toLong()
-                val masteryValue = bestMasteryRune?.second ?: 0L
-                if (critValue > masteryValue) {
-                    choices[Characteristic.MASTERY_CRITICAL] = critRune to critValue
+            // Pure max-damage reads a rune of these types through the damage objective (the M-feeding masteries —
+            // elemental / range / rear / berserk / healing — all enter the same M sum; critical mastery is K) and
+            // through whatever else [reads] lists (a sub condition's stat sum, a conversion source, …). Offer every
+            // candidate type, minus each one another candidate on THIS carrier beats on every read
+            // ([MaxDamageRuneReads.paretoChoices]): without such a read that leaves the best M-feeding rune and,
+            // when larger, the crit one — the original collapse; a capped secondary read also keeps the cheaper
+            // choices (elemental, a smaller secondary, crit) a budget can need, and — the cap holding EACH secondary on
+            // its own — every secondary type on its own budget (an equal rear and distance rune are two choices).
+            val candidates =
+                (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
+                    runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
                 }
-            }
-            if (choices.isEmpty()) continue
+            val kept = if (choicePruning) reads.paretoChoices(candidates) else candidates
+            if (kept.isEmpty()) continue
+            val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+            kept.forEach { choices[it.stat] = it.rune to it.value }
 
             val perStat =
                 if (choices.size == 1) {
                     // The single surviving choice is forced whenever the item is equipped: substitute the
                     // equipment variable directly and skip a redundant rune bool + equality.
                     mapOf(choices.keys.single() to equipVars.getValue(equip))
-                } else if (
-                    choices.size == 2 &&
-                    choices.containsKey(params.damageScenario.rangeBand.masteryCharacteristic) &&
-                    choices.containsKey(Characteristic.MASTERY_CRITICAL)
-                ) {
-                    val masteryStat = params.damageScenario.rangeBand.masteryCharacteristic
+                } else if (choices.size == 2 && choices.containsKey(Characteristic.MASTERY_CRITICAL)) {
+                    // The M-feeding survivor rides the equipment var; the crit choice is a swap bool.
+                    val masteryStat = choices.keys.first { it != Characteristic.MASTERY_CRITICAL }
                     val masteryChoice = choices.getValue(masteryStat)
                     val critVar = newBoolVar("runePick_${equip.equipmentId}_${Characteristic.MASTERY_CRITICAL.name}")
                     addLessOrEqual(critVar, equipVars.getValue(equip))
@@ -193,6 +192,15 @@ internal fun CpModel.createRuneModel(
                 val v = perStat.getValue(stat)
                 runeTypeByVar[v] = choice.first
                 coefficientByVar[v] = choice.second
+            }
+            // A choice kept only because a CHOOSABLE conditional sub reads it (the elemental rune on a
+            // secondary-best carrier: only a secondary cap prefers it) is useless while none of those subs is
+            // taken — gate it on them (posted once the sub model exists, see [RuneModel.choiceGates]).
+            if (choiceGating) {
+                for ((stat, subs) in reads.choiceGates(kept)) {
+                    val v = perStat.getValue(stat)
+                    if (v != equipVars.getValue(equip)) choiceGates[v] = subs
+                }
             }
             runeVars[equip] = perStat
         } else if (singleTypePerItem) {
@@ -244,16 +252,199 @@ internal fun CpModel.createRuneModel(
             if (any) addGreaterOrEqual(countExpr.build(), count.toLong())
         }
     }
-    return RuneModel(runeByCharacteristic, runeVars, singleTypePerItem, runeTypeByVar, coefficientByVar, extraTerms, suppressedBy)
+    return RuneModel(
+        runeByCharacteristic,
+        runeVars,
+        singleTypePerItem,
+        runeTypeByVar,
+        coefficientByVar,
+        extraTerms,
+        suppressedBy,
+        maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse,
+        choiceGates = choiceGates
+    )
+}
+
+/** One candidate rune type of the max-damage choice collapse on a carrier: its type and per-socket value there. */
+internal data class RuneChoice(
+    val stat: Characteristic,
+    val rune: RuneType,
+    val value: Long,
+)
+
+/**
+ * Everything the max-damage CP-SAT model READS from a rune of a choice-collapse candidate type (the scenario's M-feeding
+ * masteries and critical mastery — [createRuneModel]). A rune enters the model only through [StatBuilder]'s
+ * `baseTermsFor` of its own characteristic, so its readers are the readers of that characteristic:
+ *  - the damage objective `Graw = (400 + c)·M + 5c·K` ([perHitDamageScore]): M sums every [damageStats] stat at weight
+ *    1 ([scenarioMasteryStats]), K is critical mastery, the crit rate c is clamped to [0, 100];
+ *  - each modelled sub's build-static stat condition ([subConditionSpec]: EACH of its stats against a threshold, read on
+ *    the pre-combat / first-turn sheet — runes included), one [Bound] PER STAT. A CHOOSABLE sub only restricts the
+ *    build once taken (`subVar ≤ holds`), so the build prefers the satisfying side ([Side.LOWER] for `≤`, [Side.HIGHER]
+ *    for `≥`); a FORCED sub's effect is gated by its condition and may be a malus, so its stats must match exactly
+ *    ([Side.EXACT]). The Neutralité family's `each secondary mastery ≤ 0` reads EACH of the six secondaries — crit
+ *    mastery included — on its own, so it tells every two of them apart: a rear rune can be absorbed by a −430-rear
+ *    item where an equal distance rune cannot, so equal-valued distance / rear / crit runes are DIFFERENT choices (a
+ *    sum would have made them one). Critical Secret reads critical mastery alone (HIGHEST_ELEM_MASTERY_GT_* are not
+ *    solver-modelled: such a sub applies unconditionally);
+ *  - a CONVERSION reads its source's pre-sub stat. Crit mastery → an M-feeding stat at ≤ 100 % (Dénouement) only moves
+ *    part of a crit rune into M — never more than its value, so a rune feeding M directly by at least as much still
+ *    wins (the moved part is worth (400 + c) in M against 5c in K, and the rest stays in K); any other source is
+ *    [opaque];
+ *  - a per-stat-step ramp's source, a %-skill's stat, a required target row's stat, the per-element masteries a best-
+ *    element concentration compares: [opaque] (never pruned, never pruning — none of them is a candidate today).
+ */
+internal class MaxDamageRuneReads(
+    private val damageStats: Set<Characteristic>,
+    private val bounds: List<Bound>,
+    private val opaque: Set<Characteristic>,
+) {
+    internal enum class Side { LOWER, HIGHER, EXACT }
+
+    /**
+     * One stat of a modelled condition: `stat ⋚ threshold` (a multi-stat condition — the Neutralité family's six
+     * secondaries — is one [Bound] per stat, each held on its own), the side the build prefers, and its CHOOSABLE sub
+     * (null when forced).
+     */
+    internal data class Bound(
+        val stat: Characteristic,
+        val side: Side,
+        val choosableSub: Sublimation?,
+    )
+
+    /**
+     * Whether choice [q] is at least as good as choice [p] ON THE SAME CARRIER (same socket count) for every read
+     * except those of [ignored] (choosable subs assumed not taken): then swapping [p] for [q] in any build keeps every
+     * condition of a taken sub satisfied and never lowers the objective. Objective: two M-feeding runes compare by
+     * value; an M-feeding rune of at least the crit rune's value beats it at every crit rate (∂Graw/∂M = 400 + c ≥ 5c =
+     * ∂Graw/∂K) — the dominance the original collapse relied on, tied to [perHitDamageScore]'s coefficients and to its
+     * M ≥ 0 / K ≥ 0 clamps (re-verify both before changing either); a crit rune never beats an M-feeding one (c = 0).
+     */
+    fun dominates(
+        q: RuneChoice,
+        p: RuneChoice,
+        ignored: Set<Sublimation> = emptySet(),
+    ): Boolean {
+        if (q.stat == p.stat || q.stat in opaque || p.stat in opaque) return false
+        val objective = q.stat in damageStats && (p.stat in damageStats || p.stat == Characteristic.MASTERY_CRITICAL) && q.value >= p.value
+        return objective &&
+            bounds.all { b ->
+                val sub = b.choosableSub
+                (sub != null && sub in ignored) || b.holdsFor(q, p)
+            }
+    }
+
+    private fun Bound.read(c: RuneChoice): Long = if (c.stat == stat) c.value else 0L
+
+    private fun Bound.holdsFor(
+        q: RuneChoice,
+        p: RuneChoice,
+    ): Boolean =
+        when (side) {
+            Side.LOWER -> read(q) <= read(p)
+            Side.HIGHER -> read(q) >= read(p)
+            Side.EXACT -> read(q) == read(p)
+        }
+
+    /**
+     * The Pareto set of [candidates] (in their order): a choice is dropped iff another one dominates it ([dominates])
+     * and is either strictly better or an exact tie listed EARLIER — one deterministic representative per tie (the
+     * relation is a preorder, so every dropped choice has a kept dominator).
+     */
+    fun paretoChoices(
+        candidates: List<RuneChoice>,
+        ignored: Set<Sublimation> = emptySet(),
+    ): List<RuneChoice> =
+        candidates.filterIndexed { i, p ->
+            candidates.withIndex().none { (j, q) ->
+                j != i && dominates(q, p, ignored) && (j < i || !dominates(p, q, ignored))
+            }
+        }
+
+    /**
+     * For each [kept] choice that only a CHOOSABLE sub's condition keeps (it falls to a kept choice once every choosable
+     * conditional sub is assumed not taken), those subs: while none of them is taken the choice is dominated by a choice
+     * that is never gated, so `choice ≤ Σ subVar` removes no optimum. The dominator is taken from the Pareto set of
+     * [kept] under that assumption (non-empty; every gated choice has a dominator there, transitivity).
+     */
+    fun choiceGates(kept: List<RuneChoice>): Map<Characteristic, Set<Sublimation>> {
+        val choosable = bounds.mapNotNullTo(HashSet()) { it.choosableSub }
+        if (choosable.isEmpty() || kept.size < 2) return emptyMap()
+        val ungated = paretoChoices(kept, choosable)
+        // Ordered (the candidates' order, then the bounds' — the modelled subs' — order): the gates and their sums are
+        // posted as iterated, and the deterministic solve protocol needs a JVM-independent model.
+        val gates = LinkedHashMap<Characteristic, Set<Sublimation>>()
+        for (p in kept) {
+            if (p in ungated) continue
+            val d = ungated.firstOrNull { dominates(it, p, choosable) } ?: continue
+            // The subs whose condition prefers p to d: d dominates p once all of them are untaken. Non-empty, since
+            // both are kept (d does not dominate p on every read).
+            val subs = bounds.mapNotNullTo(LinkedHashSet()) { b -> b.choosableSub?.takeIf { !b.holdsFor(d, p) } }
+            if (subs.isNotEmpty()) gates[p.stat] = subs
+        }
+        return gates
+    }
+
+    companion object {
+        /** No reader beyond the objective (most-masteries / precision never build the collapse). */
+        val NONE = MaxDamageRuneReads(emptySet(), emptyList(), emptySet())
+    }
+}
+
+/**
+ * The max-damage model's reads of the choice-collapse candidate runes (see [MaxDamageRuneReads]), from the sublimations
+ * the model actually builds ([modelledSublimations]) — not from the domination shape, which also gives up on requests
+ * (forced items, …) that model no capping condition at all. [percentSkillStats] = the characteristics a %-skill scales.
+ */
+internal fun maxDamageRuneReads(
+    params: WakfuBestBuildParams,
+    sublimations: List<Sublimation>,
+    percentSkillStats: Set<Characteristic>,
+): MaxDamageRuneReads {
+    if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return MaxDamageRuneReads.NONE
+    val damageStats = scenarioMasteryStats(params.damageScenario).toSet()
+    val bounds = mutableListOf<MaxDamageRuneReads.Bound>()
+    val opaque = HashSet<Characteristic>(percentSkillStats)
+    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach { opaque += it.characteristic }
+    val (forced, choosable) = modelledSublimations(params, sublimations)
+    for (sub in forced + choosable) {
+        // A combat-conditional sub is never credited, so its condition is never reified (buildSublimationTerms).
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
+        val spec = subConditionSpec(sub.condition, params.character.level)
+        if (spec is SubConditionSpec.StatBound) {
+            val isForced = sub in forced
+            val side =
+                when {
+                    isForced -> MaxDamageRuneReads.Side.EXACT
+                    spec.comparison == ConditionComparison.AT_MOST -> MaxDamageRuneReads.Side.LOWER
+                    spec.comparison == ConditionComparison.AT_LEAST -> MaxDamageRuneReads.Side.HIGHER
+                    else -> MaxDamageRuneReads.Side.EXACT
+                }
+            // EACH stat is its own bound (the Neutralité family holds every secondary mastery ≤ t separately, never
+            // their sum): a choice dominates another only if it reads no more of ANY of them.
+            for (stat in spec.stats.distinct()) bounds += MaxDamageRuneReads.Bound(stat, side, if (isForced) null else sub)
+        }
+        sub.conversion?.let { conversion ->
+            val critIntoDamage =
+                conversion.from == Characteristic.MASTERY_CRITICAL &&
+                    conversion.to.foldedToUsableStat() in damageStats &&
+                    conversion.percent in 0..100
+            if (!critIntoDamage) opaque += conversion.from
+        }
+        sub.perStatStep?.let { opaque += it.source }
+        if (sub.bestElementConcentration != null) opaque += ELEMENT_MASTERY_CHARACTERISTICS
+    }
+    return MaxDamageRuneReads(damageStats, bounds, opaque)
 }
 
 /**
  * The rune-coverable stats worth modelling for this request: requested stats that have a rune.
  * Elemental masteries (specific or generic) all route to the single generic elemental-mastery rune
  * (there is no per-element mastery rune); the aggregate resistance request expands to the four
- * per-element resistance runes. Mirrors the elemental folding the scorers/solver already do.
+ * per-element resistance runes. Mirrors the elemental folding the scorers/solver already do. Also read by the
+ * domination pre-filter's rune contract ([dominationShape]) with every rune-able characteristic.
  */
-private fun relevantRuneStats(
+internal fun relevantRuneStats(
     params: WakfuBestBuildParams,
     runeCharacteristics: Set<Characteristic>,
 ): Set<Characteristic> {

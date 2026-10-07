@@ -1,6 +1,8 @@
 package me.chosante.common
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 enum class Rarity {
@@ -12,6 +14,46 @@ enum class Rarity {
     RELIC,
     SOUVENIR,
     EPIC,
+}
+
+/**
+ * The game's "only one item of this group equipped at a time" rule — what the "at most one epic and one relic item" budget
+ * really is. Ankama's CDN data carries it as two item PROPERTIES (`items.json` → `properties`, named in
+ * `itemProperties.json`): 12 `EXCLUSIVE_EQUIPMENT_ITEM_2` ("[Relique2]") for [EPIC] and 8 `EXCLUSIVE_EQUIPMENT_ITEM`
+ * ("[Relique]") for [RELIC]. On the 1.93 data property 8 is on exactly the 99 RELIC items, and property 12 on all 115 EPIC
+ * items plus two COMMON ones (18691 Piquants du Guerrier Trool anciens, 18693 Sain Turastil ancienne): the game refuses
+ * either of those two next to an epic item, or next to each other. An item reads its group through
+ * [Equipment.exclusiveGroup].
+ *
+ * The group decides the BUDGET only. Which item can host an epic / relic SUBLIMATION stays its [Rarity]: we ASSUME the
+ * carrier is the rarity (game knowledge: epic subs go on epic items) — the CDN does not settle it. Its properties 19
+ * `EPIC_GEMMABLE` / 20 `RELIC_GEMMABLE` ("adds an epic / relic gem slot to an item") sit on only 4 of the 115 epics and 5 of
+ * the 99 relics (the nation rings and swords), so they are not what gives an epic item its socket, and they say nothing
+ * about the two COMMON items. A check against the client bytecode is still to do. If the carrier were the group instead, the
+ * certificates would stay sound (they already let an EPIC-group item pass for a carrier), but CP-SAT would miss the builds
+ * hosting an epic sub on 18691 / 18693.
+ */
+@Serializable
+enum class ExclusiveGroup {
+    /** In no group: any number of such items may be worn together. */
+    NONE,
+
+    /** Property 12 `EXCLUSIVE_EQUIPMENT_ITEM_2`: every EPIC item, and two COMMON ones. */
+    EPIC,
+
+    /** Property 8 `EXCLUSIVE_EQUIPMENT_ITEM`: every RELIC item. */
+    RELIC,
+    ;
+
+    companion object {
+        /** The group an item of [rarity] is in when its data says nothing else: EPIC and RELIC items in theirs, others in none. */
+        fun ofRarity(rarity: Rarity): ExclusiveGroup =
+            when (rarity) {
+                Rarity.EPIC -> EPIC
+                Rarity.RELIC -> RELIC
+                else -> NONE
+            }
+    }
 }
 
 @Serializable
@@ -52,7 +94,59 @@ data class Equipment(
     // Ordinary equipment is level-filtered regardless, so the flag is irrelevant (and stays false) for it.
     // Defaults false so equipments resources generated before this flag existed still deserialize.
     val levelRestricted: Boolean = false,
-)
+    // Ankama's "X% of the level as <stat>" equip lines (action 999 wrapping the stat's own effect), e.g. the Dofus
+    // Pourpre's "100% of level as Elemental Mastery": stat → percent. The magnitude depends on the WEARER's level, so it
+    // can't live in [characteristics]; [atLevel] folds it in when a search pool is built for a character, before any
+    // stat reader (solver, scorers, certificates, domination, GUI) sees the item. Empty for every other item, and the
+    // default, so resources and saved builds written before it existed still deserialize.
+    val percentOfLevel: Map<Characteristic, Int> = emptyMap(),
+    // The item's EQUIP criterion (a nation sword needs its ring, a class emblem is for its class, some rings exclude each
+    // other — see [ItemEquipCriterion]), decoded from the client by `bdata-extractor` into `item-criteria.json` and joined
+    // by id when the engine loads its catalog. Null for an item without one — and for every item built outside the
+    // catalog (tests), so a synthetic pool never inherits a real item's conditions by id. @Transient: it is never read
+    // from equipments.json (a CDN artifact) nor written into a saved build.
+    @Transient
+    val equipCriterion: ItemEquipCriterion? = null,
+    // The item's "only one equipped at a time" group when it is NOT its rarity's ([ExclusiveGroup], read through
+    // [exclusiveGroup]): null = the rarity's group. `equipments-extractor` reads it from the CDN item properties and writes it
+    // only for such an exception (on the 1.93 data, the two COMMON items in the EPIC group), so a synthetic item (tests), a
+    // copy with another rarity, and a build saved before the field existed all follow their rarity.
+    @SerialName("exclusiveGroup")
+    val exclusiveGroupOverride: ExclusiveGroup? = null,
+) {
+    /**
+     * The "only one equipped at a time" group this item is in ([ExclusiveGroup]): a build wears at most one [ExclusiveGroup.EPIC]
+     * and one [ExclusiveGroup.RELIC] item. Its [rarity]'s group unless the data says otherwise ([exclusiveGroupOverride]).
+     */
+    val exclusiveGroup: ExclusiveGroup
+        get() = exclusiveGroupOverride ?: ExclusiveGroup.ofRarity(rarity)
+
+    /**
+     * This item as worn by a level-[characterLevel] character: every [percentOfLevel] line resolved into
+     * [characteristics] (`floor(percent · level / 100)`, [percentOfLevelMagnitude]) and cleared. Clearing makes the copy
+     * final: resolving it again, at any level, returns it unchanged, so a resolved item can flow through any number of
+     * pools or saved builds without being counted twice. An item without such a line is returned as is (same instance).
+     */
+    fun atLevel(characterLevel: Int): Equipment {
+        if (percentOfLevel.isEmpty()) return this
+        val resolved = LinkedHashMap(characteristics)
+        for ((characteristic, percent) in percentOfLevel) {
+            resolved.merge(characteristic, percentOfLevelMagnitude(percent, characterLevel), Int::plus)
+        }
+        return copy(characteristics = resolved, percentOfLevel = emptyMap())
+    }
+}
+
+/**
+ * Ankama's "X% of the level as <stat>": `floor(percent · level / 100)` for a level-[level] character (every shipped
+ * percent is positive, where Kotlin's truncating `/` is the floor). Shared by the level-scaled item lines
+ * ([Equipment.percentOfLevel]) and sublimations ([SublimationEffect.PercentOfLevel]). At 100% (the Dofus Pourpre) it is
+ * the level itself, whatever the rounding.
+ */
+fun percentOfLevelMagnitude(
+    percent: Int,
+    level: Int,
+): Int = (percent * level) / 100
 
 @Serializable
 data class I18nText(

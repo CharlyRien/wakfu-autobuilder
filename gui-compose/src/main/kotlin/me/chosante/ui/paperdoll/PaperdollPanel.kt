@@ -62,11 +62,13 @@ import me.chosante.common.Equipment
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.ui.components.ItemConditionLines
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
 import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.components.rememberItemConditionLines
 import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
@@ -93,13 +95,9 @@ fun PaperdollPanel(
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(ui.build) { slotAssignments(ui.build?.equipments.orEmpty()) }
-    // "Explain the solver's choices": why each empty slot is empty. The sub-condition hint is factual as
-    // soon as the sub is in the build; the generic "nothing improves the request here" one is only true of
-    // a FINISHED search (mid-search an empty slot may simply not have been chosen yet), so gate it on Idle.
     val emptyHints =
-        remember(ui.build, ui.phase) {
-            emptySlotHints(slots, ui.build)
-                .filterValues { it !is EmptySlotHint.NoUsefulItem || ui.phase == Phase.Idle }
+        remember(ui.build, ui.phase, ui.searchStopped, ui.mode) {
+            visibleEmptySlotHints(slots, ui)
         }
     Column(modifier = modifier.fillMaxSize()) {
         Box(
@@ -168,6 +166,7 @@ fun PaperdollPanel(
                                 EquipmentSlot(
                                     slot = slot,
                                     equipment = weaponEquipment,
+                                    characterLevel = ui.level,
                                     runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                                     subs = weaponEquipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
                                     emptyHint = emptyHints[slot.id],
@@ -317,6 +316,7 @@ private fun SlotColumn(
             EquipmentSlot(
                 slot = slot,
                 equipment = equipment,
+                characterLevel = ui.level,
                 runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                 subs = equipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
                 emptyHint = emptyHints[slot.id],
@@ -342,6 +342,7 @@ private fun SlotColumn(
 private fun EquipmentSlot(
     slot: DollSlot,
     equipment: Equipment?,
+    characterLevel: Int,
     runes: List<RuneType>,
     subs: List<Sublimation>,
     idle: Boolean,
@@ -414,7 +415,7 @@ private fun EquipmentSlot(
             modifier = modifier,
             delayMillis = 350,
             tooltipPlacement = SlotTooltipPlacement,
-            tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes, subs = subs) }
+            tooltip = { ItemTooltip(slot = slot, equipment = equipment, characterLevel = characterLevel, runes = runes, subs = subs) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
                 SlotRowContent(slot, equipment, runes, subs, idle, justLanded, rightAlign, forced, excluded, cardHeight = cardHeight, modifier = Modifier.fillMaxWidth())
@@ -698,6 +699,7 @@ private fun EmptySlotTooltip(hint: EmptySlotHint) {
 private fun ItemTooltip(
     slot: DollSlot,
     equipment: Equipment,
+    characterLevel: Int,
     runes: List<RuneType>,
     subs: List<Sublimation>,
 ) {
@@ -737,8 +739,16 @@ private fun ItemTooltip(
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
             )
         }
-        val stats = equipment.characteristics.entries.sortedBy { it.key.ordinal }
-        if (stats.isNotEmpty()) {
+        // As worn at the build's level: a level-scaled line (the Dofus Pourpre's "100% of level as Elemental Mastery") reads
+        // as its value. A searched build's items are already resolved (the engine's pool), so this only matters for an
+        // item that was not; resolving is idempotent either way.
+        val stats =
+            equipment
+                .atLevel(characterLevel)
+                .characteristics.entries
+                .sortedBy { it.key.ordinal }
+        val conditions = rememberItemConditionLines(equipment)
+        if (stats.isNotEmpty() || conditions.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Column(
                 modifier =
@@ -748,6 +758,7 @@ private fun ItemTooltip(
                         .verticalScroll(statsScroll),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
+                ItemConditionLines(conditions)
                 stats.forEach { (characteristic, value) ->
                     TooltipStatRow(characteristic = characteristic, value = value, lang = lang)
                 }
@@ -799,7 +810,7 @@ private fun ItemTooltip(
                             style = WTypography.labelSmall.copy(color = WColor.accent, fontWeight = FontWeight.Medium)
                         )
                         Text(
-                            text = sub.rarity.name,
+                            text = sub.rarity.label(lang),
                             style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                         )
                         me.chosante.ui.components
@@ -1141,7 +1152,7 @@ private fun SlotMeta(
             val showLevel = cardHeight >= LEVEL_LINE_MIN_CARD
             if (showLevel) {
                 Text(
-                    text = "${Tr.LEVEL_PREFIX_SHORT.value(LocalLang.current)} ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
+                    text = "${tr(Tr.LEVEL_PREFIX_SHORT)} ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
                     style =
                         WTypography.labelSmall.copy(
                             fontFamily = WType.mono,
@@ -1214,11 +1225,7 @@ private fun UiState.isExcludedEquipment(equipment: Equipment?): Boolean = equipm
 /** True when the user has pinned runes onto [equipment] for the next search (keyed by French name). */
 private fun UiState.hasPinnedRunes(equipment: Equipment?): Boolean = equipment != null && !forcedRunesByItem[equipment.name.fr].isNullOrEmpty()
 
-private fun Equipment.localizedName(lang: Lang): String =
-    when (lang) {
-        Lang.FR -> name.fr.ifBlank { name.en }
-        Lang.EN, Lang.ES -> name.en.ifBlank { name.fr }
-    }
+private fun Equipment.localizedName(lang: Lang): String = name.localized(lang)
 
 private fun Equipment.secondaryLine(
     slot: DollSlot,

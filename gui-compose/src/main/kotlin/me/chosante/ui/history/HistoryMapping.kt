@@ -3,12 +3,15 @@ package me.chosante.ui.history
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.ENGINE_RESULTS_VERSION
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.CharacterClass
+import me.chosante.common.Monster
+import me.chosante.common.history.BossSnapshot
 import me.chosante.common.history.DamageScenarioSnapshot
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.history.ItemRef
@@ -17,11 +20,14 @@ import me.chosante.common.history.ResultSnapshot
 import me.chosante.common.history.TargetSnapshot
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
 import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.displayedMatchPercent
 import me.chosante.ui.state.engineMasteryScore
+import me.chosante.ui.state.meetsAllTargets
 import me.chosante.ui.state.statDefFor
 import me.chosante.ui.state.toRow
 
@@ -54,6 +60,7 @@ fun UiState.toHistoryEntry(
     dataVersion: String,
     tags: List<String> = emptyList(),
     folder: String? = null,
+    engineResultsVersion: Int? = ENGINE_RESULTS_VERSION,
 ): HistoryEntry? {
     val build = this.build ?: return null
     return HistoryEntry(
@@ -62,27 +69,8 @@ fun UiState.toHistoryEntry(
         createdAt = createdAt,
         note = note?.takeIf { it.isNotBlank() },
         dataVersion = dataVersion,
-        request =
-            RequestSnapshot(
-                clazz = clazz.name,
-                level = level,
-                minLevel = minLevel,
-                mode = mode.name,
-                maxRarity = maxRarity,
-                duration = duration,
-                stopAtMatch = stopAtMatch,
-                targets = targets.map { TargetSnapshot(it.characteristic, it.value, it.weight) },
-                forcedItems = forcedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
-                excludedItems = excludedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
-                useSublimations = useSublimations,
-                maxSublimationTier = maxSublimationTier,
-                forcedSublimations = forcedSublimations,
-                excludedSublimations = excludedSublimations,
-                excludedRarities = excludedRarities,
-                forcedPassives = forcedPassives,
-                forcedRunesByItem = forcedRunesByItem,
-                scenario = scenario.toSnapshot()
-            ),
+        engineResultsVersion = engineResultsVersion,
+        request = toRequestSnapshot(),
         result =
             ResultSnapshot(
                 equipments = build.equipments,
@@ -99,6 +87,39 @@ fun UiState.toHistoryEntry(
         folder = folder
     )
 }
+
+/**
+ * The request part of the workspace — what a saved build replays and what the remembered workspace restores. [keepBossInAnyMode]
+ * keeps a selected boss outside max-damage too: a save records it only for the build it scored, but the workspace keeps it
+ * selected across a mode change, so the remembered workspace does as well.
+ */
+fun UiState.toRequestSnapshot(keepBossInAnyMode: Boolean = false): RequestSnapshot =
+    RequestSnapshot(
+        clazz = clazz.name,
+        level = level,
+        minLevel = minLevel,
+        mode = mode.name,
+        maxRarity = maxRarity,
+        duration = duration,
+        stopAtMatch = stopAtMatch,
+        targets = targets.map { TargetSnapshot(it.characteristic, it.value, it.weight) },
+        forcedItems = forcedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
+        excludedItems = excludedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
+        useSublimations = useSublimations,
+        maxSublimationTier = maxSublimationTier,
+        forcedSublimations = forcedSublimations,
+        excludedSublimations = excludedSublimations,
+        excludedRarities = excludedRarities,
+        forcedPassives = forcedPassives,
+        forcedRunesByItem = forcedRunesByItem,
+        scenario = scenario.toSnapshot(),
+        // The boss only counts for a max-damage build; it stays selected in the workspace when the mode changes (which is why
+        // the remembered workspace keeps it in any mode).
+        boss =
+            selectedBoss
+                ?.takeIf { keepBossInAnyMode || mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE }
+                ?.let { BossSnapshot(monster = it, element = bossElement?.name, difficulty = bossDifficulty) }
+    )
 
 /** Trim, drop blanks, dedupe case-insensitively keeping the first-seen casing for display. */
 fun normalizeTags(raw: List<String>): List<String> {
@@ -154,16 +175,26 @@ fun HistoryEntry.toBuildCombination(): BuildCombination {
 }
 
 /** Restores the saved target list into displayable [TargetRow]s (catalog-backed, like defaults). */
-fun HistoryEntry.toTargetRows(): List<TargetRow> = request.targets.mapNotNull { statDefFor(it.characteristic)?.toRow(it.value)?.copy(weight = it.weight) }
+fun HistoryEntry.toTargetRows(): List<TargetRow> = request.toTargetRows()
 
-fun HistoryEntry.toForcedChips(): List<ItemChip> = request.forcedItems.map { ItemChip(it.name, it.rarity, it.matchName) }
+fun RequestSnapshot.toTargetRows(): List<TargetRow> = targets.mapNotNull { statDefFor(it.characteristic)?.toRow(it.value)?.copy(weight = it.weight) }
 
-fun HistoryEntry.toExcludedChips(): List<ItemChip> = request.excludedItems.map { ItemChip(it.name, it.rarity, it.matchName) }
+fun HistoryEntry.toForcedChips(): List<ItemChip> = request.toForcedChips()
 
-fun HistoryEntry.restoredClass(): CharacterClass = CharacterClass.fromValue(request.clazz)
+fun RequestSnapshot.toForcedChips(): List<ItemChip> = forcedItems.map { ItemChip(it.name, it.rarity, it.matchName) }
 
-fun HistoryEntry.restoredMode(): ScoreComputationMode =
-    runCatching { ScoreComputationMode.valueOf(request.mode) }.getOrDefault(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+fun HistoryEntry.toExcludedChips(): List<ItemChip> = request.toExcludedChips()
+
+fun RequestSnapshot.toExcludedChips(): List<ItemChip> = excludedItems.map { ItemChip(it.name, it.rarity, it.matchName) }
+
+fun HistoryEntry.restoredClass(): CharacterClass = request.restoredClass()
+
+fun RequestSnapshot.restoredClass(): CharacterClass = CharacterClass.fromValue(clazz)
+
+fun HistoryEntry.restoredMode(): ScoreComputationMode = request.restoredMode()
+
+fun RequestSnapshot.restoredMode(): ScoreComputationMode =
+    runCatching { ScoreComputationMode.valueOf(mode) }.getOrDefault(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
 
 /** Persists the live attack scenario as primitives for storage (enum → name). */
 fun DamageScenario.toSnapshot(): DamageScenarioSnapshot =
@@ -186,9 +217,11 @@ fun DamageScenario.toSnapshot(): DamageScenarioSnapshot =
  * safe fallback to the engine default (mirroring [restoredMode]), so an unknown name from a future/older
  * save — or a pre-feature save defaulting every field — never throws.
  */
-fun HistoryEntry.restoredScenario(): DamageScenario {
+fun HistoryEntry.restoredScenario(): DamageScenario = request.restoredScenario()
+
+fun RequestSnapshot.restoredScenario(): DamageScenario {
     val default = DamageScenario()
-    val snapshot = request.scenario
+    val snapshot = scenario
     return DamageScenario(
         element = runCatching { SpellElement.valueOf(snapshot.element) }.getOrDefault(default.element),
         rangeBand = runCatching { RangeBand.valueOf(snapshot.rangeBand) }.getOrDefault(default.rangeBand),
@@ -212,6 +245,45 @@ fun HistoryEntry.restoredScenario(): DamageScenario {
 fun HistoryEntry.isMasteryMode(): Boolean = restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
 
 /**
+ * True if the build was searched in max-damage mode, where [ResultSnapshot.match] is the expected damage per turn the search
+ * maximized — NOT a percentage, so it must never be shown as "% match" (nor scored as a mastery build).
+ */
+fun HistoryEntry.isDamageMode(): Boolean = restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+
+/** The label of the build's search mode, as shown in its pill. */
+fun HistoryEntry.modeLabel(): Tr =
+    when (restoredMode()) {
+        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> Tr.MODE_MASTERIES
+        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> Tr.MODE_PRECISION
+        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> Tr.MODE_MAX_DAMAGE
+    }
+
+/** Expected damage per turn of a max-damage build (what its search maximized, stored as its match). */
+fun HistoryEntry.expectedDamage(): Long = result.match.toLong()
+
+/**
+ * A precision build's % match as displayed: a whole percent capped at 100. The stored [ResultSnapshot.match] keeps the raw
+ * score (which runs past 100 once every target is met, to rank overshoot), so anything that orders builds can still use it.
+ */
+fun HistoryEntry.matchPercent(): Int = result.match.displayedMatchPercent()
+
+/** True when a precision build meets every requested target (its raw score reaches 100). */
+fun HistoryEntry.meetsAllTargets(): Boolean = result.match.meetsAllTargets()
+
+/** The boss a max-damage build was searched against, if it recorded one. */
+fun HistoryEntry.restoredBoss(): Monster? = request.boss?.monster
+
+/** The damage element forced against the boss, or null when the objective picked it (or there is no boss). */
+fun HistoryEntry.restoredBossElement(): SpellElement? = request.restoredBossElement()
+
+fun RequestSnapshot.restoredBossElement(): SpellElement? = boss?.element?.let { name -> runCatching { SpellElement.valueOf(name) }.getOrNull() }
+
+/** The boss difficulty (HP multiplier) the build was viewed with; 1 when none was recorded. */
+fun HistoryEntry.restoredBossDifficulty(): String = request.restoredBossDifficulty()
+
+fun RequestSnapshot.restoredBossDifficulty(): String = boss?.difficulty ?: "1"
+
+/**
  * Mastery the build reached, **as the engine scores it** (see [engineMasteryScore]) — the headline for
  * most-masteries builds. Requested specialized masteries are summed; requested elemental masteries
  * count by their minimum, not their sum, so the number matches what the solver optimized.
@@ -227,18 +299,18 @@ fun HistoryEntry.requestedMasteryTotal(): Int =
     )
 
 /** Class display name, e.g. `Cra`. */
-fun HistoryEntry.classDisplayName(): String = request.clazz.lowercase().replaceFirstChar { it.titlecase() }
+fun HistoryEntry.classDisplayName(lang: Lang = Lang.EN): String = restoredClass().label(lang)
 
 /**
  * A sensible pre-filled name for the save dialog, e.g. `Cra 110 · Distance` — class, level, and the
  * build's focus (first maximized mastery, else first mastery target). The user can edit it.
  */
 fun UiState.suggestedBuildName(): String {
-    val cls = clazz.name.lowercase().replaceFirstChar { it.titlecase() }
+    val cls = clazz.label(lang)
     val focus =
         targets.firstOrNull { it.characteristic.isMaximizableMastery() }?.characteristic
             ?: targets.firstOrNull { it.characteristic.name.startsWith("MASTERY") }?.characteristic
-    val focusLabel = focus?.label(Lang.EN)?.removeSuffix(" Mastery")
+    val focusLabel = focus?.label(lang)?.removeSuffix(" Mastery")?.removePrefix("Maîtrise ")
     return buildString {
         append(cls)
         append(' ')

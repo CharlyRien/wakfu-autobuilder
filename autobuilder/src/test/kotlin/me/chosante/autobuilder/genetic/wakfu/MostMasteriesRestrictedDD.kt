@@ -9,7 +9,6 @@ import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationEffect
 import me.chosante.common.SublimationRarity
-import java.math.BigInteger
 import kotlin.math.ceil
 
 /**
@@ -409,19 +408,10 @@ internal object MostMasteriesRestrictedDD {
         val bucketSize =
             if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX).toLong()
         val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
-        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
+        val powScale = penaltyPowScale(maxIndex.toLong())
         val powCache = HashMap<Int, Long>()
 
-        fun power6(index: Int): Long =
-            powCache.getOrPut(index) {
-                BigInteger
-                    .valueOf(index.toLong())
-                    .pow(6)
-                    .divide(powScale)
-                    .toLong()
-            }
+        fun power6(index: Int): Long = powCache.getOrPut(index) { penaltyMultiplier(index.toLong(), powScale) }
 
         fun weight(char: Characteristic): Long = targetByChar[char]?.let { params.targetStats.scaledWeight(it) } ?: 0L
 

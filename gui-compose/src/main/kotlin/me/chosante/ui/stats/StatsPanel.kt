@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,9 +41,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -50,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Characteristic
 import me.chosante.common.SpellElement
 import me.chosante.common.skills.Assignable
@@ -57,13 +63,20 @@ import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
+import me.chosante.ui.components.InfoTip
+import me.chosante.ui.components.ObsoleteCue
+import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.PassiveIcon
+import me.chosante.ui.components.StatGateCue
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.displayName
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.components.rememberStatGateViolations
 import me.chosante.ui.components.sublimationEffectText
+import me.chosante.ui.history.obsolescence
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -75,11 +88,14 @@ import me.chosante.ui.state.ProofPhase
 import me.chosante.ui.state.ProofProgress
 import me.chosante.ui.state.ProofState
 import me.chosante.ui.state.TargetRow
+import me.chosante.ui.state.UiError
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
+import me.chosante.ui.state.displayedMatchPercent
 import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.isEngineInternalStat
 import me.chosante.ui.state.isExact
+import me.chosante.ui.state.meetsAllTargets
 import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.theme.WColor
@@ -95,6 +111,9 @@ fun StatsPanel(
     onSaveBuild: () -> Unit,
     onExport: () -> Unit,
     onViewAsDamage: () -> Unit,
+    onStopProof: () -> Unit = {},
+    onRetryError: () -> Unit = {},
+    onRerunSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -109,11 +128,17 @@ fun StatsPanel(
                     .padding(WDimens.gap),
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
-            MatchHero(ui)
+            MatchHero(ui, onStopProof)
+            // A loaded saved build a new search may improve (game data updated and/or engine improved since it was saved): a
+            // quiet note under the headline that says why and offers the re-run; nothing is blocked.
+            ui.obsolescence()?.let { ObsoleteCue(obsolescence = it, onRerun = onRerunSearch) }
+            // A loaded saved build wearing an item the game would show inactive (a stat gate it breaks — saved before the search
+            // enforced them): each gate spelled out. A search result never breaks one.
+            StatGateCue(rememberStatGateViolations(ui.build, ui.clazz))
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.
-                ui.error?.let { ErrorBanner(error = it) }
+                ui.error?.let { ErrorBanner(error = it, onRetry = onRetryError) }
                 EmptyHint()
             } else {
                 ActionsCard(
@@ -122,13 +147,17 @@ fun StatsPanel(
                     onCopyZenith = onCopyZenith,
                     onSaveBuild = onSaveBuild,
                     onExport = onExport,
-                    onViewAsDamage = onViewAsDamage
+                    onViewAsDamage = onViewAsDamage,
+                    onRetryError = onRetryError
                 )
                 if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                     SpellRotationCard(ui)
                 }
                 MasterySummary(ui)
-                DesiredVsAchieved(ui)
+                // Max Damage starts without target rows: with nothing requested there is nothing to compare, so no empty card.
+                if (ui.targets.isNotEmpty()) {
+                    DesiredVsAchieved(ui)
+                }
                 BuildSheet(ui)
                 SublimationsResult(ui)
                 PassivesResult(ui)
@@ -142,26 +171,43 @@ fun StatsPanel(
     }
 }
 
+/** What the headline shows before there is a build to read it from (a dash, in every language). */
+internal const val NO_HEADLINE = "—"
+
+/** [onStopProof] is the "Stop" link of the background optimality check's cue (see [ProofActivityRow]). */
 @Composable
-private fun MatchHero(ui: UiState) {
+internal fun MatchHero(
+    ui: UiState,
+    onStopProof: () -> Unit = {},
+) {
     // Most-masteries maximizes mastery and max-damage maximizes expected damage, so a "% match" is
     // meaningless for both — show the headline number (no %, no progress bar) instead. Only precision
     // mode keeps the % match + meter.
     val masteryMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
     val damageMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
     val headlineNumberMode = masteryMode || damageMode
+    // Until a build exists there is no number to give: a dash, not the "0 Requested mastery" / "0 Expected damage" / "0 %" of a
+    // result that does not exist yet (which reads as "you asked for nothing and got nothing").
+    val hasBuild = ui.build != null
     ResultCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
         ) {
             if (headlineNumberMode) {
                 Text(
-                    text = if (damageMode) ui.match.toInt().formatCompact() else ui.requestedMasteryTotal().formatCompact(),
+                    text =
+                        when {
+                            !hasBuild -> NO_HEADLINE
+                            damageMode -> ui.match.toInt().formatCompact()
+                            else -> ui.requestedMasteryTotal().formatCompact()
+                        },
                     style =
                         WTypography.displayLarge.copy(
                             fontSize = 46.sp,
                             lineHeight = 46.sp,
-                            color = WColor.text,
+                            color = if (hasBuild) WColor.text else WColor.faint,
+                            // The dash of the display weight reads as a heavy bar; a regular one is a placeholder.
+                            fontWeight = if (hasBuild) FontWeight.Bold else FontWeight.Normal,
                             fontFamily = WType.display,
                             textAlign = TextAlign.Center
                         )
@@ -179,29 +225,40 @@ private fun MatchHero(ui: UiState) {
                     )
                 }
             } else {
+                // Capped at 100: past it the engine only ranks how far a build overshoots its targets (a raw 248 % is not
+                // a percentage), so a build that meets every target reads "100 %" and says so.
+                val targetsMet = hasBuild && ui.match.meetsAllTargets()
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = ui.match.toInt().toString(),
+                        text = if (hasBuild) ui.match.displayedMatchPercent().toString() else NO_HEADLINE,
                         style =
                             WTypography.displayLarge.copy(
                                 fontSize = 46.sp,
                                 lineHeight = 46.sp,
-                                color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
+                                color =
+                                    when {
+                                        targetsMet -> WColor.success
+                                        hasBuild -> WColor.text
+                                        else -> WColor.faint
+                                    },
+                                fontWeight = if (hasBuild) FontWeight.Bold else FontWeight.Normal,
                                 fontFamily = WType.display,
                                 textAlign = TextAlign.Center
                             )
                     )
-                    Text(
-                        text = "%",
-                        style =
-                            WTypography.headlineMedium.copy(
-                                color = WColor.muted,
-                                lineHeight = 24.sp
-                            )
-                    )
+                    if (hasBuild) {
+                        Text(
+                            text = "%",
+                            style =
+                                WTypography.headlineMedium.copy(
+                                    color = WColor.muted,
+                                    lineHeight = 24.sp
+                                )
+                        )
+                    }
                 }
                 Text(
-                    text = tr(Tr.BUILD_MATCH),
+                    text = tr(if (targetsMet) Tr.TARGETS_MET else Tr.BUILD_MATCH),
                     style = WTypography.labelMedium,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -213,51 +270,64 @@ private fun MatchHero(ui: UiState) {
                 // when EITHER the solver or the certificate proved it (P4.4).
                 val certProven = ui.proofState is ProofState.ProvenOptimal
                 val showOptimal = ui.optimal || certProven
-                Text(
-                    text = tr(if (showOptimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
-                    style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning),
-                    modifier = Modifier.padding(top = 3.dp)
-                )
+                // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint. It REPLACES the
+                // "optimum not proven" headline (one line, worded as a bound) instead of stacking a second, apparently
+                // contradictory, line under it.
+                val within = (ui.proofState as? ProofState.ProvenWithin)?.takeIf { !ui.optimal }
+                Box(modifier = Modifier.padding(top = 3.dp)) {
+                    val text =
+                        when {
+                            showOptimal -> tr(Tr.OPTIMAL_PROVEN)
+                            within != null -> tr(Tr.BEST_FOUND_WITHIN).format(formatBoundPercent(within.fraction, LocalLang.current))
+                            else -> tr(Tr.BEST_FOUND)
+                        }
+                    val style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning)
+                    if (showOptimal && ui.staleEngine != null) {
+                        OlderEngineProof(text = text, style = style)
+                    } else {
+                        Text(text = text, style = style)
+                    }
+                }
                 when {
                     // The certificate is still running — show the phase and a live elapsed timer with a
                     // spinner, so a minutes-long proof never looks like a hang.
                     ui.proofState is ProofState.Proving ->
                         ProofProgressIndicator(
                             progress = (ui.proofState as ProofState.Proving).progress,
+                            onStop = onStopProof,
                             modifier = Modifier.padding(top = 2.dp)
                         )
-                    // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint.
-                    ui.proofState is ProofState.ProvenWithin && !ui.optimal -> {
-                        val within = ui.proofState as ProofState.ProvenWithin
-                        // Locale.ROOT so an FR UI shows "2.0", not "2,0" (the %s in PROVEN_WITHIN keeps the point).
-                        val pct = String.format(java.util.Locale.ROOT, "%.1f", within.fraction * 100)
-                        Text(
-                            text = tr(Tr.PROVEN_WITHIN).format(pct),
-                            style = WTypography.labelSmall.copy(color = WColor.warning, textAlign = TextAlign.Center),
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                        // The per-carrier silent refinement is still running behind the badge — keep a
-                        // visible "still proving" cue so a later badge upgrade never looks spontaneous.
+                    within != null -> {
+                        // The E8 construct / per-carrier silent refinement is still running behind the badge — keep a
+                        // visible "still proving" cue (with what it is, and a way to stop it) so a later badge upgrade
+                        // never looks spontaneous.
                         if (within.refining) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            ProofActivityRow(
+                                text = tr(Tr.PROOF_REFINING),
+                                onStop = onStopProof,
                                 modifier = Modifier.padding(top = 2.dp)
-                            ) {
-                                ProofSpinner(color = WColor.accent)
-                                Text(
-                                    text = tr(Tr.PROOF_REFINING),
-                                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
-                                )
-                            }
+                            )
                         }
                     }
+                    // A request on several elements is searched on a heuristic selection of the items, so NO search of it is ever
+                    // proven: say so, instead of the "raise the search duration" hint below, which would send the player after a
+                    // badge nothing can earn. A search the user stopped keeps its own hint (its build is a best-so-far, not that
+                    // search's result), and every badge state above still wins.
+                    ui.prefilteredRequest && !showOptimal && !ui.searchStopped ->
+                        NoProofExplanation(modifier = Modifier.padding(top = 4.dp))
                     // Certificate unavailable because of forced runes/subs — name the reason (honest, not "proven").
                     ui.proofState == ProofState.Unavailable &&
                         !showOptimal &&
                         (ui.forcedRunesByItem.isNotEmpty() || ui.forcedSublimations.isNotEmpty()) ->
                         Text(
                             text = tr(Tr.PROOF_UNAVAILABLE_FORCED),
+                            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    // The user stopped the search: say so (the time budget did not run out), instead of the generic hint.
+                    ui.searchStopped && !showOptimal ->
+                        Text(
+                            text = tr(Tr.SEARCH_STOPPED_HINT),
                             style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
                             modifier = Modifier.padding(top = 2.dp)
                         )
@@ -270,14 +340,39 @@ private fun MatchHero(ui: UiState) {
                         )
                 }
             }
-            if (!headlineNumberMode) {
+            if (!headlineNumberMode && hasBuild) {
                 Meter(
-                    fill = ui.match.toFloat() / 100f,
-                    color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
+                    fill = ui.match.displayedMatchPercent() / 100f,
+                    color = if (ui.match.meetsAllTargets()) WColor.success else WColor.warning,
                     modifier = Modifier.padding(top = 14.dp)
                 )
             }
         }
+    }
+}
+
+/** Test tag of the "no optimality proof for this request" explanation (see [NoProofExplanation]). */
+internal const val NO_PROOF_TAG = "no-proof-explanation"
+
+/**
+ * Why a request on several elements gets no optimality badge ([UiState.prefilteredRequest]): the engine compares a selection of
+ * the strongest items, not the whole catalog, so a proof is impossible however long the search runs. The title says WHAT is
+ * missing ([Tr.NO_PROOF_TITLE]), the body WHY — and that it is no defect of the build ([Tr.NO_PROOF_BODY]).
+ */
+@Composable
+internal fun NoProofExplanation(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.testTag(NO_PROOF_TAG),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = tr(Tr.NO_PROOF_TITLE),
+            style = WTypography.labelSmall.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
+        )
+        Text(
+            text = tr(Tr.NO_PROOF_BODY),
+            style = WTypography.labelSmall.copy(color = WColor.faint)
+        )
     }
 }
 
@@ -286,11 +381,13 @@ private fun MatchHero(ui: UiState) {
  * while the certificate proof runs; the wording switches to "Building the proven optimal build…"
  * during the E8 construct phase. If the certifier later reports per-cell progress
  * ([ProofProgress.cellsDone]/[ProofProgress.cellsTotal]), this is the single place to upgrade the
- * indeterminate spinner to a determinate fraction.
+ * indeterminate spinner to a determinate fraction. Like the refining line it carries the info tooltip
+ * and the Stop link ([ProofActivityRow]).
  */
 @Composable
-private fun ProofProgressIndicator(
+internal fun ProofProgressIndicator(
     progress: ProofProgress,
+    onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val nowMs = remember(progress.startedAtMs) { mutableStateOf(System.currentTimeMillis()) }
@@ -322,6 +419,25 @@ private fun ProofProgressIndicator(
                 }
             else -> Tr.PROVING_OPTIMALITY
         }
+    ProofActivityRow(text = tr(label).format(formatElapsed(elapsedSeconds)), onStop = onStop, modifier = modifier)
+}
+
+/** Test tag of the cue's "Stop" link (see [ProofActivityRow]). */
+internal const val PROOF_STOP_TAG = "proof-stop"
+
+/**
+ * The cue that the engine is still checking the build's optimality in the background: a spinner, [text] (what it is doing
+ * now), an info tooltip saying in plain words what this is, what it costs and how to stop or disable it
+ * ([Tr.PROOF_INFO]), and a "Stop" link ([onStop]) that stops the check and keeps the current build and badge. Shared by the
+ * "Verifying optimality…" line and the refining line under a "proven within X %" badge, so both look and behave alike.
+ * The text takes the leftover width (and wraps); the tooltip and the link keep their place at the end of the line.
+ */
+@Composable
+internal fun ProofActivityRow(
+    text: String,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -329,18 +445,44 @@ private fun ProofProgressIndicator(
     ) {
         ProofSpinner(color = WColor.accent)
         Text(
-            text = tr(label).format(formatElapsed(elapsedSeconds)),
-            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
+            text = text,
+            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        InfoTip(text = tr(Tr.PROOF_INFO))
+        Text(
+            text = tr(Tr.STOP),
+            style = WTypography.labelSmall.copy(color = WColor.accent, textDecoration = TextDecoration.Underline),
+            modifier =
+                Modifier
+                    .testTag(PROOF_STOP_TAG)
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clip(RoundedCornerShape(3.dp))
+                    .clickable(onClick = onStop)
+                    .padding(horizontal = 3.dp)
         )
     }
 }
 
-/** "45 s" below a minute, "2 min 10 s" above — locale-neutral unit abbreviations shared by EN/FR. */
-private fun formatElapsed(totalSeconds: Long): String {
+/**
+ * "45 s" below a minute, "2 min 10 s" above — locale-neutral unit abbreviations shared by EN/FR. The spaces are
+ * non-breaking so the narrow cue line (the text shares it with the info tooltip and the Stop link) wraps BEFORE the
+ * time, never inside it.
+ */
+internal fun formatElapsed(totalSeconds: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return if (minutes > 0) "$minutes min $seconds s" else "$seconds s"
+    return if (minutes > 0) "$minutes\u00A0min\u00A0$seconds\u00A0s" else "$seconds\u00A0s"
 }
+
+/**
+ * The certificate's bound ("at most X % below the optimum") as the player reads a number in their own language: one decimal
+ * with the language's decimal separator — "2.2" in English, "2,2" in French.
+ */
+internal fun formatBoundPercent(
+    fraction: Double,
+    lang: Lang,
+): String = String.format(if (lang == Lang.FR) java.util.Locale.FRANCE else java.util.Locale.ROOT, "%.1f", fraction * 100)
 
 /**
  * A small indeterminate spinner — a faint full ring with one bright arc sweeping around it — the same
@@ -392,7 +534,7 @@ private fun ProofSpinner(
 }
 
 @Composable
-private fun SpellRotationCard(ui: UiState) {
+internal fun SpellRotationCard(ui: UiState) {
     val rotation = ui.spellRotation ?: return
     val lang = LocalLang.current
     ResultCard(
@@ -422,8 +564,7 @@ private fun SpellRotationCard(ui: UiState) {
         rotation.debuffCasts.forEach { cast ->
             Text(
                 text =
-                    "↳ ${cast.spell.name.localized(lang)} " +
-                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)",
+                    tr(Tr.SPELL_DEBUFF_CAST).format(cast.spell.name.localized(lang), cast.apCost, cast.spell.targetResistanceReductionFlat),
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -432,7 +573,7 @@ private fun SpellRotationCard(ui: UiState) {
         // final value, not what each individual debuff reaches).
         if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
             Text(
-                text = "→ ${rotation.effectiveResistancePercent}% res after debuffs",
+                text = tr(Tr.SPELL_DEBUFF_RESISTANCE).format(rotation.effectiveResistancePercent),
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -468,7 +609,7 @@ private fun SpellRotationCard(ui: UiState) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "${rotation.totalExpectedDamage.toLong().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
+                text = tr(Tr.SPELL_ROTATION_TOTAL).format(rotation.totalExpectedDamage.toLong().formatCompact(), rotation.apUsed, rotation.apBudget),
                 style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
             )
         }
@@ -486,7 +627,7 @@ private fun SpellRotationCard(ui: UiState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${tr(Tr.TURNS_TO_KILL)} · ${boss.name.fr.ifBlank { boss.name.en }}",
+                    text = "${tr(Tr.TURNS_TO_KILL)} · ${boss.displayName(LocalLang.current)}",
                     style = WTypography.labelMedium.copy(color = WColor.muted),
                     modifier = Modifier.weight(1f)
                 )
@@ -579,7 +720,7 @@ private fun SpellCastRow(
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = "${cast.apCost} AP",
+            text = tr(Tr.STAT_AP_AMOUNT).format(cast.apCost),
             style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono)
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -622,8 +763,7 @@ private fun DesiredVsAchieved(ui: UiState) {
                 style = WTypography.labelMedium.copy(color = WColor.muted),
                 modifier = Modifier.padding(top = if (groupIndex == 0) 0.dp else 10.dp, bottom = 2.dp)
             )
-            group.targets.forEachIndexed { index, target ->
-                if (index > 0) Hairline()
+            StatGrid(group.targets) { target, _ ->
                 StatRow(
                     target = target,
                     achieved = ui.achieved[target.characteristic] ?: 0,
@@ -635,7 +775,7 @@ private fun DesiredVsAchieved(ui: UiState) {
 }
 
 @Composable
-private fun MasterySummary(ui: UiState) {
+internal fun MasterySummary(ui: UiState) {
     val elementalMasteries =
         listOf(
             Characteristic.MASTERY_ELEMENTARY_WATER,
@@ -671,17 +811,20 @@ private fun MasterySummary(ui: UiState) {
 
     // The engine-faithful number: requested specialized summed + the weakest *requested* element.
     val requestedMastery = ui.requestedMasteryTotal()
+    val hasRequestedMastery = requested.any { it.isMaximizableMastery() }
 
     ResultCard(
         title = tr(Tr.MASTERY_SUMMARY),
-        trailing = requestedMastery.formatCompact()
+        trailing = if (hasRequestedMastery) requestedMastery.formatCompact() else null
     ) {
-        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
-        Text(
-            text = tr(Tr.BUILD_MASTERY_HINT),
-            style = WTypography.labelSmall.copy(color = WColor.faint),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        if (hasRequestedMastery) {
+            SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
+            Text(
+                text = tr(Tr.BUILD_MASTERY_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.faint),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
         if (requestedElementals.isNotEmpty()) {
             Hairline()
             MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = requestedElementals)
@@ -751,32 +894,69 @@ private fun BuildSheet(ui: UiState) {
                 modifier = Modifier.padding(vertical = 6.dp)
             )
         } else {
-            rows.forEachIndexed { index, (characteristic, value) ->
+            StatGrid(rows) { (characteristic, value), compact ->
+                SheetStat(
+                    characteristic = characteristic,
+                    value = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
+                    compact = compact,
+                    color = if (value < 0) WColor.danger else WColor.text
+                )
+            }
+        }
+    }
+}
+
+/** Two stat columns once each cell has at least 174 dp. One width threshold, no animated measuring/reflow. */
+@Composable
+private fun <T> StatGrid(
+    values: List<T>,
+    content: @Composable (T, Boolean) -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth >= 360.dp) 2 else 1
+        Column {
+            values.chunked(columns).forEachIndexed { index, row ->
                 if (index > 0) Hairline()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CharacteristicIcon(characteristic = characteristic, size = 16.dp)
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Text(
-                        text = characteristic.label(LocalLang.current),
-                        style = WTypography.bodyMedium.copy(color = if (value < 0) WColor.danger else WColor.text),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
-                        style =
-                            WTypography.bodyMedium.copy(
-                                fontFamily = WType.mono,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (value < 0) WColor.danger else WColor.muted
-                            )
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.forEach { value ->
+                        Box(Modifier.weight(1f)) { content(value, columns == 2) }
+                    }
+                    if (row.size < columns) Spacer(Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+/** Keep the complete value on its own line in a half-width cell; labels can wrap in either layout. */
+@Composable
+private fun SheetStat(
+    characteristic: Characteristic,
+    value: String,
+    compact: Boolean,
+    color: Color,
+) {
+    val valueColor = if (color == WColor.danger) WColor.danger else WColor.muted
+    Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CharacteristicIcon(characteristic = characteristic, size = 15.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = characteristic.label(LocalLang.current),
+                style = WTypography.bodySmall.copy(color = color),
+                modifier = Modifier.weight(1f)
+            )
+            if (!compact) {
+                Spacer(Modifier.width(8.dp))
+                Text(value, style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = valueColor))
+            }
+        }
+        if (compact) {
+            Text(
+                value,
+                style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = valueColor),
+                modifier = Modifier.align(Alignment.End).padding(top = 3.dp)
+            )
         }
     }
 }
@@ -789,22 +969,8 @@ private fun MasteryGroup(
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
-        values.forEach { (characteristic, value) ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                CharacteristicIcon(characteristic = characteristic, size = 15.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = characteristic.label(LocalLang.current),
-                    style = WTypography.bodySmall.copy(color = if (muted) WColor.faint else WColor.text),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = value.formatCompact(),
-                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                )
-            }
+        StatGrid(values) { (characteristic, value), compact ->
+            SheetStat(characteristic, value.formatCompact(), compact, if (muted) WColor.faint else WColor.text)
         }
     }
 }
@@ -878,10 +1044,14 @@ private fun StatRow(
     achieved: Int,
     mode: ScoreComputationMode,
 ) {
-    val targetValue = target.value.toIntOrNull() ?: 0
+    val typedValue = target.value.toIntOrNull()
+    val targetValue = typedValue ?: 0
     val exact = target.isExact(mode)
-    val status =
+    val status: StatStatus? =
         when {
+            // A blank constraint sends no row: the engine checks nothing there, so the value is shown without a verdict. (A typed
+            // 0 is a row — "never below 0" — and a maximized mastery counts whatever its field holds.)
+            typedValue == null && exact -> null
             exact && achieved >= targetValue -> StatStatus.Ok
             exact -> StatStatus.Miss
             targetValue > 0 && achieved >= targetValue -> StatStatus.Ok
@@ -899,45 +1069,43 @@ private fun StatRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = target.characteristic.label(LocalLang.current),
-                    style = WTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    style = WTypography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                 )
                 Text(
                     text = tr(if (exact) Tr.TAG_EXACT else Tr.TAG_MAXIMIZE),
                     style = WTypography.labelSmall
                 )
             }
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = achieved.formatCompact(),
-                    style =
-                        WTypography.bodyMedium.copy(
-                            fontFamily = WType.mono,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (status == StatStatus.Miss) WColor.warning else WColor.text
-                        )
-                )
-                if (targetValue > 0) {
-                    Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
-                    Text(
-                        text = targetValue.formatCompact(),
-                        style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                    )
-                }
-            }
             Text(
-                text = status.icon,
+                text = status?.icon.orEmpty(),
                 style =
                     WTypography.bodyMedium.copy(
-                        color = status.color,
+                        color = status?.color ?: WColor.muted,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     ),
                 modifier = Modifier.width(18.dp)
             )
         }
-        if (targetValue > 0) {
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 34.dp, top = 4.dp), verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = achieved.formatCompact(),
+                style =
+                    WTypography.bodyMedium.copy(
+                        fontFamily = WType.mono,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (status == StatStatus.Miss) WColor.warning else WColor.text
+                    )
+            )
+            if (targetValue > 0) {
+                Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
+                Text(
+                    text = targetValue.formatCompact(),
+                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
+        }
+        if (status != null && targetValue > 0) {
             Meter(
                 fill = progress,
                 color = status.color,
@@ -1058,10 +1226,11 @@ private fun ActionsCard(
     onSaveBuild: () -> Unit,
     onExport: () -> Unit,
     onViewAsDamage: () -> Unit,
+    onRetryError: () -> Unit,
 ) {
     ResultCard {
         if (ui.error != null) {
-            ErrorBanner(error = ui.error)
+            ErrorBanner(error = ui.error, onRetry = onRetryError)
             Spacer(modifier = Modifier.height(10.dp))
         }
         ActionButton(
@@ -1203,8 +1372,18 @@ private fun ActionButton(
     }
 }
 
+/** Test tag of the error banner's "Retry" link (see [ErrorBanner]). */
+internal const val ERROR_RETRY_TAG = "error-retry"
+
+/**
+ * The red error banner: the plain-language [UiError.message] and, when repeating the failed action can help
+ * ([UiError.retry]), a "Retry" link that reports to [onRetry].
+ */
 @Composable
-private fun ErrorBanner(error: String) {
+internal fun ErrorBanner(
+    error: UiError,
+    onRetry: () -> Unit,
+) {
     Row(
         modifier =
             Modifier
@@ -1218,10 +1397,23 @@ private fun ErrorBanner(error: String) {
     ) {
         Text(text = "!", style = WTypography.bodyMedium.copy(color = WColor.danger))
         Text(
-            text = error,
+            text = error.message,
             style = WTypography.bodySmall.copy(color = WColor.text),
             modifier = Modifier.weight(1f)
         )
+        if (error.retry != null) {
+            Text(
+                text = tr(Tr.RETRY),
+                style = WTypography.bodySmall.copy(color = WColor.accent, textDecoration = TextDecoration.Underline),
+                modifier =
+                    Modifier
+                        .testTag(ERROR_RETRY_TAG)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clip(RoundedCornerShape(3.dp))
+                        .clickable(onClick = onRetry)
+                        .padding(horizontal = 3.dp)
+            )
+        }
     }
 }
 
@@ -1272,7 +1464,7 @@ private fun SublimationsResult(ui: UiState) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = sub.name.localized(ui.lang), style = WTypography.labelMedium.copy(color = WColor.text))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+                        Text(text = sub.rarity.label(LocalLang.current), style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
                         Spacer(modifier = Modifier.width(8.dp))
                         me.chosante.ui.components
                             .SublimationStackBadge(sub)
@@ -1289,7 +1481,7 @@ private fun SublimationsResult(ui: UiState) {
 /** The selected passive loadout, each as an icon + name (+ flat stats), with the in-game text on hover. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PassivesResult(ui: UiState) {
+internal fun PassivesResult(ui: UiState) {
     val passives = ui.build?.passives.orEmpty()
     if (passives.isEmpty()) return
     val lang = LocalLang.current
@@ -1320,20 +1512,22 @@ private fun PassivesResult(ui: UiState) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         PassiveIcon(gfxId = passive.gfxId, size = 24.dp)
-                        Text(
-                            text = passive.name?.localized(lang) ?: passive.spellId.toString(),
-                            style = WTypography.labelMedium.copy(color = WColor.text),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.name}" }
-                        if (flat.isNotBlank()) {
+                        // The flat stats sit UNDER the name, not beside it: side by side, the monospace stats (the system's
+                        // mono font, wider on Linux than on macOS) squeezed the name to an ellipsis in a narrow column.
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = flat,
-                                style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono),
-                                maxLines = 1
+                                text = passive.name?.localized(lang) ?: passive.spellId.toString(),
+                                style = WTypography.labelMedium.copy(color = WColor.text),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.label(lang)}" }
+                            if (flat.isNotBlank()) {
+                                Text(
+                                    text = flat,
+                                    style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono)
+                                )
+                            }
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.domain
 
+import me.chosante.common.CharacterClass
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Passive
@@ -22,7 +23,18 @@ data class BuildCombination(
     // export; their fully-declarative flat stats are also folded into the solve (see PassiveCatalog).
     val passives: List<Passive> = emptyList(),
 ) {
-    fun isValid(): Boolean {
+    /**
+     * Whether the game lets a character wear this build: one item per slot (two rings of different names), one-handed +
+     * off-hand or a two-handed weapon, at most one item of each exclusivity group ([exclusiveGroupViolation]: one EPIC-group
+     * item — every EPIC item and two COMMON ones — and one RELIC item), legal sublimations, and every item EQUIP
+     * condition the engine enforces ([equipConditionViolation]: required items worn, no two items that exclude each
+     * other, no never-equippable item, and — when [characterClass] is given — no other class's item) — its stat gates included
+     * ([statGateViolations]: every item active on the build's out-of-combat sheet, read with [characterClass]'s base stats — a
+     * 6-WP class when null).
+     */
+    fun isValid(characterClass: CharacterClass? = null): Boolean {
+        if (equipConditionViolation(equipments, characterClass) != null) return false
+        if (statGateViolations(this, characterClass).isNotEmpty()) return false
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
         if (numberOfEquipmentByType.any { (key, count) ->
                 count > 1 && key != ItemType.RING || count > 2
@@ -31,16 +43,7 @@ data class BuildCombination(
             return false
         }
 
-        val numberOfEquipmentByRarity = equipments.groupingBy { it.rarity }.eachCount()
-        val numberOfEpicItems = numberOfEquipmentByRarity[Rarity.EPIC] ?: 0
-        val numberOfRelicItems = numberOfEquipmentByRarity[Rarity.RELIC] ?: 0
-        if (numberOfRelicItems >= 2) {
-            return false
-        }
-
-        if (numberOfEpicItems >= 2) {
-            return false
-        }
+        if (exclusiveGroupViolation(equipments) != null) return false
         val numberOfTwoHandsWeapon = numberOfEquipmentByType[ItemType.TWO_HANDED_WEAPONS] ?: 0
         val numberOfOneHandsWeapon = numberOfEquipmentByType[ItemType.ONE_HANDED_WEAPONS] ?: 0
         val numberOfSecondHandsWeapon = numberOfEquipmentByType[ItemType.OFF_HAND_WEAPONS] ?: 0
@@ -63,7 +66,8 @@ data class BuildCombination(
 
     /**
      * Sublimation legality, mirroring the solver constraints: at most 10 NORMAL sublimations + 1 epic + 1 relic,
-     * and each one on a valid carrier item — epic on an epic item, relic on a relic item, a normal
+     * and each one on a valid carrier item — epic on an EPIC-rarity item, relic on a RELIC one (the rarity, not the
+     * exclusivity group: a COMMON item of the EPIC group is assumed to host no epic sub — see [me.chosante.common.ExclusiveGroup]), a normal
      * sub on a ≥3-socket item with at most one normal sub per item. A normal sub does NOT consume rune
      * sockets: golden runes form its colour pattern while still carrying their stat, so the carrier keeps a
      * full rune set alongside the sub (the solver model since 54761dc6 — see the "does not steal rune

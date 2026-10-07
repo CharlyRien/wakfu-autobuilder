@@ -4,6 +4,8 @@ import me.chosante.common.CharacterClass
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.history.classDisplayName
 import me.chosante.ui.history.restoredClass
+import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.label
 
 // The library's filter + sort + group pipeline, kept as pure (non-Compose) functions so it can be
 // unit-tested directly and the screen stays a thin renderer over its result.
@@ -15,7 +17,7 @@ data class LibraryGroup(
 )
 
 /** Display label for a class in the library (e.g. `Cra`), matching [HistoryEntry.classDisplayName]. */
-fun CharacterClass.libraryLabel(): String = name.lowercase().replaceFirstChar { it.titlecase() }
+fun CharacterClass.libraryLabel(lang: Lang = Lang.EN): String = label(lang)
 
 /**
  * Filters, sorts and (optionally) groups [builds] for the library screen. Applied in order:
@@ -31,6 +33,7 @@ fun organizeLibrary(
     groupByClass: Boolean,
     selectedTags: Set<String> = emptySet(),
     folder: LibraryFolderFilter = LibraryFolderFilter.All,
+    lang: Lang = Lang.EN,
 ): List<LibraryGroup> {
     val query = search.trim()
     val filtered =
@@ -47,7 +50,7 @@ fun organizeLibrary(
             .filter { entry ->
                 query.isBlank() ||
                     entry.name.contains(query, ignoreCase = true) ||
-                    entry.classDisplayName().contains(query, ignoreCase = true) ||
+                    entry.classDisplayName(lang).contains(query, ignoreCase = true) ||
                     entry.tags.any { it.contains(query, ignoreCase = true) }
             }
     val sorted = filtered.sortedWith(sort.comparator())
@@ -57,7 +60,7 @@ fun organizeLibrary(
     return sorted
         .groupBy { it.restoredClass() }
         .map { (clazz, entries) -> LibraryGroup(clazz, entries) }
-        .sortedBy { it.clazz!!.libraryLabel().lowercase() }
+        .sortedBy { it.clazz!!.libraryLabel(lang).lowercase() }
 }
 
 /** Comparator implementing each [LibrarySort] (see the plan §2 for the exact tie-breaks). */

@@ -4,7 +4,6 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
 import java.math.BigDecimal
-import java.math.RoundingMode
 
 object FindMostMasteriesFromInputScoring {
     private val masteryCharacteristicsWithoutElementaries =
@@ -21,15 +20,38 @@ object FindMostMasteriesFromInputScoring {
         targetStats: TargetStats,
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
-    ): BigDecimal {
-        // Aggregate RESISTANCE_ELEMENTARY makes the resistance score a min over the four elements (water-fill
-        // optimally); specific per-element resistance targets stay capped/greedy.
+    ): BigDecimal = scored(targetStats, buildCombination, characterBaseCharacteristics).score
+
+    /**
+     * Every stat of [buildCombination] as [computeScore] reads it for [targetStats] — its random-element rolls placed where the
+     * score places them (a floor kept when the score prefers it). The same computation as the score, not a second one.
+     */
+    internal fun resolvedStats(
+        targetStats: TargetStats,
+        buildCombination: BuildCombination,
+        characterBaseCharacteristics: Map<Characteristic, Int>,
+    ): Map<Characteristic, Int> = scored(targetStats, buildCombination, characterBaseCharacteristics).stats
+
+    private class Scored(
+        val score: BigDecimal,
+        val stats: Map<Characteristic, Int>,
+    )
+
+    private fun scored(
+        targetStats: TargetStats,
+        buildCombination: BuildCombination,
+        characterBaseCharacteristics: Map<Characteristic, Int>,
+    ): Scored {
+        // Aggregate RESISTANCE_ELEMENTARY alone makes the resistance score a min over the four elements (water-fill
+        // optimally). Per-element resistance rows over several elements read the solver's joint fold instead: their rolls
+        // are placed at the exact optimum of the rows' penalty total ([elementRows], which takes precedence).
         val resistanceElementsToMinimize =
             if (targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }) {
                 targetStats.resistanceElementsWanted.keys.toList()
             } else {
                 null
             }
+        val elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
         val minElements = targetStats.masteryElementsToMinimize
         val targetCharacteristics = targetStats.map { it.characteristic }
         val masteriesStatsWithoutElementary = targetStats.filter { it.characteristic in masteryCharacteristicsWithoutElementaries }
@@ -60,7 +82,8 @@ object FindMostMasteriesFromInputScoring {
             masteryElementsToMinimize = minElements,
             resistanceElementsToMinimize = resistanceElementsToMinimize,
             masteryRollWeights = masteryRollWeights,
-            masteryRollOffset = masteryRollOffset
+            masteryRollOffset = masteryRollOffset,
+            elementRows = elementRows
         )
 
         // First pass (unweighted rolls). Its non-element masteries + DI are roll-independent, so they yield the
@@ -86,31 +109,12 @@ object FindMostMasteriesFromInputScoring {
             }
         val actualCharacteristicsValues = if (masteryRollWeights != null) stats(masteryRollWeights, nonElemNeg.toLong()) else firstPass
 
-        val totalActualScore =
-            targetStats
-                .sumOf { targetStat ->
-                    val weight = targetStats.weight(targetStat)
-                    val actualScore =
-                        if (targetStat.characteristic.isRequiredMostMasteriesTarget()) {
-                            (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
-                        } else {
-                            0.0
-                        }
-                    actualScore.coerceAtMost(targetStats.expectedScoreByCharacteristic[targetStat] ?: 0.0)
-                }.toBigDecimal()
-                .setScale(4, RoundingMode.FLOOR)
-
-        val totalExpectedScore =
-            targetStats
-                .filter { it.characteristic.isRequiredMostMasteriesTarget() }
-                .sumOf { it.target * targetStats.weight(it) }
-                .toBigDecimal()
-                .setScale(4, RoundingMode.FLOOR)
-
-        val successPercentageOnAskedCharacteristic =
-            ((totalActualScore.coerceAtLeast(1.0.toBigDecimal()) / totalExpectedScore.coerceAtLeast(1.0.toBigDecimal())) * 100.0.toBigDecimal()).coerceAtMost(100.0.toBigDecimal())
-        // we calculate a penalty factor to penalize the score if the stats asked are too low compared to the stats we have
-        val penaltyFactor = (100.0.toBigDecimal().setScale(4) / successPercentageOnAskedCharacteristic.coerceAtLeast(1.0.toBigDecimal())).pow(6)
+        // The penalty for the stats asked that the build falls short of: the shortfall factor `(100 / success%)⁶` (capped at
+        // MAX_PENALTY_MULTIPLIER like the solver's floored multiplier — [penaltyMultiplier] — so a build whose targets are far out of
+        // reach keeps its core's gradient), doubled while a floor is below 0 (a required row of target 0: "air resistance 0", "dodge
+        // 0"…) — the solver's soft leg halves its penalized objective the same way (applyConstraintPenalty); its hard leg never
+        // returns such a build.
+        val penaltyFactor = targetStats.requiredPenaltyFactor(actualCharacteristicsValues)
 
         // Per-element fold mirroring StatBuilder.diAdjustedPerElementMasteryScore: maximize mastery × (1 + DI/100)
         // so the proxy is damage-faithful, but EACH requested element's damage line uses its OWN per-element DI
@@ -131,6 +135,6 @@ object FindMostMasteriesFromInputScoring {
                 }
             }
 
-        return (diAdjustedScore.toBigDecimal() / penaltyFactor)
+        return Scored(diAdjustedScore.toBigDecimal() / penaltyFactor, actualCharacteristicsValues)
     }
 }

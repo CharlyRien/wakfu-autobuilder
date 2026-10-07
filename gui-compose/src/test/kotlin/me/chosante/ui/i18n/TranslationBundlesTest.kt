@@ -21,6 +21,20 @@ class TranslationBundlesTest {
     private val placeholder = Regex("%(\\d+\\$)?(\\.\\d+)?[sdf%]")
 
     @Test
+    fun `Spanish uses the client terms and translates the HP skill`() {
+        assertThat(
+            me.chosante.common.Characteristic.LOCK
+                .label(Lang.ES)
+        ).isEqualTo("Placaje")
+        assertThat(
+            me.chosante.common.Characteristic.BLOCK_PERCENTAGE
+                .label(Lang.ES)
+        ).isEqualTo("Anticipación %")
+        assertThat(skillLabel("HP", Lang.ES)).isEqualTo("PdV")
+        assertThat(bundle(Lang.ES).values.none { it.contains("maestría", ignoreCase = true) }).isTrue()
+    }
+
+    @Test
     fun `every language bundle defines exactly the Tr keys`() {
         val expected = Tr.entries.map { it.name }.toSet()
         Lang.entries.forEach { lang ->

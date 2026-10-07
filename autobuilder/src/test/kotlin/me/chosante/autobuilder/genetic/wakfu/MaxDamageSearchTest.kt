@@ -66,6 +66,9 @@ class MaxDamageSearchTest {
                 .describedAs("found a damaging fire rotation")
                 .isGreaterThan(BigDecimal.ZERO)
             assertThat(last.individual.equipments).describedAs("equips at least one item").isNotEmpty
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(params, last.individual))
+                .describedAs("a build scored again later (a saved one, loaded) gets exactly the score the search streamed for it")
+                .isEqualByComparingTo(last.matchPercentage)
         }
 
     // ----- boss / multi-candidate: provable per-element enumeration -----
@@ -93,7 +96,9 @@ class MaxDamageSearchTest {
             val params =
                 WakfuBestBuildParams(
                     character = character,
-                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1))),
+                    // Boss candidate elements come from the scenario. An aggregate mastery TARGET would
+                    // separately enable the heuristic item prefilter and make a global proof unavailable.
+                    targetStats = TargetStats(emptyList()),
                     searchDuration = 10.seconds,
                     stopWhenBuildMatch = false,
                     maxRarity = Rarity.EPIC,
@@ -117,6 +122,70 @@ class MaxDamageSearchTest {
             assertThat(last.isOptimal)
                 .describedAs("a no-debuff boss case is PROVEN (every per-element solve proved)")
                 .isTrue()
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(params, last.individual))
+                .describedAs("a boss build scored again later gets exactly the score the search streamed for it")
+                .isEqualByComparingTo(last.matchPercentage)
+
+            val prefiltered = params.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1))))
+            val prefilteredResults =
+                MaxDamageSearch
+                    .run(prefiltered, equipments.groupBy { it.itemType }, emptyList(), WakfuBuildSolver.SolverTuning())
+                    .toList()
+            assertThat(prefilteredResults.last().matchPercentage)
+                .describedAs("this tiny pool loses no item, so the search still finds the same damage")
+                .isEqualByComparingTo(last.matchPercentage)
+            assertThat(prefilteredResults)
+                .describedAs("the boss loop must not restore a global proof for a prefiltered request")
+                .allSatisfy { assertThat(it.isOptimal).isFalse() }
+        }
+
+    // ----- background proof: a front-end that stops or declines the post-search proof also stops the search's leftovers -----
+
+    @Test
+    fun `cancelBackgroundProofs cancels the certificate warm-up a finished search left behind`(): Unit =
+        runBlocking {
+            val level = 50
+            val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
+            val pool =
+                listOf(
+                    equipment(1, ItemType.AMULET, "ApAmulet", mapOf(Characteristic.ACTION_POINT to 2, Characteristic.MASTERY_ELEMENTARY_FIRE to 50)),
+                    equipment(2, ItemType.AMULET, "MasteryAmulet", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200)),
+                    equipment(3, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 80))
+                ).groupBy { it.itemType }
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    damageScenario = DamageScenario(element = SpellElement.FIRE),
+                    useRunes = false
+                )
+            MaxDamageSearch.warmupJobForTest.set(null)
+            try {
+                // Production path (tuning == null): the single-element search warms the certificate in the background.
+                MaxDamageSearch.run(params, pool, emptyList(), emptyList(), tuning = null).toList()
+                MaxDamageSearch.warmupJobForTest.get()?.join()
+                assertThat(MaxDamageSearch.warmupJobForTest.get()).describedAs("the production search launched a warm-up").isNotNull
+                assertThat(MaxDamageSearch.certificateWarmupCancelledForTest())
+                    .describedAs("a normally completed search leaves its warm-up for the post-search proof to join")
+                    .isFalse()
+
+                WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs()
+                assertThat(MaxDamageSearch.certificateWarmupCancelledForTest()).describedAs("the stopped proof's warm-up is cancelled").isTrue()
+
+                // Cancelling is per finished search, never sticky: the next search installs a fresh warm-up flag.
+                MaxDamageSearch.run(params, pool, emptyList(), emptyList(), tuning = null).toList()
+                MaxDamageSearch.warmupJobForTest.get()?.join()
+                assertThat(MaxDamageSearch.certificateWarmupCancelledForTest()).isFalse()
+            } finally {
+                MaxDamageCertificateCache.clear()
+                MaxDamageSearch.warmupJobForTest.set(null)
+            }
         }
 
     // ----- probe batching: the GUI-freeze / non-termination fix (production path, no SolverTuning) -----

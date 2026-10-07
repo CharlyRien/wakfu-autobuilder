@@ -6,16 +6,20 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.ENGINE_RESULTS_VERSION
 import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.ScenarioDamage
 import me.chosante.autobuilder.domain.SpellElement
@@ -32,6 +36,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.elementRowObjectives
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Characteristic
@@ -41,6 +46,7 @@ import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.SublimationRarity
 import me.chosante.common.history.HistoryEntry
+import me.chosante.common.workspace.WorkspaceSnapshot
 import me.chosante.createZenithBuild
 import me.chosante.ui.components.BreedAssets
 import me.chosante.ui.components.IconPreloader
@@ -48,6 +54,9 @@ import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.history.historyJson
 import me.chosante.ui.history.normalizeTags
+import me.chosante.ui.history.restoredBoss
+import me.chosante.ui.history.restoredBossDifficulty
+import me.chosante.ui.history.restoredBossElement
 import me.chosante.ui.history.restoredClass
 import me.chosante.ui.history.restoredMode
 import me.chosante.ui.history.restoredScenario
@@ -56,6 +65,7 @@ import me.chosante.ui.history.toBuildCombination
 import me.chosante.ui.history.toExcludedChips
 import me.chosante.ui.history.toForcedChips
 import me.chosante.ui.history.toHistoryEntry
+import me.chosante.ui.history.toRequestSnapshot
 import me.chosante.ui.history.toTargetRows
 import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
@@ -99,8 +109,9 @@ private val ELEMENTAL_RESISTANCES =
  */
 internal fun expandGlobalResistance(targets: List<TargetStat>): List<TargetStat> {
     val global = targets.firstOrNull { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ?: return targets
-    // A meaningful (non-zero) per-element resistance keeps its own value; a zero one is an inert
-    // placeholder (e.g. the default wind=0) the global must override, so all four really get the value.
+    // A meaningful (non-zero) per-element resistance keeps its own value; a zero one only keeps its element at 0 or more
+    // (e.g. the default wind=0), which the global's own row on that element asks for anyway (`≥ value ≥ 0`), so the global
+    // overrides it and all four really get the value.
     val explicit = targets.filter { it.characteristic in ELEMENTAL_RESISTANCES && it.target != 0 }.map { it.characteristic }.toSet()
     val perElement =
         ELEMENTAL_RESISTANCES
@@ -112,6 +123,20 @@ internal fun expandGlobalResistance(targets: List<TargetStat>): List<TargetStat>
     } + perElement
 }
 
+/**
+ * Whether [rescored] is the score a saved build stored, [stored] being that score read back. A save keeps its score as a [Double]
+ * ([me.chosante.common.history.ResultSnapshot.match]), so the two are compared there: a score of 16-17 significant digits does not
+ * survive BigDecimal → Double → BigDecimal, and comparing the BigDecimals would call an unchanged build changed.
+ */
+private fun isStoredScore(
+    rescored: java.math.BigDecimal,
+    stored: java.math.BigDecimal,
+): Boolean = rescored.toDouble() == stored.toDouble()
+
+/** The library re-score publishes every [RESCORE_BATCH_SIZE] builds or [RESCORE_BATCH_NANOS], whichever comes first. */
+private const val RESCORE_BATCH_SIZE = 20
+private const val RESCORE_BATCH_NANOS = 100_000_000L
+
 class BuildSearchModel(
     private val scope: CoroutineScope,
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
@@ -120,11 +145,13 @@ class BuildSearchModel(
     private val optimalityProver: OptimalityProver = { params, result, isCancelled, onPhase ->
         WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled, onPhase)
     },
-    // Most-masteries backup certificate (plan §8.9bis): the post-search "proven within X%" quality
-    // bound for searches CP-SAT left un-proven. Injectable for the same reason as [optimalityProver]
-    // (the real DP takes ~15-60 s on the full pool).
-    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, Boolean, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
-        { params, result, quick, shouldContinue -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, quick, shouldContinue) },
+    // Most-masteries backup certificate (plan §8.9bis): the "proven within X%" quality verdict for
+    // searches CP-SAT left un-proven. Its bound is computed in the search's tail (E10-for-MM, §8.19),
+    // so this is normally instant at search end; it waits for the in-flight bound (or computes it,
+    // after a short budget) otherwise. Injectable for the same reason as [optimalityProver] (the real
+    // DP takes seconds on the full pool).
+    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+        { params, result, shouldContinue -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, shouldContinue) },
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
@@ -133,6 +160,8 @@ class BuildSearchModel(
     },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** CPU work shares an injectable dispatcher so model tests can use one scheduler for every state update. */
+    private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val historyRepository: HistoryRepository = HistoryRepository(),
     /** Persisted library view options (sort + group-by-class). Injectable for tests. */
     private val libraryPreferences: LibraryPreferences = LibraryPreferences(),
@@ -144,9 +173,129 @@ class BuildSearchModel(
             .toString()
     },
     private val clock: () -> Long = { System.currentTimeMillis() },
+    // E8 rescue after a ProvenWithin verdict: CONSTRUCT the proven optimum from the certificate (a failing attempt can
+    // take up to a minute). Injectable like [optimalityProver], so tests drive the badge-first / upgrade-later order
+    // deterministically instead of running the real engine.
+    private val provenOptimumConstructor: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> SolverResult<BuildCombination>? =
+        { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.constructMaxDamageProvenOptimum(params, result, isCancelled) },
+    // Silent per-carrier refinement behind a soft-leg ProvenWithin badge (minutes) — injectable for the same reason.
+    private val proofRefiner: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> MaxDamageSearch.MaxDamageProof? =
+        { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, isCancelled) },
+    // Stops the optimality work the ENGINE started beside the last search and leaves running after it (the certificate and
+    // quality-bound warm-ups a proof would join). Reached only when no proof will use them — the user stopped the check or
+    // switched it off — and only while no search runs. Injectable so tests see WHEN the model reaches for it without
+    // touching the engine's process-wide caches.
+    private val backgroundProofCanceller: () -> Unit = { WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs() },
+    // A build's score under the CURRENT rules ([WakfuBestBuildFinderAlgorithm.rescore]): what a loaded saved build ([loadBuild]) and
+    // the constructed optimum that swaps in after a proof ([launchOptimalityProof]) are shown and saved with, so both read like a
+    // search's own result. Injectable so tests can hand back a score of any shape, or time the load without it.
+    private val buildRescorer: (WakfuBestBuildParams, BuildCombination) -> java.math.BigDecimal =
+        { params, build -> WakfuBestBuildFinderAlgorithm.rescore(params, build) },
+    /**
+     * Where the request being edited is remembered between launches ([WorkspaceStore]), or null to remember nothing. Null by
+     * default so a model built by a test never reads or writes the user's real workspace: the app passes its store (Main.kt).
+     */
+    private val workspaceStore: WorkspaceStore? = null,
+    /** How long the request must stay unchanged before it is written ([WorkspaceStore]); typing a value writes once. */
+    private val workspaceSaveDebounce: kotlin.time.Duration = 800.milliseconds,
+    /** The game data a remembered request is checked against when it comes back. Injectable for tests. */
+    private val workspaceCatalog: () -> WorkspaceCatalog = { WorkspaceCatalog.fromGameData() },
+    /** The engine results version stamped onto saved builds ([ENGINE_RESULTS_VERSION]); injectable for tests. */
+    private val engineResultsVersion: Int = ENGINE_RESULTS_VERSION,
+    /**
+     * How long the reveal of the main UI waits for the remembered request still being read. Past it, the UI shows the defaults
+     * and the request is applied when the read lands (if the user has not edited meanwhile). Injectable for tests.
+     */
+    private val workspaceReadWait: kotlin.time.Duration = 2.seconds,
+    /** Result detail shared by completed and stopped searches; injectable for cancellation races in tests. */
+    private val damageBreakdown: (BuildCombination, WakfuBestBuildParams, Map<Characteristic, Int>, SpellRotation?) -> List<ScenarioDamage> =
+        { build, params, achieved, rotation ->
+            SpellRotationOptimizer.scenarioBreakdown(
+                build,
+                params.character,
+                params.character.clazz,
+                params.damageScenario,
+                includeBerserk = (achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                configuredRotationTotal = rotation?.totalExpectedDamage
+            )
+        },
 ) {
-    var ui by androidx.compose.runtime.mutableStateOf(UiState())
-        private set
+    private val uiState = androidx.compose.runtime.mutableStateOf(UiState())
+
+    var ui: UiState
+        get() = uiState.value
+        private set(value) {
+            val previous = uiState.value
+            uiState.value = value
+            rememberWorkspaceLater(value)
+            // The library and the compare view show each saved build with the numbers of the current rules: re-score the builds
+            // when one of them opens, whenever the library changes, or when a search ends while it is on screen.
+            val showsLibrary = value.screen == Screen.Library || value.screen == Screen.Compare
+            val searchEnded = previous.phase == Phase.Searching && value.phase != Phase.Searching
+            if (showsLibrary &&
+                value.phase != Phase.Searching &&
+                (previous.screen != value.screen || previous.savedBuilds !== value.savedBuilds || searchEnded)
+            ) {
+                rescoreLibrary(value.savedBuilds)
+            } else if (!showsLibrary && previous.screen != value.screen) {
+                // Nobody looks at the cards any more: stop (the cache keeps every build already re-scored).
+                rescoreJob?.cancel()
+            }
+        }
+
+    // --- Remembered workspace (see [WorkspaceStore]) ---
+
+    /**
+     * False until the remembered request has been put back ([restoreWorkspace]): writing before that would replace the file
+     * with the defaults the app starts from.
+     */
+    private var workspaceRestored = false
+
+    /** The request last handed to the store (or restored from it): an unchanged request is never written again. */
+    private var rememberedRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    /**
+     * The request exactly as [restoreWorkspace] put it back, until the game-data check of [restoreWorkspace] has run: that check
+     * only cleans the request while it is still this one (a build loaded meanwhile is not "your last session").
+     */
+    private var restoredRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    /**
+     * The latest request not yet known to be on disk — what [flushWorkspace] writes. Volatile and a plain value so the JVM
+     * shutdown hook (Main.kt: Cmd+Q, Dock → Quit and logout skip the window's close request) can write it from its own thread
+     * without reading Compose state.
+     */
+    @Volatile
+    private var pendingWorkspace: WorkspaceSnapshot? = null
+
+    /**
+     * The request shown when the main UI was revealed while the remembered one was still being read ([restoreWorkspaceWhenRead]);
+     * null otherwise. Until the read lands nothing is written by the debounce, but an edit away from this request is kept in
+     * [pendingWorkspace], so a quit in the meantime still writes it (the user's edit wins over the late read anyway).
+     */
+    private var requestAtReveal: me.chosante.common.history.RequestSnapshot? = null
+
+    private var workspaceSaveJob: Job? = null
+
+    // --- Library re-scoring (see [rescoreLibrary]) ---
+
+    /** What [rescoreLibrary] recomputes a saved build's numbers from; any change of it (or of the app's rules) is a miss. */
+    private data class RescoreKey(
+        val id: String,
+        val request: me.chosante.common.history.RequestSnapshot,
+        val result: me.chosante.common.history.ResultSnapshot,
+        val dataVersion: String,
+        val engineResultsVersion: Int,
+    )
+
+    /**
+     * Saved builds already re-scored under the current rules, so reopening the library recomputes nothing. One slot per entry id,
+     * holding the full key it was computed for: a changed entry replaces its slot, and a deleted one costs one stale slot at most.
+     */
+    private val rescoreCache =
+        java.util.concurrent.ConcurrentHashMap<String, Pair<RescoreKey, me.chosante.common.history.ResultSnapshot>>()
+
+    private var rescoreJob: Job? = null
 
     /**
      * `true` once the app is ready to show its main UI: OR-Tools' one-time cold start has been paid
@@ -175,9 +324,12 @@ class BuildSearchModel(
         private set
 
     private var job: Job? = null
+    private var activeSearchParams: WakfuBestBuildParams? = null
+    private var damageDetailsJob: Job? = null
 
     // The post-search optimality proof runs independently of [job] (it can take minutes after the search
-    // already finished), so it has its own handle — cancelled when a new search starts.
+    // already finished), so it has its own handle — cancelled when a new search starts, or when the user stops it
+    // ([stopProof]) or switches the check off ([setVerifyOptimality]).
     private var proofJob: Job? = null
 
     // B8: cancelling [proofJob] only stops the coroutine, not the blocking certifier DP running inside it (which
@@ -221,14 +373,24 @@ class BuildSearchModel(
             System.getenv("WAKFU_COMPOSE_SCREENSHOT_VARY_PRIORITY") != null
 
     init {
-        // Seed the persisted UI options (language + library view) + tag registry before any UI reads them.
+        // Seed the persisted UI options (language + library view + the post-search optimality check) + tag registry
+        // before any UI reads them.
         tagRegistry = libraryPreferences.loadTags()
         ui =
             ui.copy(
                 lang = libraryPreferences.loadLang(),
                 librarySort = libraryPreferences.loadSort(),
-                libraryGroupByClass = libraryPreferences.loadGroupByClass()
+                libraryGroupByClass = libraryPreferences.loadGroupByClass(),
+                verifyOptimality = libraryPreferences.loadVerifyOptimality()
             )
+
+        // Read the remembered request while the engine warms up (a small local file, long read by the time warm-up ends); it
+        // is put back when the loading screen gives way to the main UI, never earlier — and never in screenshot mode, whose
+        // captures must show the default request.
+        val rememberedWorkspace =
+            workspaceStore
+                ?.takeUnless { isScreenshotMode }
+                ?.let { store -> scope.async(ioDispatcher) { store.load() } }
 
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
@@ -255,7 +417,7 @@ class BuildSearchModel(
             // Pay OR-Tools' one-time cold start behind the loading screen, so the first real search
             // starts warm and the heavy main UI only mounts once the native library is loaded (no
             // CPU/IO contention with Compose's first render). The short delay lets the loader paint.
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val estimateMs = WarmupTiming.estimatedDurationMs()
                 val start = System.currentTimeMillis()
                 // The native load reports no real progress, so animate an estimated %/ETA from the
@@ -297,10 +459,22 @@ class BuildSearchModel(
                     // Always reveal the UI: a warm-up failure must never leave the app stuck on the
                     // loading screen.
                     ticker.cancel()
+                    // Bounded: the main UI must never wait on a slow disk. A read still running by then is applied when it lands.
+                    val landed = rememberedWorkspace?.let { read -> runCatching { withTimeoutOrNull(workspaceReadWait) { read.await() } } }
                     withContext(mainDispatcher) {
                         warmupProgress = 1f
                         warmupEtaSeconds = null
-                        isReady = true
+                        try {
+                            // In the same frame as the reveal, so the main UI never shows the defaults first.
+                            if (rememberedWorkspace != null) {
+                                // The wait may have given up just before the read landed: take what landed rather than drop it.
+                                val read = landed?.getOrNull() ?: rememberedWorkspace.completedOrNull()
+                                if (rememberedWorkspace.isCompleted) restoreWorkspaceSafely(read) else restoreWorkspaceWhenRead(rememberedWorkspace)
+                            }
+                        } finally {
+                            // Nothing about the remembered workspace may keep the app on the loading screen.
+                            isReady = true
+                        }
                     }
                 }
                 // Only start decoding item icons once the engine is warm. During warm-up every core
@@ -314,6 +488,119 @@ class BuildSearchModel(
     }
 
     /**
+     * Puts the remembered request ([snapshot], null when there is none to use) back into the workspace, then starts remembering
+     * every later change. The game data may have changed since it was written: once the catalogs are loaded (off the UI thread),
+     * the items, sublimations, passives and runes it no longer knows are dropped, with a toast saying how many.
+     */
+    private fun restoreWorkspace(snapshot: WorkspaceSnapshot?) {
+        if (snapshot != null) ui = ui.withRememberedRequest(snapshot.request)
+        rememberedRequest = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        workspaceRestored = true
+        if (snapshot == null) return
+        restoredRequest = rememberedRequest
+        scope.launch(backgroundDispatcher) {
+            val catalog = runCatching { workspaceCatalog() }.getOrNull() ?: return@launch
+            withContext(mainDispatcher) {
+                // Only while the request is still the restored one: once the user edited it or loaded a build, what is on screen
+                // is no longer "your last session" (and nothing the user picked since can be unknown anyway).
+                val untouched = restoredRequest != null && ui.toRequestSnapshot(keepBossInAnyMode = true) == restoredRequest
+                restoredRequest = null
+                if (!untouched) return@withContext
+                val (cleaned, dropped) = ui.withoutUnknownEntries(catalog)
+                if (cleaned == ui) return@withContext
+                ui = if (dropped > 0) cleaned.copy(toast = Tr.TOAST_WORKSPACE_ENTRIES_REMOVED.value(ui.lang).format(dropped)) else cleaned
+            }
+        }
+    }
+
+    /** The value of this read if it has landed (null if it has not, or failed). Never suspends. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun kotlinx.coroutines.Deferred<WorkspaceSnapshot?>.completedOrNull(): WorkspaceSnapshot? = if (isCompleted) runCatching { getCompleted() }.getOrNull() else null
+
+    /** [restoreWorkspace], falling back to the defaults (and remembering from them on) if putting [snapshot] back throws. */
+    private fun restoreWorkspaceSafely(snapshot: WorkspaceSnapshot?) {
+        runCatching { restoreWorkspace(snapshot) }.onFailure { if (!workspaceRestored) runCatching { restoreWorkspace(null) } }
+    }
+
+    /**
+     * The remembered request was still being read when the main UI was revealed (a slow disk): the defaults show meanwhile, and
+     * NOTHING is written until the read lands — otherwise the user's first edit would overwrite the request still being read. When
+     * it lands, it is put back if the request is still the untouched defaults; if the user already edited, their edit wins and
+     * is remembered from then on.
+     */
+    private fun restoreWorkspaceWhenRead(read: kotlinx.coroutines.Deferred<WorkspaceSnapshot?>) {
+        val atReveal = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        requestAtReveal = atReveal
+        scope.launch(mainDispatcher) {
+            val snapshot = runCatching { read.await() }.getOrNull()
+            requestAtReveal = null
+            val untouched = ui.toRequestSnapshot(keepBossInAnyMode = true) == atReveal
+            restoreWorkspaceSafely(snapshot?.takeIf { untouched })
+            // The user's edits made while the read ran were not written (saving was not armed yet): write them now.
+            if (!untouched) rememberWorkspaceLater(ui, force = true)
+        }
+    }
+
+    /**
+     * Writes [state]'s request to the [workspaceStore] once it has stayed unchanged for [workspaceSaveDebounce]. Called on every
+     * state change: anything that is not the request (a search's progress, a result, a modal) changes nothing here.
+     */
+    private fun rememberWorkspaceLater(
+        state: UiState,
+        force: Boolean = false,
+    ) {
+        val store = workspaceStore ?: return
+        if (!workspaceRestored) {
+            // A slow read still running: no write yet, but keep an edit for a flush (a quit before the read lands).
+            val atReveal = requestAtReveal ?: return
+            val request = state.toRequestSnapshot(keepBossInAnyMode = true)
+            pendingWorkspace = if (request == atReveal) null else WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+            return
+        }
+        val request = state.toRequestSnapshot(keepBossInAnyMode = true)
+        if (request == rememberedRequest && !force) return
+        rememberedRequest = request
+        workspaceSaveJob?.cancel()
+        val snapshot = WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+        pendingWorkspace = snapshot
+        workspaceSaveJob =
+            scope.launch(ioDispatcher) {
+                delay(workspaceSaveDebounce)
+                writeIfPending(store, snapshot)
+            }
+    }
+
+    private val workspaceWriteLock = Any()
+
+    /**
+     * Writes [snapshot] if it is still the latest unsaved request. Under one lock with every other write, so a debounced write
+     * that lost a race with a flush can never land after it and put an older request back on disk.
+     */
+    private fun writeIfPending(
+        store: WorkspaceStore,
+        snapshot: WorkspaceSnapshot,
+    ) {
+        synchronized(workspaceWriteLock) {
+            if (pendingWorkspace !== snapshot) return
+            store.saveBlocking(snapshot)
+            // Only if nothing newer arrived during the write: an edit made meanwhile (set without this lock, from the UI thread)
+            // must stay pending for its own debounced write or a flush.
+            if (pendingWorkspace === snapshot) pendingWorkspace = null
+        }
+    }
+
+    /**
+     * Writes the latest unsaved request right away, skipping the debounce — for the window's close request and the JVM shutdown
+     * hook (Main.kt), after which a pending write would never run. Reads only [pendingWorkspace], never Compose state, so it is
+     * safe from any thread. A small atomic file write on the calling thread; nothing to do when everything is already written.
+     */
+    fun flushWorkspace() {
+        val store = workspaceStore ?: return
+        val snapshot = pendingWorkspace ?: return
+        writeIfPending(store, snapshot)
+    }
+
+    /**
      * Decodes item icons into the cache off the UI thread so they're ready (and decoded once) by the
      * time a build is shown. Purely background work: it never gates startup — items simply appear as
      * they decode, so we don't make the user wait on ~thousands of PNGs. First touch of
@@ -321,49 +608,74 @@ class BuildSearchModel(
      * background thread — never on the UI thread.
      */
     private fun startIconPreload() {
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments) + BreedAssets.warmUpPaths()
             IconPreloader.warmUp(scope, paths) { _, _ -> }
         }
     }
 
+    /**
+     * Switches the search mode. Each mode keeps its own work ([UiState.modeWorkspaces]): its target rows AND the result found
+     * under it. Leaving a mode parks both; coming back restores them, so a visit to another mode destroys nothing. A mode
+     * entered for the first time starts from [firstVisitRows]. Choosing the mode that is already active changes nothing.
+     *
+     * The shown build cannot simply stay on screen under the new mode: what it displays is read by the mode that found it —
+     * the headline (mastery score / % match / expected damage), the achieved-stat grid (resolved with that mode's
+     * random-element assignment) and the max-damage rotation — and Save / Export snapshot the live mode and rows together
+     * with it, which would pair it with another mode's request. Parking it with its mode keeps it recoverable instead.
+     */
     fun setMode(mode: ScoreComputationMode) {
-        val normalizedTargets =
-            when (mode) {
-                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                    ui.targets.map { target ->
-                        if (target.characteristic.isMaximizableMastery()) {
-                            target.copy(value = "1")
-                        } else {
-                            target
-                        }
-                    }
-                // Max-damage maximizes the rotation's real damage directly, so the seeded AP/MP/range/HP/crit
-                // rows would only act as hard power-6 constraints that can exclude higher-damage builds (e.g.
-                // pinning AP=11 stops the solver finding the best AP breakpoint). Start CONSTRAINT-FREE; the user
-                // can still add an explicit target row (an AP floor, a min HP…) if they want a more playable build.
-                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> emptyList()
-                else -> ui.targets
-            }
-        // Switching mode invalidates any completed result: a build/match/rotation found under the old mode
-        // would be reinterpreted under the new mode's display rules. Clear it so the UI returns to Idle —
-        // and stop its proof/refinement, which would otherwise keep CP-SAT busy for a build nobody sees.
-        cancelProof()
-        ui =
-            ui.copy(
-                mode = mode,
-                targets = normalizedTargets,
-                phase = Phase.Idle,
-                progress = 0,
-                match = java.math.BigDecimal.ZERO,
-                optimal = false,
-                proofState = ProofState.Idle,
-                build = null,
-                achieved = emptyMap(),
-                spellRotation = null,
-                scenarioDamages = emptyList()
-            )
+        if (mode != ui.mode) enterMode(mode)
     }
+
+    private fun enterMode(mode: ScoreComputationMode) {
+        // A running search belongs to the mode being left: stop it first, so its best-so-far is what gets parked (otherwise it
+        // would keep streaming builds into a screen that now reads under another mode's rules).
+        if (ui.phase == Phase.Searching) cancel()
+        // The parked build's proof/refinement has nothing left to display, and would keep CP-SAT busy for nobody.
+        cancelProof()
+        val workspaces = ui.modeWorkspaces + (ui.mode to ModeWorkspace(ui.targets, ui.shownResult().atRest()))
+        val arriving = workspaces[mode]
+        ui =
+            ui
+                .copy(
+                    mode = mode,
+                    targets = arriving?.let { rowsForMode(mode, it.targets) } ?: firstVisitRows(mode, ui.targets),
+                    modeWorkspaces = workspaces - mode
+                ).withResult(arriving?.result ?: ShownResult())
+    }
+
+    /**
+     * The rows of a mode visited for the first time, derived from the [current] rows of the mode being left — the carry-over
+     * the mode switch always had between the two target-driven modes, so the first switch loses nothing the user typed.
+     * Max-damage is the exception: it maximizes the rotation's real damage directly, so the seeded AP/MP/range/HP/crit rows
+     * would only act as hard power-6 constraints that can exclude higher-damage builds (e.g. pinning AP=11 stops the solver
+     * finding the best AP breakpoint). It starts CONSTRAINT-FREE; the user can still add an explicit target row (an AP floor,
+     * a min HP…) if they want a more playable build.
+     */
+    private fun firstVisitRows(
+        mode: ScoreComputationMode,
+        current: List<TargetRow>,
+    ): List<TargetRow> =
+        when (mode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> emptyList()
+            else -> rowsForMode(mode, current)
+        }
+
+    /**
+     * [rows] as [mode] reads them. A maximized-mastery row of most-masteries is a bare "maximize this" marker whose value is
+     * always 1 (the panel offers no field for it), so a number typed under another mode is normalized away; the other modes
+     * keep every value.
+     */
+    private fun rowsForMode(
+        mode: ScoreComputationMode,
+        rows: List<TargetRow>,
+    ): List<TargetRow> =
+        when (mode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                rows.map { row -> if (row.characteristic.isMaximizableMastery()) row.copy(value = "1") else row }
+            else -> rows
+        }
 
     fun setScenario(scenario: DamageScenario) {
         // Turning the survivability floor on (via the toggle or the Tank preset) without a value would be a
@@ -381,28 +693,17 @@ class BuildSearchModel(
     /**
      * Target [monster] in max-damage mode: switch to max-damage (the boss fills the per-element
      * resistances the objective optimizes over) and close the picker — mirroring the CLI's `--boss`,
-     * which also forces max-damage. Clears any stale result computed under the previous scenario.
+     * which also forces max-damage. Coming from another mode parks that mode's work like the mode tab does (max-damage then
+     * starts from its own rows, constraint-free the first time); picking a boss while already in max-damage keeps the rows the
+     * user set there. The shown result was computed against the previous target, so it is cleared — and a search still running
+     * for it is stopped.
      */
     fun pickBoss(monster: Monster) {
+        if (ui.mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) enterMode(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+        job?.cancel()
+        job = null
         cancelProof() // the cleared build's proof/refinement has nothing left to display
-        ui =
-            ui.copy(
-                selectedBoss = monster,
-                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                // Same as setMode: max-damage is constraint-free by default (seeded AP/MP/HP targets would only
-                // hold the solver back from the highest-damage build vs this boss).
-                targets = emptyList(),
-                modal = null,
-                phase = Phase.Idle,
-                progress = 0,
-                match = java.math.BigDecimal.ZERO,
-                optimal = false,
-                proofState = ProofState.Idle,
-                build = null,
-                achieved = emptyMap(),
-                spellRotation = null,
-                scenarioDamages = emptyList()
-            )
+        ui = ui.copy(selectedBoss = monster, modal = null).withResult(ShownResult())
     }
 
     /** Drop the boss target; the next search falls back to the manual damage [UiState.scenario]. */
@@ -552,7 +853,7 @@ class BuildSearchModel(
     private fun reconcileForcedItemsForCurrentRequest() {
         val snapshot = ui
         if (snapshot.forcedItems.isEmpty()) return
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             val byFrenchName = WakfuBestBuildFinderAlgorithm.equipments.groupBy { it.name.fr }
             val kept =
                 snapshot.forcedItems.filter { chip ->
@@ -590,6 +891,30 @@ class BuildSearchModel(
 
     fun setStopAtMatch(stopAtMatch: Boolean) {
         ui = ui.copy(stopAtMatch = stopAtMatch)
+    }
+
+    /**
+     * The "Check optimality after the search" switch (persisted; default ON). It decides, when a max-damage or
+     * most-masteries search ENDS, whether the engine keeps working to prove how close the build is to the best possible
+     * one — the "Verifying optimality…" wait, the E8 construct that can swap in the proven-optimal build, the silent
+     * refinement of the badge. The value read is the one in force when the search ends, so flipping it mid-search counts.
+     *
+     * **OFF means no proof work after the search ends** — nothing is launched ([launchOptimalityProof] /
+     * [launchMostMasteriesQualityProof] are not called), and the engine's own leftovers are cancelled
+     * ([skipBackgroundProof]). What costs nothing still shows: a result the search itself proved ([UiState.optimal] —
+     * CP-SAT's proof, or the certificate that landed during the search and stopped it early) keeps its "proven optimal"
+     * headline, and a most-masteries quality bound the search's tail already finished is read from the engine's memo
+     * without computing anything (a "proven within X %" badge). A max-damage certificate is NOT peeked the same way: one
+     * request shape (required targets the build misses) cannot be answered from its memo without computing, and telling
+     * the shapes apart here would duplicate the engine's gating — so max-damage shows the normal "not proven" hint.
+     *
+     * Switching OFF while a proof runs stops it, exactly like [stopProof]. Switching ON launches nothing for a build
+     * already on screen: it takes effect with the next search.
+     */
+    fun setVerifyOptimality(enabled: Boolean) {
+        ui = ui.copy(verifyOptimality = enabled)
+        libraryPreferences.saveVerifyOptimality(enabled)
+        if (!enabled) stopProof()
     }
 
     fun removeForcedItem(item: ItemChip) {
@@ -790,7 +1115,7 @@ class BuildSearchModel(
             return
         }
         catalogJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val loaded =
                     WakfuBestBuildFinderAlgorithm.equipments
                         .distinctBy { it.equipmentId }
@@ -802,42 +1127,12 @@ class BuildSearchModel(
     }
 
     fun search() {
+        // A search wants every core: the library re-score waits until it ends, if either library view is still open.
+        rescoreJob?.cancel()
         val snapshot = ui
-        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
-        val targetStats = snapshot.toTargetStats()
-        // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
-        // a forced element pins that one element, else all four are filled so the objective auto-picks.
-        val damageScenario =
-            when {
-                snapshot.selectedBoss != null && snapshot.bossElement != null ->
-                    snapshot.scenario.against(snapshot.selectedBoss, snapshot.bossElement)
-                snapshot.selectedBoss != null -> snapshot.scenario.againstAllElements(snapshot.selectedBoss)
-                else -> snapshot.scenario
-            }
-        val params =
-            WakfuBestBuildParams(
-                character = character,
-                targetStats = targetStats,
-                // Blank duration = the longest sensible run (10 min). Kept finite on purpose: an unbounded
-                // budget would make the time-driven progress bar meaningless and risk a search that never
-                // returns on a hard input. (QOL-2)
-                searchDuration = (snapshot.duration.toIntOrNull() ?: 600).coerceAtLeast(1).seconds,
-                // "Stop at 100% match" only applies to precision mode (the only mode with an exact target);
-                // ignore a stale toggle when searching in most-masteries / max-damage.
-                stopWhenBuildMatch = snapshot.stopAtMatch && snapshot.mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
-                maxRarity = snapshot.maxRarity,
-                excludedRarities = snapshot.excludedRarities,
-                forcedItems = snapshot.forcedItems.map { it.matchName },
-                excludedItems = snapshot.excludedItems.map { it.matchName },
-                scoreComputationMode = snapshot.mode,
-                useSublimations = snapshot.useSublimations,
-                maxSublimationTier = snapshot.maxSublimationTier,
-                forcedSublimations = snapshot.forcedSublimations,
-                excludedSublimations = snapshot.excludedSublimations,
-                forcedPassives = snapshot.forcedPassives,
-                forcedRunesByItem = snapshot.forcedRunesByItem,
-                damageScenario = damageScenario
-            )
+        val params = snapshot.toSearchParams()
+        val character = params.character
+        val damageScenario = params.damageScenario
 
         // Validate the whole request up front and surface ALL problems together in a pop-up
         // (UiState.requestErrors) instead of throwing on the first and burying it in the results-panel banner.
@@ -849,6 +1144,8 @@ class BuildSearchModel(
             return
         }
         job?.cancel()
+        damageDetailsJob?.cancel()
+        activeSearchParams = params
         cancelProof()
 
         ui =
@@ -857,7 +1154,14 @@ class BuildSearchModel(
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
+                // Snapshotted HERE, from the request the engine is about to receive (not from the rows as they will be once
+                // the search ends): this result says "no proof is possible" about THAT request, whatever is edited meanwhile.
+                prefilteredRequest = params.targetStats.needsItemPrefilter,
                 proofState = ProofState.Idle,
+                searchStopped = false,
+                // The new build is found with this app's own game data and engine, whatever the one it replaces was computed with.
+                staleDataVersion = null,
+                staleEngine = null,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -870,7 +1174,7 @@ class BuildSearchModel(
                 requestErrors = emptyList()
             )
         job =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 // The CP-SAT solver only reports progress when it finds a *better* solution, which can
                 // be many seconds apart — or stop entirely once the first good build is found — so the
                 // bar would sit frozen and the app looks dead mid-search. The budget is wall-clock, so
@@ -903,34 +1207,7 @@ class BuildSearchModel(
                         .conflate()
                         .collect { result ->
                             hasResult = true
-                            // Resolve the achieved per-stat grid with the SAME random-element assignment the scorer
-                            // used, so the displayed values match the score: most-masteries → exact max-min,
-                            // precision → exact max-capped, max-damage → greedy. Mirrors FindMostMasteriesFromInputScoring;
-                            // omitting the mode would fall to the greedy `else` branch and diverge from the score.
-                            val masteryElementsToMinimize =
-                                if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
-                                    targetStats.masteryElementsToMinimize
-                                } else {
-                                    null
-                                }
-                            val resistanceElementsToMinimize =
-                                if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                                    targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
-                                ) {
-                                    targetStats.resistanceElementsWanted.keys.toList()
-                                } else {
-                                    null
-                                }
-                            val achieved =
-                                computeCharacteristicsValues(
-                                    buildCombination = result.individual,
-                                    characterBaseCharacteristics = character.baseCharacteristicValues,
-                                    masteryElementsWanted = targetStats.masteryElementsWanted,
-                                    resistanceElementsWanted = targetStats.resistanceElementsWanted,
-                                    scoreComputationMode = params.scoreComputationMode,
-                                    masteryElementsToMinimize = masteryElementsToMinimize,
-                                    resistanceElementsToMinimize = resistanceElementsToMinimize
-                                )
+                            val achieved = achievedStats(result.individual, params)
                             // Best spells to cast for this build's AP — only in max-damage mode, computed
                             // here off the UI thread (like `achieved`) so the panel just reads it. Uses the
                             // boss-overlaid `damageScenario` (not the raw `snapshot.scenario`) and picks the
@@ -978,19 +1255,12 @@ class BuildSearchModel(
                             }
                         }
                     // Compute the per-position breakdown ONCE for the final build, still off the UI thread
-                    // (we're on Dispatchers.Default here), reusing the final headline rotation for the
+                    // (we're on backgroundDispatcher here), reusing the final headline rotation for the
                     // configured combo so only the OTHER positions pay a rotation.
                     val finalBuildSnapshot = finalBuild
                     val scenarioDamages =
                         if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && finalBuildSnapshot != null) {
-                            SpellRotationOptimizer.scenarioBreakdown(
-                                finalBuildSnapshot,
-                                character,
-                                character.clazz,
-                                damageScenario,
-                                includeBerserk = (finalAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
-                                configuredRotationTotal = finalRotation?.totalExpectedDamage
-                            )
+                            damageBreakdown(finalBuildSnapshot, params, finalAchieved, finalRotation)
                         } else {
                             emptyList()
                         }
@@ -1000,29 +1270,48 @@ class BuildSearchModel(
                             // Snap the time-based bar to a clean 100% on completion (the solver may
                             // have proven the optimum well before the wall-clock budget ran out).
                             ui = ui.copy(phase = Phase.Done, progress = 100, scenarioDamages = scenarioDamages, lastLandedEquipmentId = null)
+                            // Whether the engine keeps working after the search is the user's call ("Check optimality
+                            // after the search"): read NOW, so flipping it mid-search counts. OFF starts no proof work
+                            // at all — see [setVerifyOptimality] / [skipBackgroundProof].
+                            val verifyOptimality = ui.verifyOptimality
+                            // A request no search can prove ([TargetStats.needsItemPrefilter]) has nothing to verify: the engine
+                            // answers "unavailable" at once, so launching the check would only flash a "Verifying optimality…"
+                            // spinner over the explanation the stats panel gives for it ([UiState.prefilteredRequest]). The
+                            // engine starts no warm-up for such a request either, so there is nothing to cancel.
+                            val provable = !params.targetStats.needsItemPrefilter
                             // Certificate optimality proof (P4.4): only for max-damage, and off the search's
                             // critical path — a full exact solve can take minutes, so it runs in its own job and
                             // streams its verdict into [UiState.proofState] when ready. It can prove an optimum
                             // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
-                            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null) {
-                                launchOptimalityProof(params, completedResult, character, damageScenario)
+                            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null && provable) {
+                                if (verifyOptimality) {
+                                    launchOptimalityProof(params, completedResult, character, damageScenario)
+                                } else {
+                                    skipBackgroundProof(params, completedResult)
+                                }
                             } else if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
                                 completedResult != null &&
+                                provable &&
                                 !completedResult.isOptimal &&
                                 completedResult.mostMasteriesObjective != null
                             ) {
                                 // Backup quality certificate (§8.9bis): CP-SAT ended without a proof (short
-                                // budget / low-core machine) — bound the gap instead. Automatic and cheap
-                                // (~15-60 s single-thread); the same ProofState pipeline renders the phase
-                                // ("Verifying optimality…") and the "proven within X%" badge.
-                                launchMostMasteriesQualityProof(params, completedResult)
+                                // budget / low-core machine) — bound the gap instead. Automatic; the bound
+                                // was computed in the search's tail (§8.19), so the verdict is usually
+                                // instant — else the same ProofState pipeline renders the phase ("Verifying
+                                // optimality…") until the bound lands, then the badge.
+                                if (verifyOptimality) {
+                                    launchMostMasteriesQualityProof(params, completedResult)
+                                } else {
+                                    skipBackgroundProof(params, completedResult)
+                                }
                             }
                         } else if (ui.phase == Phase.Searching) {
                             ui =
                                 ui.copy(
                                     phase = Phase.Idle,
                                     progress = 0,
-                                    error = Tr.SEARCH_NO_RESULT.value(ui.lang),
+                                    error = UiError(Tr.SEARCH_NO_RESULT.value(ui.lang)),
                                     lastLandedEquipmentId = null
                                 )
                         }
@@ -1035,10 +1324,13 @@ class BuildSearchModel(
                     // thread with a masked coroutines error instead of surfacing here. Request-validation
                     // problems are caught BEFORE the search starts (see validateRequest above), so they
                     // don't reach here.
+                    // The raw detail (native-library paths, class names…) goes to the log; the player gets a plain
+                    // sentence and a Retry. A search that fails after streaming a build ends like a stopped one, so the
+                    // build is not stranded in the idle phase.
                     throwable.printStackTrace()
-                    val message = throwable.message ?: throwable::class.qualifiedName ?: "Search failed"
                     withContext(mainDispatcher) {
-                        ui = ui.copy(phase = Phase.Idle, error = message)
+                        val failure = UiError(Tr.SEARCH_FAILED.value(ui.lang), ErrorRetry.SEARCH)
+                        ui = if (ui.phase == Phase.Searching) ui.searchEndedEarly().copy(error = failure) else ui.copy(error = failure)
                     }
                 } finally {
                     progressTicker.cancel()
@@ -1050,11 +1342,11 @@ class BuildSearchModel(
      * Most-masteries backup quality certificate (plan §8.9bis): bounds how far the shown un-proven
      * build can be from the optimum ("proven within X%"). Runs automatically after a most-masteries
      * search whose CP-SAT leg ended non-OPTIMAL — the case of short budgets and low-core machines,
-     * where the 1-worker proof would take 15-20 min while this single-thread DP answers in ~15-60 s.
-     * Streams through the same [UiState.proofState] pipeline as the max-damage proof (spinner phase,
-     * then the badge); failures and unsupported shapes degrade to [ProofState.Unavailable] — never a
-     * wrong badge. No cancellation hook: the DP is short; a superseding search simply wins the
-     * [ui.build] identity check below.
+     * where the 1-worker proof would take 15-20 min. ONE full-tier pass (§8.19): its incumbent-free
+     * bound was computed in the search's tail, so the verdict usually lands at once; otherwise the
+     * spinner phase shows until the bound does. Streams through the same
+     * [UiState.proofState] pipeline as the max-damage proof; failures and unsupported shapes degrade
+     * to [ProofState.Unavailable] — never a wrong badge.
      */
     private fun launchMostMasteriesQualityProof(
         params: WakfuBestBuildParams,
@@ -1062,67 +1354,91 @@ class BuildSearchModel(
     ) {
         val provenBuild = result.individual
         val proofStartMs = clock()
-        // B8 wiring (review finding): the certificate DP polls this per stage — a new search flips
-        // it and the superseded proof aborts within a stage instead of pinning a core for ~80 s.
+        // B8 wiring: the proof polls this while it waits for the bound (and per DP stage when it
+        // computes it) — a new search / mode switch flips it and the superseded proof stops at once.
         val cancelled = newProofCancelFlag()
         proofJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 withContext(mainDispatcher) {
-                    if (ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
+                    if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
                         ui = ui.copy(proofState = ProofState.Proving(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs)))
                     }
                 }
-
-                fun toState(proof: WakfuBestBuildFinderAlgorithm.MostMasteriesProof): ProofState =
-                    when (proof) {
-                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
-                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(proof.percent)
-                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> ProofState.Unavailable
-                    }
-
-                suspend fun publish(
-                    state: ProofState,
-                    allowUpgradeFrom: Boolean,
-                ) {
-                    withContext(mainDispatcher) {
-                        if (ui.phase == Phase.Done &&
-                            ui.build == provenBuild &&
-                            (
-                                ui.proofState is ProofState.Proving ||
-                                    ui.proofState == ProofState.Idle ||
-                                    (allowUpgradeFrom && ui.proofState is ProofState.ProvenWithin)
-                            )
-                        ) {
-                            ui = ui.copy(proofState = state)
-                        }
-                    }
-                }
-
-                fun prove(quick: Boolean): WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+                val proof =
                     try {
-                        mmQualityProver(params, result, quick) { !cancelled.get() }
+                        mmQualityProver(params, result) { !cancelled.get() }
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (throwable: Throwable) {
                         throwable.printStackTrace()
                         WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
                     }
+                val state =
+                    when (proof) {
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(proof.percent)
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> ProofState.Unavailable
+                    }
+                withContext(mainDispatcher) {
+                    // Only onto the build it proved, and never over a badge a cancel/load already reset
+                    // (builds compare by VALUE: a reloaded copy of this build must not inherit a dead proof).
+                    if (!cancelled.get() &&
+                        ui.phase == Phase.Done &&
+                        ui.build == provenBuild &&
+                        (ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
+                    ) {
+                        ui = ui.copy(proofState = state)
+                    }
+                }
+            }
+    }
 
-                // Two-tier: the QUICK bound (~15 s) puts a badge up fast; the FULL bound (~80 s)
-                // then silently tightens it (or flips to proven-optimal). Both tiers are sound, so
-                // showing the quick one first never over-promises.
-                val quickProof = prove(quick = true)
-                publish(toState(quickProof), allowUpgradeFrom = false)
-                if (quickProof is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin) {
-                    val fullProof = prove(quick = false)
-                    // Only ever UPGRADE: a full-tier failure/Unavailable never erases the quick badge.
-                    val better =
-                        when (fullProof) {
-                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> true
-                            is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> fullProof.percent < quickProof.percent
-                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> false
-                        }
-                    if (better) publish(toState(fullProof), allowUpgradeFrom = true)
+    /**
+     * "Check optimality after the search" is OFF ([setVerifyOptimality]) and a max-damage / un-proven most-masteries search
+     * just ended: NO proof work follows — no certificate wait or compute, no E8 construct, no silent refinement, no
+     * quality-bound compute. What costs nothing still shows:
+     *  - a result the search itself proved ([UiState.optimal]) keeps its "proven optimal" headline — the stats panel
+     *    reads it straight from the result, nothing to do here;
+     *  - most-masteries only: a quality bound the search's tail already finished is read from the engine's memo by PEEKING.
+     *    The prover runs with a continue-predicate that is already false, so a memoized bound answers at once and anything
+     *    else returns "unavailable" without starting or joining a compute (see
+     *    [WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality]); the usual "not proven" hint then stays.
+     *
+     * Finally the engine's own warm-ups — started beside the search and kept alive for a proof to join, which will not
+     * come — are cancelled, so nothing keeps the processor busy. That runs on the UI thread, right as the search ends:
+     * no newer search can be running yet (it would lose its own warm-ups to the cancel).
+     */
+    private fun skipBackgroundProof(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+    ) {
+        // A fresh flag: a new search, a mode switch or a Stop supersedes the peek like any other proof launch.
+        val cancelled = newProofCancelFlag()
+        backgroundProofCanceller()
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return
+        val shownBuild = result.individual
+        proofJob =
+            scope.launch(backgroundDispatcher) {
+                val verdict =
+                    try {
+                        mmQualityProver(params, result) { false }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (throwable: Throwable) {
+                        throwable.printStackTrace()
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
+                    }
+                val state =
+                    when (verdict) {
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(verdict.percent)
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> return@launch
+                    }
+                withContext(mainDispatcher) {
+                    // Only onto the build it read, and never over a state a cancel/load/new search already reset.
+                    if (!cancelled.get() && ui.phase == Phase.Done && ui.build == shownBuild && ui.proofState == ProofState.Idle) {
+                        ui = ui.copy(proofState = state)
+                    }
                 }
             }
     }
@@ -1132,6 +1448,16 @@ class BuildSearchModel(
      * [UiState.proofState]. The certificate solve is a blocking call that can take minutes, so it runs in its
      * own [proofJob]; the result is only applied while the shown build is still the one it was proving (a new
      * search / build swap invalidates it). Failures degrade to [ProofState.Unavailable] — never a wrong badge.
+     *
+     * A [MaxDamageSearch.MaxDamageProof.ProvenWithin] verdict is shown AT ONCE as [ProofState.ProvenWithin] with
+     * `refining = true` (the badge plus a small "still proving" cue) and the work that may improve on it runs BEHIND
+     * it, instead of a spinner hiding the badge for the whole attempt (a failing E8 construct can take a minute):
+     * first the E8 construct of the proven optimum, then — failing that — the silent per-carrier refinement. A
+     * constructed build swaps in with [ProofState.ProvenOptimal]; a refinement tightens the badge (or closes it);
+     * anything else leaves it with `refining = false`. Every late application is guarded on that refining badge
+     * still being the one on screen for the proven build — and on this launch's cancel flag, which is how [stopProof]
+     * (the user's Stop link, or switching the check off) keeps the badge while nothing the stopped proof computes
+     * afterwards lands.
      */
     private fun launchOptimalityProof(
         params: WakfuBestBuildParams,
@@ -1160,8 +1486,31 @@ class BuildSearchModel(
                 }
             }
         }
+
+        // Publishes the "proven within X %" badge with the small "still proving" cue the moment the certificate verdict is
+        // known, so the E8 construct and the silent refinement run BEHIND it. Same guards as [reportProofProgress]: never
+        // resurrect a badge a cancel/load already reset. Returns whether the badge landed.
+        suspend fun publishRefiningBadge(fraction: Double): Boolean =
+            withContext(mainDispatcher) {
+                if (cancelled.get() ||
+                    ui.phase != Phase.Done ||
+                    ui.build != provenBuild ||
+                    !(ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
+                ) {
+                    return@withContext false
+                }
+                ui = ui.copy(proofState = ProofState.ProvenWithin(fraction, refining = true))
+                true
+            }
+
+        // True while the refining badge THIS proof published is still the one on screen for the proven build — what every
+        // late application (the constructed build, the refinement) is guarded on. Read it on the main dispatcher.
+        fun refiningBadgeShown(): Boolean {
+            val shown = ui.proofState
+            return !cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining
+        }
         proofJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val proofScope = this
                 reportProofProgress(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs))
                 val proof =
@@ -1181,27 +1530,24 @@ class BuildSearchModel(
                         throwable.printStackTrace()
                         MaxDamageSearch.MaxDamageProof.Unavailable
                     }
-                // E8 fast-path: a ProvenWithin verdict means the certificate has proven a strictly better build
-                // EXISTS than the search reached. Try to CONSTRUCT that proven optimum from the same certificate DP
-                // (off the UI thread, here). On success we swap the shown build to it and flip the badge to
-                // ProvenOptimal — recomputing its stats / rotation / scenario breakdown EXACTLY as the search did
-                // (same character + boss-overlaid scenario), so the whole sheet stays consistent with the paperdoll.
+                // A ProvenWithin verdict means the certificate has proven a strictly better build EXISTS than the search
+                // reached. Show that badge AT ONCE (with the "still proving" cue) and work behind it — only behind a badge
+                // that actually landed: work whose result nothing can display would just pin the CPU.
+                val badgeLanded = proof is MaxDamageSearch.MaxDamageProof.ProvenWithin && publishRefiningBadge(proof.fraction)
+                // E8 fast-path: try to CONSTRUCT that proven optimum from the same certificate DP (off the UI thread,
+                // here). On success we swap the shown build to it and flip the badge to ProvenOptimal — recomputing its
+                // stats / rotation / scenario breakdown EXACTLY as the search did (same character + boss-overlaid
+                // scenario), so the whole sheet stays consistent with the paperdoll. Its score too: the solver's own
+                // (`up.matchPercentage`) is the across-elements damage, not the debuff-aware one every search path stores, so
+                // keeping it would put a headline beside a rotation card that disagrees with it, and a save of the swapped
+                // build would read as changed (its proof flag dropped) when reloaded.
                 val upgrade =
-                    if (proof is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
-                        reportProofProgress(ProofProgress(phase = ProofPhase.CONSTRUCTING, startedAtMs = proofStartMs))
+                    if (badgeLanded) {
                         try {
-                            WakfuBestBuildFinderAlgorithm.constructMaxDamageProvenOptimum(params, result)?.let { up ->
+                            provenOptimumConstructor(params, result, { cancelled.get() })?.let { up ->
                                 val upBuild = up.individual
-                                val upAchieved =
-                                    computeCharacteristicsValues(
-                                        buildCombination = upBuild,
-                                        characterBaseCharacteristics = character.baseCharacteristicValues,
-                                        masteryElementsWanted = params.targetStats.masteryElementsWanted,
-                                        resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
-                                        scoreComputationMode = params.scoreComputationMode,
-                                        masteryElementsToMinimize = null,
-                                        resistanceElementsToMinimize = null
-                                    )
+                                // The stats column's own read of a build, as for every streamed one ([achievedStats]).
+                                val upAchieved = achievedStats(upBuild, params)
                                 val upRotation = SpellRotationOptimizer.bestSequencedRotation(upBuild, character, character.clazz, damageScenario)
                                 val upScenario =
                                     SpellRotationOptimizer.scenarioBreakdown(
@@ -1212,7 +1558,7 @@ class BuildSearchModel(
                                         includeBerserk = (upAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
                                         configuredRotationTotal = upRotation?.totalExpectedDamage
                                     )
-                                UpgradedBuild(upBuild, upAchieved, upRotation, upScenario, up.matchPercentage)
+                                UpgradedBuild(upBuild, upAchieved, upRotation, upScenario, buildRescorer(params, upBuild))
                             }
                         } catch (cancellation: CancellationException) {
                             throw cancellation
@@ -1223,22 +1569,27 @@ class BuildSearchModel(
                     } else {
                         null
                     }
-                // Silent refinement (2026-07-21): a soft-leg ProvenWithin badge is shown immediately, then
-                // the per-carrier exact closure keeps running behind it — the badge carries `refining=true`
-                // so the stats panel renders a small "still proving" indicator (user request).
-                val refinable = proof is MaxDamageSearch.MaxDamageProof.ProvenWithin && upgrade == null
-                val state =
-                    when (proof) {
-                        MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
-                        is MaxDamageSearch.MaxDamageProof.ProvenWithin ->
-                            if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction, refining = refinable)
-                        MaxDamageSearch.MaxDamageProof.Unavailable -> ProofState.Unavailable
-                    }
-                val badgeShown =
+                if (proof !is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
+                    // A final verdict (or none): nothing is left to work on, so it is applied as soon as it is known — unless
+                    // the proof was stopped or superseded meanwhile (its launch flag), whose late verdict must not land.
                     withContext(mainDispatcher) {
-                        if (ui.phase != Phase.Done || ui.build != provenBuild) return@withContext false
-                        ui =
-                            if (upgrade != null) {
+                        if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild) {
+                            ui =
+                                ui.copy(
+                                    proofState =
+                                        if (proof == MaxDamageSearch.MaxDamageProof.ProvenOptimal) ProofState.ProvenOptimal else ProofState.Unavailable
+                                )
+                        }
+                    }
+                    return@launch
+                }
+                if (!badgeLanded) return@launch
+                if (upgrade != null) {
+                    // The constructed proven optimum replaces the shown build — but only while the refining badge this proof
+                    // published is still the one on screen for it (a cancel / new search / load invalidates the late swap).
+                    withContext(mainDispatcher) {
+                        if (refiningBadgeShown()) {
+                            ui =
                                 ui.copy(
                                     build = upgrade.build,
                                     achieved = upgrade.achieved,
@@ -1246,19 +1597,24 @@ class BuildSearchModel(
                                     scenarioDamages = upgrade.scenario,
                                     match = upgrade.match,
                                     optimal = true,
-                                    proofState = state
+                                    proofState = ProofState.ProvenOptimal,
+                                    // A Zenith link made for the incumbent (or one still loading) must never be shown for the
+                                    // constructed build — [createZenithLink] drops the late completion of the latter.
+                                    zenith = ZenithState.Idle,
+                                    zenithUrl = null
                                 )
-                            } else {
-                                ui.copy(proofState = state)
-                            }
-                        true
+                        }
                     }
-                // Refine only behind a refining badge that actually landed: a minutes-long CP-SAT pass whose
-                // result nothing can display would just pin the CPU.
-                if (refinable && badgeShown) {
+                    return@launch
+                }
+                // Silent refinement (2026-07-21): no constructed build, so the per-carrier exact closure keeps running behind
+                // the same badge — its `refining=true` cue makes the stats panel render a small "still proving" indicator
+                // (user request) — and ends it with refining=false, a tighter bound or ProvenOptimal. Refine only behind the
+                // badge still on screen: a minutes-long CP-SAT pass whose result nothing can display would just pin the CPU.
+                if (withContext(mainDispatcher) { refiningBadgeShown() }) {
                     val refined =
                         try {
-                            WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, { cancelled.get() })
+                            proofRefiner(params, result, { cancelled.get() })
                         } catch (cancellation: CancellationException) {
                             throw cancellation
                         } catch (throwable: Throwable) {
@@ -1267,8 +1623,9 @@ class BuildSearchModel(
                         }
                     withContext(mainDispatcher) {
                         val shown = ui.proofState
-                        // Apply only while the refining badge this pass produced is still the one on screen.
-                        if (ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining) {
+                        // Apply only while the refining badge this pass produced is still the one on screen (a Stop or a
+                        // new search flags the proof cancelled and clears that cue).
+                        if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining) {
                             ui =
                                 ui.copy(
                                     proofState =
@@ -1295,11 +1652,102 @@ class BuildSearchModel(
         val match: java.math.BigDecimal,
     )
 
+    /**
+     * The search button's "Stop". A search that already streamed a build ends as a finished-but-not-proven result: the
+     * best-so-far build stays on screen, fully usable (not dimmed; save, export and Zenith enabled), flagged
+     * [UiState.searchStopped]. It makes no proof claim — the stream is cut short (a max-damage stream may hold results of a
+     * sub-problem only) and no proof ever ran for it — so [UiState.optimal] is dropped and the proof state is cleared. A stop
+     * before any build exists simply returns to idle. Calling it when nothing is searching only drops a proof that is still
+     * running (the "Stop" link of the background optimality check, [stopProof], is the user-facing way to do that).
+     */
     fun cancel() {
+        val searching = ui.phase == Phase.Searching
+        val params = activeSearchParams
         job?.cancel()
         job = null
         cancelProof()
-        ui = ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+        ui = if (searching) ui.searchEndedEarly() else ui.copy(proofState = ProofState.Idle)
+        if (searching && params != null) completeStoppedDamageDetails(ui, params)
+    }
+
+    private fun completeStoppedDamageDetails(
+        snapshot: UiState,
+        params: WakfuBestBuildParams,
+    ) {
+        val build = snapshot.build ?: return
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return
+        damageDetailsJob?.cancel()
+        damageDetailsJob =
+            scope.launch(backgroundDispatcher) {
+                val breakdown = damageBreakdown(build, params, snapshot.achieved, snapshot.spellRotation)
+                withContext(mainDispatcher) {
+                    // The kept build must still be the result on screen. A new search also cancels this job,
+                    // so even a blocking rotation that returns late cannot land on a newer result of the same build.
+                    if (ui.build === build && ui.mode == snapshot.mode && ui.phase == Phase.Done && ui.searchStopped) {
+                        ui = ui.copy(scenarioDamages = breakdown)
+                    } else if (ui.mode != snapshot.mode) {
+                        // A mode switch stops and parks the search. Keep the detail with that parked result,
+                        // so returning to this mode restores the complete kept build too.
+                        val parked = ui.modeWorkspaces[snapshot.mode]
+                        if (parked != null && parked.result.build === build && parked.result.searchStopped) {
+                            ui =
+                                ui.copy(
+                                    modeWorkspaces =
+                                        ui.modeWorkspaces +
+                                            (snapshot.mode to parked.copy(result = parked.result.copy(scenarioDamages = breakdown)))
+                                )
+                        }
+                    }
+                }
+            }
+    }
+
+    /**
+     * This state after its search ended before finishing (stopped, or failed): a build already found stays on screen as a
+     * finished, usable, NOT-proven result ([UiState.searchStopped]); with no build yet it is back to idle.
+     */
+    private fun UiState.searchEndedEarly(): UiState =
+        if (build != null) {
+            copy(
+                phase = Phase.Done,
+                optimal = false,
+                proofState = ProofState.Idle,
+                searchStopped = true,
+                lastLandedEquipmentId = null
+            )
+        } else {
+            copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+        }
+
+    /**
+     * The "Stop" link beside the background optimality check's cue. It stops the check like [cancelProof] — the proof's
+     * coroutine AND the blocking solves inside it, which poll this launch's cancel flag — but KEEPS what is already known
+     * and never touches the shown build:
+     *  - a "proven within X %" badge that was still being worked on behind ([ProofState.ProvenWithin.refining]) stays, without
+     *    its cue;
+     *  - a check that knew nothing yet ([ProofState.Proving]) falls back to the usual "not proven" hint
+     *    ([ProofState.Idle]);
+     *  - any other state — a final verdict, or nothing running — is left as it is.
+     * The engine's own warm-ups a proof would have joined are cancelled too (they would otherwise keep the processor busy
+     * for nobody), unless a search is running.
+     *
+     * A result the stopped proof computes AFTER this call is dropped: its launch flag is set, which every late application
+     * checks, its coroutine is cancelled, and the refining badge it would be applied onto is gone.
+     */
+    fun stopProof() {
+        // The proof first, the engine's warm-ups second: a proof still waiting on a warm-up that is cancelled under it
+        // would start its own compute when that wait ends — flagged cancelled, it returns instead.
+        cancelProof()
+        // A search still running keeps its own warm-ups (they are what lets it stop early); only a finished search's
+        // leftovers are cancelled.
+        if (ui.phase != Phase.Searching) backgroundProofCanceller()
+        val shown = ui.proofState
+        ui =
+            when {
+                shown is ProofState.Proving -> ui.copy(proofState = ProofState.Idle)
+                shown is ProofState.ProvenWithin && shown.refining -> ui.copy(proofState = shown.copy(refining = false))
+                else -> ui
+            }
     }
 
     /**
@@ -1330,14 +1778,18 @@ class BuildSearchModel(
         val snapshot = ui
         val build = snapshot.build ?: return
         job?.cancel()
+        damageDetailsJob?.cancel()
         cancelProof()
-        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel).copy(characterSkills = build.characterSkills)
-        val damageScenario = snapshot.currentDamageScenario()
+        // The build moves to the max-damage view WITH its rows, but the mode it came from keeps its work: going back there
+        // restores the original result and rows, so this view can always be undone.
+        val parked = snapshot.modeWorkspaces + (snapshot.mode to ModeWorkspace(snapshot.targets, snapshot.shownResult().atRest()))
         ui =
             snapshot.copy(
                 mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                modeWorkspaces = parked - ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
                 phase = Phase.Done,
                 progress = 100,
+                match = java.math.BigDecimal.ZERO,
                 optimal = false,
                 proofState = ProofState.Idle,
                 spellRotation = null,
@@ -1345,30 +1797,46 @@ class BuildSearchModel(
                 error = null,
                 toast = null
             )
-        scope.launch(Dispatchers.Default) {
-            val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, damageScenario)
-            val breakdown =
-                SpellRotationOptimizer.scenarioBreakdown(
-                    build,
-                    character,
-                    character.clazz,
-                    damageScenario,
-                    includeBerserk = (snapshot.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
-                    configuredRotationTotal = rotation.totalExpectedDamage
-                )
-            withContext(mainDispatcher) {
-                if (ui.build == build && ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                    ui = ui.copy(spellRotation = rotation, scenarioDamages = breakdown)
+        val params = ui.toSearchParams()
+        val character = params.character
+        val damageScenario = params.damageScenario
+        job =
+            scope.launch(backgroundDispatcher) {
+                // The same score the max-damage result path streams, including required-target shortfalls.
+                val match = buildRescorer(params, build)
+                val achieved = achievedStats(build, params)
+                val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, damageScenario)
+                val breakdown =
+                    SpellRotationOptimizer.scenarioBreakdown(
+                        build,
+                        character,
+                        character.clazz,
+                        damageScenario,
+                        includeBerserk = (achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                        configuredRotationTotal = rotation.totalExpectedDamage
+                    )
+                withContext(mainDispatcher) {
+                    if (ui.build == build && ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                        ui = ui.copy(match = match, achieved = achieved, spellRotation = rotation, scenarioDamages = breakdown)
+                    }
                 }
             }
-        }
     }
 
-    private fun UiState.currentDamageScenario(): DamageScenario =
+    private fun UiState.currentDamageScenario(): DamageScenario = scenario.aimedAt(selectedBoss, bossElement)
+
+    /**
+     * This manual scenario aimed at [boss] (null = as is), mirroring the CLI: a forced [element] pins that one element, else
+     * all four are filled from the bestiary so the objective auto-picks the best playable one.
+     */
+    private fun DamageScenario.aimedAt(
+        boss: Monster?,
+        element: SpellElement?,
+    ): DamageScenario =
         when {
-            selectedBoss != null && bossElement != null -> scenario.against(selectedBoss, bossElement)
-            selectedBoss != null -> scenario.againstAllElements(selectedBoss)
-            else -> scenario
+            boss != null && element != null -> against(boss, element)
+            boss != null -> againstAllElements(boss)
+            else -> this
         }
 
     /** Dismisses the pre-search request-errors pop-up ([UiState.requestErrors]). */
@@ -1377,23 +1845,38 @@ class BuildSearchModel(
     }
 
     fun openZenithBuild() {
-        createZenithLink { link ->
+        createZenithLink(ErrorRetry.OPEN_ZENITH) { link ->
             runCatching {
                 openBrowser(link)
             }.onFailure { exception ->
-                ui = ui.copy(zenith = ZenithState.Error, error = exception.message ?: "Unable to open Zenith")
+                // The link itself is fine (the state stays Ready, so "Copy build link" reuses it): only the browser failed.
+                // Raw detail to the log, a plain sentence on screen.
+                exception.printStackTrace()
+                ui = ui.copy(error = UiError(Tr.ZENITH_BROWSER_FAILED.value(ui.lang).format(Tr.COPY_BUILD_LINK.value(ui.lang))))
             }
         }
     }
 
     fun copyZenithLink() {
-        createZenithLink { link ->
+        createZenithLink(ErrorRetry.COPY_ZENITH) { link ->
             copyToClipboard(link)
             ui =
                 ui.copy(
                     toast =
                         Tr.TOAST_ZENITH_COPIED.value(ui.lang)
                 )
+        }
+    }
+
+    /** The error banner's "Retry": repeats the action that failed, after dropping the banner. */
+    fun retryAfterError() {
+        val retry = ui.error?.retry ?: return
+        ui = ui.copy(error = null)
+        when (retry) {
+            ErrorRetry.OPEN_ZENITH -> openZenithBuild()
+            ErrorRetry.COPY_ZENITH -> copyZenithLink()
+            // The player already confirmed this request (a loaded build's re-search guard included): run it as it stands.
+            ErrorRetry.SEARCH -> search()
         }
     }
 
@@ -1412,7 +1895,8 @@ class BuildSearchModel(
                 name = ui.activeBuildName ?: ui.suggestedBuildName(),
                 note = active?.note,
                 createdAt = active?.createdAt ?: clock(),
-                dataVersion = dataVersion,
+                dataVersion = ui.resultDataVersion(),
+                engineResultsVersion = ui.resultEngineVersion(),
                 tags = active?.tags ?: emptyList(),
                 folder = active?.folder
             ) ?: return
@@ -1420,11 +1904,26 @@ class BuildSearchModel(
         ui = ui.copy(toast = Tr.TOAST_BUILD_EXPORTED.value(ui.lang))
     }
 
-    private fun createZenithLink(onReady: (String) -> Unit) {
+    /**
+     * Hands [onReady] the Zenith link of the build on screen. A build is exported ONCE: when its link already exists — made
+     * by an earlier "Open in Zenith" / "Copy build link", or saved with the build — it is reused, because creating another
+     * Zenith build for the same build each time (Open then Copy made two) only litters the player's Zenith account. A request
+     * made while the link is being created is ignored (the buttons are disabled meanwhile, and a second creation would
+     * duplicate the build). [retry] is what the error banner's Retry repeats if the creation fails.
+     */
+    private fun createZenithLink(
+        retry: ErrorRetry,
+        onReady: (String) -> Unit,
+    ) {
         val build = ui.build ?: return
+        ui.zenithUrl?.takeIf { ui.zenith == ZenithState.Ready }?.let { existing ->
+            onReady(existing)
+            return
+        }
+        if (ui.zenith == ZenithState.Loading) return
         ui = ui.copy(zenith = ZenithState.Loading, error = null, toast = null)
         val character = Character(ui.clazz, ui.level, ui.minLevel).copy(characterSkills = build.characterSkills)
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             try {
                 val link =
                     zenithBuilder(
@@ -1436,6 +1935,10 @@ class BuildSearchModel(
                         )
                     )
                 withContext(mainDispatcher) {
+                    // The shown build may have been swapped (the E8 construct), replaced or cleared while the link was being
+                    // created: a link made for another build must never be shown nor handed to the browser / clipboard. Drop
+                    // it silently and leave the state as that change left it.
+                    if (ui.build != build) return@withContext
                     ui =
                         ui.copy(
                             zenith = ZenithState.Ready,
@@ -1446,15 +1949,26 @@ class BuildSearchModel(
                     onReady(link)
                 }
             } catch (exception: Exception) {
+                // Whatever went wrong (no network, a timeout, an API error), the player gets one plain sentence and a Retry;
+                // the raw detail ("api.zenithwakfu.com", "Timed out waiting for 10000 ms"…) goes to the log.
+                exception.printStackTrace()
                 withContext(mainDispatcher) {
-                    ui = ui.copy(zenith = ZenithState.Error, error = exception.message ?: "Zenith build failed")
+                    // Same guard: a failure for a build that is no longer the shown one is no news.
+                    if (ui.build != build) return@withContext
+                    ui = ui.copy(zenith = ZenithState.Error, error = UiError(Tr.ZENITH_UNREACHABLE.value(ui.lang), retry))
                 }
             }
         }
     }
 
-    private fun UiState.toTargetStats(): TargetStats {
-        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0, it.weight) }
+    internal fun UiState.toTargetStats(): TargetStats {
+        // A typed 0 is a row ("never below 0"); a blank — or cleared — field asks for nothing, so it sends no row at all. Except a
+        // mastery most-masteries maximizes: its row is a checkbox there (no field, its value never read), so it always counts.
+        val raw =
+            targets.mapNotNull { row ->
+                val value = row.value.toIntOrNull() ?: if (row.isMaximized(mode)) 0 else return@mapNotNull null
+                TargetStat(row.characteristic, value, row.weight)
+            }
         // Most-masteries only: split a single "all resistances" target into the four per-element ones
         // so the solver gets four graceful constraints instead of one brittle min-over-four. The UI
         // keeps a single editable row; the split happens here, on the way to the engine.
@@ -1465,6 +1979,95 @@ class BuildSearchModel(
                 raw
             }
         return TargetStats(forEngine)
+    }
+
+    /**
+     * This request's rows as a version before blank fields and rows of target 0 changed meaning read them (1.13): a blank or cleared
+     * field was a row of target 0 — a WANTED element then, for a resistance as for a mastery — and most-masteries split "all
+     * resistances" into the four elements ([expandGlobalResistance]). Only [rescored] reads it, to tell whether such a version
+     * searched this request on the pre-filtered pool ([TargetStats.legacyNeedsItemPrefilter]). Its rows include [toTargetStats]'s
+     * (a blank field adds a row, never removes one), so it also covers what the current reading would flag.
+     */
+    private fun UiState.legacyTargetStats(): TargetStats {
+        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0, it.weight) }
+        return TargetStats(if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) expandGlobalResistance(raw) else raw)
+    }
+
+    /**
+     * This request as the engine receives it: what a search runs on, and what a loaded saved build is re-scored against
+     * ([rescored]) — one mapping, so the two can never read the same request differently.
+     */
+    private fun UiState.toSearchParams(): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = Character(clazz, level, minLevel),
+            targetStats = toTargetStats(),
+            // Blank duration = the longest sensible run (10 min). Kept finite on purpose: an unbounded
+            // budget would make the time-driven progress bar meaningless and risk a search that never
+            // returns on a hard input. (QOL-2)
+            searchDuration = (duration.toIntOrNull() ?: 600).coerceAtLeast(1).seconds,
+            // "Stop at 100% match" only applies to precision mode (the only mode with an exact target);
+            // ignore a stale toggle when searching in most-masteries / max-damage.
+            stopWhenBuildMatch = stopAtMatch && mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+            maxRarity = maxRarity,
+            excludedRarities = excludedRarities,
+            forcedItems = forcedItems.map { it.matchName },
+            excludedItems = excludedItems.map { it.matchName },
+            scoreComputationMode = mode,
+            useSublimations = useSublimations,
+            maxSublimationTier = maxSublimationTier,
+            forcedSublimations = forcedSublimations,
+            excludedSublimations = excludedSublimations,
+            forcedPassives = forcedPassives,
+            forcedRunesByItem = forcedRunesByItem,
+            // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
+            // a forced element pins that one element, else all four are filled so the objective auto-picks.
+            damageScenario = currentDamageScenario()
+        )
+
+    /**
+     * The per-stat grid the stats column shows for [build] under [params]'s request, resolved with the SAME random-element
+     * assignment the scorer used so the displayed values match the score: most-masteries → exact max-min, precision → exact
+     * max-capped, max-damage → greedy, and per-element rows over several elements (the four resistance rows "all
+     * resistances" expands to, fire + water mastery in precision…) or a resistance floor ("air resistance 0") → the exact
+     * optimum of the solver's joint fold (`elementRowObjectives`). Mirrors FindMostMasteriesFromInputScoring; omitting the mode
+     * would fall to the greedy `else` branch and diverge from the score. A search's streamed builds and a reloaded saved build
+     * both read their stats here, so the two can never disagree about the same build.
+     */
+    private fun achievedStats(
+        build: BuildCombination,
+        params: WakfuBestBuildParams,
+    ): Map<Characteristic, Int> {
+        val targetStats = params.targetStats
+        val masteryElementsToMinimize =
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                targetStats.masteryElementsToMinimize
+            } else {
+                null
+            }
+        val resistanceElementsToMinimize =
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
+            ) {
+                targetStats.resistanceElementsWanted.keys.toList()
+            } else {
+                null
+            }
+        return computeCharacteristicsValues(
+            buildCombination = build,
+            characterBaseCharacteristics = params.character.baseCharacteristicValues,
+            masteryElementsWanted = targetStats.masteryElementsWanted,
+            resistanceElementsWanted = targetStats.resistanceElementsWanted,
+            scoreComputationMode = params.scoreComputationMode,
+            masteryElementsToMinimize = masteryElementsToMinimize,
+            resistanceElementsToMinimize = resistanceElementsToMinimize,
+            // Max-damage: the scenario gates its sublimation effects (berserk, orientation, range…) as it does for the scorer and
+            // the solver, so a gated dodge or lock shows where the search counted it. (No other mode reads it.)
+            damageScenario = params.damageScenario,
+            // Per-element rows over several elements, and the floors ("air resistance 0"): the scorers' exact placement of the
+            // solver's joint fold — a floor's value with the random rolls the player puts there, so the row's status reads what the
+            // search enforced.
+            elementRows = targetStats.elementRowObjectives(params.scoreComputationMode)
+        )
     }
 
     private fun newlyLandedEquipmentId(
@@ -1508,6 +2111,16 @@ class BuildSearchModel(
     fun confirmReSearch() {
         ui = ui.copy(modal = null, searchLocked = false)
         search()
+    }
+
+    /**
+     * "Re-run the search" on an obsolete saved build (My Builds, compare view): restores its request — exactly as [loadBuild]
+     * does — and starts the search at once. The build stays the active one, so saving the new result updates it.
+     */
+    fun rerunSearch(id: String) {
+        if (ui.savedBuilds.none { it.id == id }) return
+        loadBuild(id)
+        confirmReSearch()
     }
 
     fun goToScreen(screen: Screen) {
@@ -1567,17 +2180,39 @@ class BuildSearchModel(
         ui = ui.copy(modal = Modal.SaveBuild)
     }
 
-    /** Default text for the save dialog's name field. */
-    fun suggestedSaveName(): String = ui.activeBuildName ?: ui.suggestedBuildName()
+    /**
+     * Default text for the save dialog's name field: the loaded build's own name (saving updates it), else the generated
+     * "Cra 110 · Distance" — made unique against the library ("… (2)") so that suggestion never collides with a build you
+     * already saved, which would open the dialog with Save disabled and the "name already used" warning showing.
+     */
+    fun suggestedSaveName(asNew: Boolean = false): String {
+        val base = ui.activeBuildName ?: ui.suggestedBuildName()
+        return if (asNew || ui.activeBuildId == null) uniqueLibraryName(base) else base
+    }
 
     /**
-     * Names already used by *other* saved builds (the active build's own name is excluded so updating
+     * The game-data version a snapshot of the build on screen is stamped with: the one it was COMPUTED with. That is this app's
+     * data for a build found here, but the original stamp for a stale saved/imported build ([UiState.staleDataVersion]) — saving
+     * or exporting it without a new search must not relabel numbers from old data as current (which would also silence the
+     * "saved with other game data" note on its card).
+     */
+    private fun UiState.resultDataVersion(): String = staleDataVersion ?: dataVersion
+
+    /**
+     * The engine results version a snapshot of the build on screen is stamped with — the one it was computed with, like
+     * [resultDataVersion]: this app's for a build found here, the stored one (null when the save never recorded it) for a loaded
+     * build of an older engine ([UiState.staleEngine]), so saving it as it is keeps it flagged as improvable.
+     */
+    private fun UiState.resultEngineVersion(): Int? = staleEngine.let { if (it == null) engineResultsVersion else it.savedVersion }
+
+    /**
+     * Names already used by saved builds (all of them for a copy; the active build is excluded so updating
      * it isn't blocked). The save dialog rejects these so two builds never share a name — which would
      * make the library and the compare view ambiguous.
      */
-    fun takenBuildNames(): Set<String> =
+    fun takenBuildNames(asNew: Boolean = false): Set<String> =
         ui.savedBuilds
-            .filter { it.id != ui.activeBuildId }
+            .filter { asNew || it.id != ui.activeBuildId }
             .map { it.name.trim().lowercase() }
             .toSet()
 
@@ -1592,6 +2227,10 @@ class BuildSearchModel(
         asNew: Boolean,
     ) {
         val trimmedName = name.trim().ifBlank { ui.suggestedBuildName() }
+        if (trimmedName.lowercase() in takenBuildNames(asNew)) {
+            ui = ui.copy(error = UiError(Tr.SAVE_NAME_TAKEN.value(ui.lang)))
+            return
+        }
         val overwrite = !asNew && ui.activeBuildId != null
         val id = if (overwrite) ui.activeBuildId!! else idGenerator()
         // Overwriting rebuilds the entry from the workspace, which doesn't carry user metadata (tags,
@@ -1603,7 +2242,8 @@ class BuildSearchModel(
                 name = trimmedName,
                 note = note,
                 createdAt = clock(),
-                dataVersion = dataVersion,
+                dataVersion = ui.resultDataVersion(),
+                engineResultsVersion = ui.resultEngineVersion(),
                 tags = existing?.tags ?: emptyList(),
                 folder = existing?.folder
             ) ?: return
@@ -1611,78 +2251,69 @@ class BuildSearchModel(
         // library (a deliberate act); right after saving you should stay free to keep iterating.
         ui = ui.copy(modal = null, activeBuildId = id, activeBuildName = trimmedName)
         scope.launch(ioDispatcher) {
-            runCatching { historyRepository.save(entry) }
-                .onSuccess {
-                    val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
-                }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not save build") }
-                }
+            runCatching {
+                historyRepository.save(entry)
+                historyRepository.loadAll()
+            }.onSuccess { all ->
+                withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
+            }.onFailure { throwable ->
+                throwable.printStackTrace()
+                withContext(mainDispatcher) { ui = ui.copy(error = UiError(Tr.SAVE_BUILD_FAILED.value(ui.lang))) }
+            }
         }
     }
 
     /**
      * Loads a saved build into the workspace: restores its request (so it can be tweaked & re-run)
-     * and its result (shown without re-running), marks it as the active build, and locks the search
-     * button. Returns to the Builder screen.
+     * and its result (shown without re-running, but re-scored under the CURRENT rules — see [rescored]),
+     * marks it as the active build, and locks the search button. Returns to the Builder screen.
      */
     fun loadBuild(id: String) {
         val entry = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         job?.cancel()
         // Cancel any in-flight optimality proof: it is proving the PREVIOUS build, and the loaded build has no
-        // certificate (its stored CP-SAT `optimal` flag is restored below). Without this, a running proof could
-        // leave "Proving optimality…" stuck, or a prior ProvenOptimal could paint a green badge on this build
-        // that the certificate never saw (proofState is reset to Idle in the copy below).
+        // certificate (its stored CP-SAT `optimal` flag is restored below, unless the re-score moved the build's score).
+        // Without this, a running proof could leave "Proving optimality…" stuck, or a prior ProvenOptimal could paint a
+        // green badge on this build that the certificate never saw (proofState is reset to Idle in the copy below).
         cancelProof()
         val loadedBuild = entry.toBuildCombination()
         // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
         // rotation left over from a prior search, or nothing). Cheap — no solver, just one rotation DP.
         val isMaxDamage = entry.restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+        // A boss build is scored against the boss it was searched with (otherwise the rotation would be computed against
+        // the manual scenario's 0 % resistance and disagree with the damage saved next to it).
+        val loadedBoss = entry.restoredBoss()
+        val loadedBossElement = entry.restoredBossElement()
+        val loadedScenario = entry.restoredScenario().aimedAt(loadedBoss, loadedBossElement)
         val restoredCharacter =
             me.chosante.common.Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, loadedBuild.characterSkills)
         val rotation =
             if (isMaxDamage) {
-                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, restoredCharacter, restoredCharacter.clazz, entry.restoredScenario())
+                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, restoredCharacter, restoredCharacter.clazz, loadedScenario)
             } else {
                 null
             }
-        ui =
-            ui.copy(
+        val restored =
+            ui.withSavedRequest(entry).copy(
                 screen = Screen.Builder,
                 modal = null,
-                clazz = entry.restoredClass(),
-                level = entry.request.level,
-                minLevel = entry.request.minLevel,
-                mode = entry.restoredMode(),
-                scenario = entry.restoredScenario(),
-                maxRarity = entry.request.maxRarity,
-                duration = entry.request.duration,
-                stopAtMatch = entry.request.stopAtMatch,
-                targets = entry.toTargetRows(),
-                forcedItems = entry.toForcedChips(),
-                excludedItems = entry.toExcludedChips(),
-                useSublimations = entry.request.useSublimations,
-                maxSublimationTier = entry.request.maxSublimationTier,
-                // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
-                // keep their forced/excluded chips working under the current names.
-                forcedSublimations =
-                    entry.request.forcedSublimations
-                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                        .distinct(),
-                excludedSublimations =
-                    entry.request.excludedSublimations
-                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                        .distinct(),
-                excludedRarities = entry.request.excludedRarities,
-                forcedPassives = entry.request.forcedPassives,
-                forcedRunesByItem = entry.request.forcedRunesByItem,
                 phase = Phase.Done,
                 progress = 100,
+                // The STORED score, proof flag and stats: [rescored] swaps them for the current rules' just below.
                 match = entry.result.match.toBigDecimal(),
                 optimal = entry.result.optimal,
                 // A loaded build is not re-proven by the certificate (only its stored CP-SAT `optimal` flag is
                 // restored above) — reset the proof state so a prior search's verdict can't leak onto it.
                 proofState = ProofState.Idle,
+                // A save does not record whether its search was structurally heuristic (resistance-debuff sequencing…): the
+                // build shows no such hint, not the one of whatever search ran before it.
+                maxDamageStructural = false,
+                searchStopped = false,
+                // Computed with other game data than this app's (a build saved before a game update, or imported from another
+                // version): the stats column says so until a new search replaces it. The stored build itself is left untouched.
+                staleDataVersion = entry.dataVersion.takeIf { it != dataVersion },
+                // Computed by an older engine than this app's (or before saves recorded it): a re-run may improve it.
+                staleEngine = entry.engineResultsVersion.let { saved -> if (saved == null || saved < engineResultsVersion) StaleEngine(saved) else null },
                 build = loadedBuild,
                 spellRotation = rotation,
                 scenarioDamages = emptyList(),
@@ -1696,18 +2327,24 @@ class BuildSearchModel(
                 activeBuildName = entry.name,
                 searchLocked = true
             )
+        // The request this save was computed for — the rows and mode restored just above, never the rows the workspace held before
+        // the load — decides whether any search of it could ever have been proven: the stats column explains the missing badge
+        // of such a build ([UiState.prefilteredRequest]) instead of suggesting a longer search.
+        val loaded = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false))
+        ui = loaded.rescored()
         // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still
         // the active one, so a quick load-another-build doesn't get a stale breakdown.
         if (isMaxDamage && rotation != null) {
-            scope.launch(Dispatchers.Default) {
+            val achieved = ui.achieved
+            scope.launch(backgroundDispatcher) {
                 val breakdown =
                     SpellRotationOptimizer.scenarioBreakdown(
                         loadedBuild,
                         restoredCharacter,
                         restoredCharacter.clazz,
-                        entry.restoredScenario(),
-                        includeBerserk = (entry.result.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                        loadedScenario,
+                        includeBerserk = (achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
                         configuredRotationTotal = rotation.totalExpectedDamage
                     )
                 withContext(mainDispatcher) {
@@ -1715,6 +2352,139 @@ class BuildSearchModel(
                 }
             }
         }
+    }
+
+    /**
+     * This state with [entry]'s request in place of its own — exactly what [loadBuild] restores, and what [rescoreSaved] scores a
+     * library card with, so a card and a reload of the same build can never read its request differently. Unlike the remembered
+     * workspace ([withRememberedRequest]) it clamps nothing: a save is replayed as it was searched.
+     */
+    private fun UiState.withSavedRequest(entry: HistoryEntry): UiState =
+        copy(
+            clazz = entry.restoredClass(),
+            level = entry.request.level,
+            minLevel = entry.request.minLevel,
+            mode = entry.restoredMode(),
+            // The loaded request replaces the whole workspace: no other mode's parked work survives it.
+            modeWorkspaces = emptyMap(),
+            scenario = entry.restoredScenario(),
+            // The boss the build was searched against comes back with it (none for a build saved without one).
+            selectedBoss = entry.restoredBoss(),
+            bossElement = entry.restoredBossElement(),
+            bossDifficulty = entry.restoredBossDifficulty(),
+            maxRarity = entry.request.maxRarity,
+            duration = entry.request.duration,
+            stopAtMatch = entry.request.stopAtMatch,
+            targets = entry.toTargetRows(),
+            forcedItems = entry.toForcedChips(),
+            excludedItems = entry.toExcludedChips(),
+            useSublimations = entry.request.useSublimations,
+            maxSublimationTier = entry.request.maxSublimationTier,
+            // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
+            // keep their forced/excluded chips working under the current names.
+            forcedSublimations =
+                entry.request.forcedSublimations
+                    .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                    .distinct(),
+            excludedSublimations =
+                entry.request.excludedSublimations
+                    .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                    .distinct(),
+            excludedRarities = entry.request.excludedRarities,
+            forcedPassives = entry.request.forcedPassives,
+            forcedRunesByItem = entry.request.forcedRunesByItem
+        )
+
+    /**
+     * This freshly loaded saved build with the score and stats of the CURRENT rules in place of the stored ones. A save keeps
+     * the numbers of the rules it was found under, and the rules move: a build saved while the Neutralité family read the SUM of the
+     * secondary masteries came back showing a bonus the game never grants. The re-score is the search's own — the same request
+     * ([toSearchParams]), stats grid ([achievedStats]) and scorer ([buildRescorer], by default [WakfuBestBuildFinderAlgorithm.rescore]) —
+     * and costs milliseconds, no solver. The items and sublimations come from the save itself, so a build whose items left the catalog
+     * re-scores too. A proof belongs to the rules it was made under: a build whose score moved ([isStoredScore]) loses its stored
+     * "proven optimal" flag, and so does any build of a request no search can prove ([UiState.prefilteredRequest], read from
+     * [TargetStats.needsItemPrefilter]: several elements of one family): an older version may have stored a proof made by a model
+     * that counted every random-element roll on every element. So does a build of a request an older version searched on the
+     * pre-filtered pool because it counted a resistance row of target 0 — or a blank field, which it read as 0 — as a wanted element
+     * ([TargetStats.legacyNeedsItemPrefilter] on the rows read that way, [legacyTargetStats]: "fire resistance 100" beside the default
+     * "air resistance 0", or beside a blank air field; "fire mastery 50" beside a blank water mastery) — its stored proof covers that
+     * reduced pool only, though the request now searches the whole catalog. So does a build the game refuses
+     * ([WakfuBestBuildFinderAlgorithm.equipConditionViolation]: a save made before the item EQUIP conditions were enforced may wear a
+     * nation sword without its ring, one made before the exclusivity groups were read may wear 18691 — a COMMON item the game
+     * counts as epic — beside an epic item, and one made before the stat gates were enforced may wear Cartes And at 4 range — the
+     * stats column and the library card then say which item would be inactive, see [me.chosante.ui.components.StatGateCue]). Only a build the scorer cannot
+     * read at all keeps its stored numbers.
+     */
+    private fun UiState.rescored(): UiState {
+        val shown = build ?: return this
+        return runCatching {
+            val params = toSearchParams()
+            val score = buildRescorer(params, shown)
+            val provable = !prefilteredRequest && !legacyTargetStats().legacyNeedsItemPrefilter
+            // A build the game refuses (an item EQUIP condition: a save made before they were enforced may wear a nation sword
+            // without its ring; an exclusivity group: one made before they were read may wear 18691 beside an epic item; a stat
+            // gate: one made before they were enforced may wear Cartes And at 4 range) is no proven optimum, whatever was stored with it.
+            val wearable = WakfuBestBuildFinderAlgorithm.equipConditionViolation(shown, params.character.clazz) == null
+            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && wearable && isStoredScore(score, match))
+        }.getOrDefault(this)
+    }
+
+    /**
+     * Re-scores the saved [builds] under the CURRENT rules, off the UI thread, and publishes each result as it lands
+     * ([UiState.libraryRescores]) — the library cards and the compare view then show the numbers a loaded build would show
+     * ([rescored]) instead of the stored ones. Usually milliseconds per build, but a rare multi-element build can take more than
+     * half a second: the work runs one build at a time on [backgroundDispatcher], a newer call cancels it between two builds, and
+     * a build whose request, result and rules did not change since its last re-score comes straight from [rescoreCache].
+     */
+    private fun rescoreLibrary(builds: List<HistoryEntry>) {
+        rescoreJob?.cancel()
+        if (ui.phase == Phase.Searching || builds.isEmpty()) return
+        rescoreJob =
+            scope.launch(backgroundDispatcher) {
+                val batch = LinkedHashMap<String, RescoredResult>()
+                var lastPublish = System.nanoTime()
+
+                suspend fun publish() {
+                    if (batch.isEmpty()) return
+                    val landed = batch.toMap()
+                    batch.clear()
+                    lastPublish = System.nanoTime()
+                    withContext(mainDispatcher) {
+                        val changed = landed.filter { (id, rescore) -> ui.libraryRescores[id] != rescore }
+                        if (changed.isNotEmpty()) ui = ui.copy(libraryRescores = ui.libraryRescores + changed)
+                    }
+                }
+                for (entry in builds) {
+                    ensureActive()
+                    val key = RescoreKey(entry.id, entry.request, entry.result, dataVersion, engineResultsVersion)
+                    val current =
+                        rescoreCache[entry.id]?.takeIf { it.first == key }?.second
+                            // One unreadable save must not stop the others (nor reach the app's scope): it keeps its stored numbers.
+                            ?: runCatching { rescoreSaved(entry) }.getOrElse { entry.result }.also { rescoreCache[entry.id] = key to it }
+                    batch[entry.id] = RescoredResult(stored = entry.result, current = current)
+                    // In batches, so a large library costs a few state writes, not one recomposition per build.
+                    if (batch.size >= RESCORE_BATCH_SIZE || System.nanoTime() - lastPublish >= RESCORE_BATCH_NANOS) publish()
+                }
+                publish()
+            }
+    }
+
+    /**
+     * [entry]'s result with the score, stats and proof flag a [loadBuild] of it would show: its request restored the same way,
+     * then [rescored]. The stored numbers come back unchanged when the scorer cannot read the build.
+     */
+    private fun rescoreSaved(entry: HistoryEntry): me.chosante.common.history.ResultSnapshot {
+        val restored =
+            UiState()
+                .withSavedRequest(entry)
+                .copy(
+                    build = entry.toBuildCombination(),
+                    match = entry.result.match.toBigDecimal(),
+                    optimal = entry.result.optimal,
+                    achieved = entry.result.achieved
+                )
+        val scored = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false)).rescored()
+        return entry.result.copy(match = scored.match.toDouble(), achieved = scored.achieved, optimal = scored.optimal)
     }
 
     /** Opens the import dialog, where a build exported via [exportBuild] is pasted. See [importBuild]. */
@@ -1743,17 +2513,19 @@ class BuildSearchModel(
         val entry = parsed.copy(id = idGenerator(), name = uniqueLibraryName(parsed.name), createdAt = clock())
         ui = ui.copy(modal = null)
         scope.launch(ioDispatcher) {
-            runCatching { historyRepository.save(entry) }
-                .onSuccess {
-                    val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) {
-                        ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all))
-                        loadBuild(entry.id)
-                        ui = ui.copy(toast = Tr.TOAST_BUILD_IMPORTED.value(ui.lang))
-                    }
-                }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not import build") }
+            runCatching {
+                historyRepository.save(entry)
+                historyRepository.loadAll()
+            }.onSuccess { all ->
+                withContext(mainDispatcher) {
+                    ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all))
+                    loadBuild(entry.id)
+                    ui = ui.copy(toast = Tr.TOAST_BUILD_IMPORTED.value(ui.lang))
                 }
+            }.onFailure { throwable ->
+                throwable.printStackTrace()
+                withContext(mainDispatcher) { ui = ui.copy(error = UiError(Tr.IMPORT_BUILD_FAILED.value(ui.lang))) }
+            }
         }
     }
 
@@ -1761,10 +2533,7 @@ class BuildSearchModel(
     private fun uniqueLibraryName(base: String): String {
         val trimmed = base.trim().ifBlank { Tr.IMPORTED_BUILD_NAME.value(ui.lang) }
         val taken = ui.savedBuilds.map { it.name.trim().lowercase() }.toSet()
-        if (trimmed.lowercase() !in taken) return trimmed
-        var n = 2
-        while ("$trimmed ($n)".lowercase() in taken) n++
-        return "$trimmed ($n)"
+        return freeBuildName(trimmed, taken)
     }
 
     /** Clears the active-build identity (the workspace becomes an "unsaved build" again, unlocked). */
@@ -1774,13 +2543,13 @@ class BuildSearchModel(
 
     /**
      * Starts a fresh, blank build: resets the whole workspace to defaults (request + result), drops
-     * any active-build link, and unlocks search. Keeps the language and the saved-build library.
-     * This is the explicit "New build" escape from editing a loaded build.
+     * any active-build link, and unlocks search. Keeps the language, the "check optimality" switch and the
+     * saved-build library. This is the explicit "New build" escape from editing a loaded build.
      */
     fun newBuild() {
         job?.cancel()
         cancelProof()
-        ui = UiState(lang = ui.lang, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
+        ui = UiState(lang = ui.lang, verifyOptimality = ui.verifyOptimality, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
     }
 
     /** Opens the Edit-build dialog (name + note + tags + folder). The dialog resolves the entry by id. */
@@ -1849,21 +2618,23 @@ class BuildSearchModel(
         val source = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         val copy = source.copy(id = idGenerator(), name = uniqueCopyName(source.name), createdAt = clock())
         scope.launch(ioDispatcher) {
-            runCatching { historyRepository.save(copy) }
-                .onSuccess {
-                    val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) {
-                        ui =
-                            ui.copy(
-                                savedBuilds = all,
-                                lastDuplicatedBuildId = copy.id,
-                                toast = Tr.TOAST_BUILD_DUPLICATED.value(ui.lang)
-                            )
-                        clearDuplicatedMarkerLater(copy.id)
-                    }
-                }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not duplicate build") }
+            runCatching {
+                historyRepository.save(copy)
+                historyRepository.loadAll()
+            }.onSuccess { all ->
+                withContext(mainDispatcher) {
+                    ui =
+                        ui.copy(
+                            savedBuilds = all,
+                            lastDuplicatedBuildId = copy.id,
+                            toast = Tr.TOAST_BUILD_DUPLICATED.value(ui.lang)
+                        )
+                    clearDuplicatedMarkerLater(copy.id)
                 }
+            }.onFailure { throwable ->
+                throwable.printStackTrace()
+                withContext(mainDispatcher) { ui = ui.copy(error = UiError(Tr.DUPLICATE_BUILD_FAILED.value(ui.lang))) }
+            }
         }
     }
 

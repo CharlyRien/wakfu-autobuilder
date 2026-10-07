@@ -98,6 +98,7 @@ with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `
 | Deferred | C6, C7, C8(2)/(3) | **C7 ✅ CLOSED 2026-07-09: re-implemented from the staged derivation (sound, guards green, fires on the engineered pool) — MEASURED-INERT on the flagship shapes (self-disables; byte-identical A/B), stays OFF.** C6 not started (run C4 screen first). C8(2) measured-NO / (3) blocked. See each item's block in §C. |
 | Anytime | D1, D3, D4 | Tiny hygiene — D1 CLI wording, D3 nightly-test flake, D4 doc note. |
 | Next | E0 → E1 | **TODO (opened 2026-10-02):** measure-first perf pass on the current engine — baseline the user-visible timings on 4 cores, then check the leads in §E. |
+| Later | The October 2026 follow-ups (end of §E) | **OPEN, decided "later" (recorded 2026-10-05):** eight leftovers of the per-element random-roll work (#237, #238) — the max-damage hard-leg proof time, the unweighted precision primary and the priority that never reaches the assignment, `assignMaxMin`'s cost, the EHP proxy, the two reads of precision's halving, the placement search's node budget, one re-measure — plus the PLANNED background full-catalog proof for multi-element requests. |
 
 ---
 
@@ -1160,7 +1161,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   warm-up — for the default requests at levels 110 / 200 / 245, most-masteries and max-damage, with and without
   runes + subs. A/B comparisons on the deterministic protocol (1 worker + interleave); multi-worker wall times
   only for end-to-end numbers (race noise otherwise). Re-baseline the badge-tightness matrix cold while at it
-  (pending since the 2026-07-20 soundness wave).
+  (pending since the 2026-07-20 soundness wave). Measured: v38 = `docs/perf-next-steps-2026-10.md` §1, v50 = its §8.
 - **E1 — Leads to check against that baseline** (verify, then decide):
   - the slow-suite hot spots, which double as proxies for the end-game proof times (single local runs,
     1.92 → 1.93 data): `max-damage AP-cell certifier does not bail on the shipped sublimation catalog`
@@ -1168,9 +1169,425 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   - max-damage shapes that still need minutes to reach ProvenOptimal after the soft-leg refinement
     (sacrieur 230: 19.6 min), and the shapes that stay at a "proven within X%" badge;
   - most-masteries on low core counts: the 1-worker proof takes 15–20 min where the certificate's full tier
-    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired;
-  - the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers) — a correctness
-    fix first, tracked separately.
+    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired; — the certificate
+    itself got ~7.5× faster on 2026-10-02 (exact stage-option pruning + primitive DP maps, CERTIFIER_VERSION
+    40, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17: S2 full tier 66 s → 9 s, bit-identical), and the badge is now
+    ONE full-tier pass computed in the search's tail (§8.19, E10-for-MM: on the 4-core profile the S2 badge
+    lands 0-2.5 s after a ≥ 45 s search instead of +10-12 s quick / +20-23 s full; ≤ 30 s budgets compute it on
+    demand, +12-13 s; never in the search's first 30 s, where the bound measurably slowed CP-SAT);
+  - ~~the MM certificate is looser since v38: S2 +29.56% / S3 +8.11% (was +9.87% / +6.77% at v37) — the
+    budget-free start-of-combat crit constant lifts the Mesure III assume world~~ — TIGHTENED 2026-10-02
+    (CERTIFIER_VERSION 41 → 43, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.18): exact normal-sub packing (T5), a
+    start-of-combat crit state dim in the assume-CC worlds (T1) and a targets-met read for hard-leg results (T3) take
+    S2 to **+18.25%** soft and a hard-leg result's badge from +42.08% to **+23.58%**, S3 to +6.77%; two latent v40
+    under-counts fixed on the way (AP/MP dims saturating at the out-of-combat caps, low-read-only subs dropped). The
+    S2 residual is the main world's (block gate / ramp slot measured null);
+  - ~~max-damage default target rows get NO badge~~ — FIXED 2026-10-02 (CERTIFIER_VERSION 44,
+    `docs/CERTIFICATE_PROD_PLAN.md` P5.4): any HP / resistance / dodge row (0-valued included — every GUI-default
+    request) put non-damage rune types in the model (the GENERAL single-type rune fold) and the AP-cell certificate
+    bailed on all 21 cells; it now mirrors that fold (a non-damage rune is a zero-delta option the best damage rune
+    dominates). The same audit found two pre-existing UNDER-counts — the pools' unguarded drop of the Neutralité
+    family (`secondary masteries ≤ 0`) and of the EPIC block sub Mesure — now covered by fast-tier AUX worlds that
+    floor every cell. Measured (CRA, runes + subs, EPIC, 120 s, 4-core JVM): the GUI-default request now gets
+    **ProvenWithin 22.19 %** at 110 and **22.97 %** at 245 (was Unavailable) — target-blind, so the bound is the free
+    request's optimum while MP / RANGE / CC / HP bind; the certificate alone reproduces the free request's ledger cell
+    for cell (110 max 1,657,830; 245 max 20,953,350). Cost: the aux worlds run on every max-damage request with subs
+    — at v44 ~2.6–3.2× the fast ledger, which killed the free flagship's certificate early stop on 10 cores (v40:
+    37–91 s; v44: none in 2/2). CERTIFIER_VERSION 48 (`docs/CERTIFICATE_PROD_PLAN.md` P5.4b) restores it (43.5 / 90.8
+    s) with identical certified values: one relaxed world stands for the six secondary-capped aux worlds (their exact
+    split runs only when the relaxed bound could move a value), and the aux floor is applied once at the end of the
+    ledger, computed on its own thread beside the normal worlds. ~~Open: a target-aware bound (MP / range axes) to
+    tighten the GUI-default badge.~~ ✅ DONE below (CERTIFIER_VERSION 52).
+  - **Target-aware AP-cell certificate** ✅ DONE (2026-10-03, CERTIFIER_VERSION 52, `docs/CERTIFICATE_PROD_PLAN.md` §P5.6):
+    a HARD-LEG result is now compared with a ledger that enforces the request's AP / MP / CC / RANGE rows in every pass
+    (cells below the AP row read 0, crit steps below the CC row skipped, an over-counted MP filter at harvest, RANGE as a
+    saturating key digit with a suffix-reachability prune); the flag keys the certificate caches, soft-leg and free
+    results keep the target-blind ledger (bit-identical). GUI-default badge on the production-shaped proof (4-core, the
+    420 s incumbents): **7.83 % → 2.71 %** at 110, **13.05 % → 7.03 %** at 200, **8.15 % → 3.70 %** at 245. Two
+    PRE-EXISTING under-counts found by its fixtures and fixed in the same version: the exact pass dropped a zero-graw ring
+    carrying AP / crit (a cell read 0), and no pass saw a damage-less epic / relic item as the carrier of an epic / relic
+    sub (−15 % on the repro). Cost (4-core): proof wall −7 % / +25 % / +42 % at 110 / 200 / 245 after a value-identical
+    widest-stage-first order of the fast pass under the range digit (+98 % at 245 without it); on the production
+    path the 245 badge lands ~35 s after a 120 s search (18 s target-blind), the 110 one at once. Open: the exact pass
+    under the range digit dominates what is left at 245 (its stage order was A/B'd — no gain).
+  - ~~the most-masteries GUI-default request gets NO badge on low-core machines~~ — FIXED 2026-10-02 (CERTIFIER_VERSION
+    45 → 47, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.20): the MM certificate bailed on the GUI's RANGE 4 row and on its
+    0-valued wind-resistance / dodge rows (all eight default rows reach the engine). 0-valued rows of any stat are now an
+    exact skip (weight 0 in the model; the objective still folds) and RANGE has a saturating state dim; the request-level
+    bails are one function shared with the warm-up gate (`supportsRequest`). GUI-default bound at 245: core 11 737 (=
+    the range-free S3 bound, 8.6 s / 94 896 states on 10 cores) ⇒ ≈ "within 12.1 %" against E0's 4-core incumbent where
+    it read Unavailable; at 110 it bounds too (1.1 s). Also: late-staged sub HP now takes the %HP scaling (latent under-count,
+    no catalog sub carries HP). Open: the 4-core production re-run, P3 (pair options once per proof).
+  - ~~the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers)~~ — FIXED
+    2026-10-02: the power-table multiplier is floored at 1 (`penaltyMultiplier`, shared by the solver and both
+    soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's
+    gentle table had the same defect and got the same floor), CERTIFIER_VERSION 39, locked by
+    `SoftPenaltyFloorTest`. Full-pool MM S2/S3 certificate bounds measured bit-identical before/after.
+- **E8 construct gate (max-damage rescue)** ✅ DONE (2026-10-02) — `dpConstructProvenOptimum` no longer refuses a
+  MAXIMIZED-mastery row (the GUI's default "distance mastery 1", the CLI's `--mastery-distance`: max-damage ignores
+  it, so the problem and the certificate ledger are exactly the free one): the gate is now `isFreeMaxDamageShape` —
+  refuse only a non-zero row that is not a maximized mastery, or a multi-element-prefilter shape. The rescue is also
+  bounded now: its full-pool fallback is wall-capped at 60 s (`E8_FALLBACK_WALL_CAP_SECONDS`) and every step is
+  cancellable (`isCancelled`: the GUI passes its proof-cancel flag, the search warm-up its own), the native solve
+  stopping through the flow teardown; `optimize()` also no longer starts the solve of a flow torn down during its
+  model build. The GUI publishes the "proven within X %" badge (with the "still proving" cue) AT ONCE on a ProvenWithin
+  verdict and runs the construct / silent refinement behind it, instead of a spinner hiding the badge for the whole
+  attempt. Measured on the production path (4-core profile, `-Xmx3g`, GUI-default request incl. the maximized row,
+  E0 incumbents): level 245 "within 1.64 %" → ProvenOptimal 2.9 s after the cached ledger (fast tier); level 110 (fast
+  tier lands 0.9 % under the bound, and the fallback found nothing in det-300 either — most likely a loose bound) now
+  gives up at the cap, 60.5 s instead of 269 s.
+  No bound changed ⇒ `CERTIFIER_VERSION` untouched; locked by `E8ConstructGateTest`.
+- **SOUNDNESS BUGS A1 / B1 (found 2026-10-02 by the adversarial review of the v41–v44 wave; both ✅ FIXED: B1 in
+  CERTIFIER_VERSION 49, A1 in 50; every review follow-up and latent shape below ✅ closed in 51).** Both were
+  certificate UNDER-counts, so the affected badge ("proven optimal" / "proven within X %") could be WRONG. Both
+  already existed at v40, i.e. in the shipped 1.11. The review found no under-count introduced by v41–v44 (MM:
+  358 cases; max-damage: 400 pools, 4 646 cell comparisons).
+  - Reproductions: `SoundnessReviewAdversarialTest`. Every A1 and B1 repro is now a CI lock (B1 since v49, A1 since
+    v50).
+  - The file also holds manual fuzzers: `WAKFU_REVIEW_MM_FUZZ`, `WAKFU_REVIEW_MD_FUZZ` and their case replays.
+  - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.** ✅ **FIXED (2026-10-02, CERTIFIER_VERSION
+    50):** both certificates store the LOW dim with an offset (each stage's worst negative delta, field widened by the
+    key's 2 spare bits); the four repros are CI locks. See `MOST_MASTERIES_PERF_PLAN.md` §8.21.
+    - Where: `MostMasteriesCertificate` (the `ccLowRaw` / AP-low transitions `.coerceIn(0, thr + 1)` and the clamped
+      seed state), with a twin in `MaxDamageSoftCertificate`.
+    - Why it under-counts: the real pre-combat crit read can go negative, because the solver only floors the
+      pre-sub sheet at −9. A −10 ring staged first followed by +12 gives a LOW dim of 12 > 10, while the real read
+      is 5. The real Constance (`CRIT ≤ 10`) carrier is rejected in its own world. This affects the soft read AND the
+      T3 targets-met read.
+    - Real data reaches it: 87 items carry negative crit, including the −10 rings Tyra 'neau, Ann'Othan and Sortie
+      d'Automne.
+    - Measured gaps: −0.81 % on real level-245 items (with Mesure III excluded); −15.4 % on the 3-item repro, where
+      `compareMostMasteriesQuality` awards ProvenOptimal to the wrong build; −4.8 % on the soft twin.
+    - Fix: store the LOW dims with an offset, as `MaxDamageCertifier` does with `apOff` / `critOff` (the sum of the
+      worst negative LOW deltas, knapsack included), or bail when the negative LOW mass can push the sum below 0.
+  - **B1 — ✅ FIXED (CERTIFIER_VERSION 49) — the paired Major skill "Movement Point and damage" is dropped when an
+    MP→DI ramp sub is modeled.**
+    - Fixed (v49): MP+graw skill vars get their own exact split (`mpGrawSplits`) in the fast, tier-1.5, exact and
+      explain passes (repro cells now = CP-SAT), plus a value-exact MP saturation clamp that keeps the ledger at v48
+      speed. CI locks in `SoundnessReviewAdversarialTest`; details in `docs/CERTIFICATE_PROD_PLAN.md` P5.5.
+    - Where: `MaxDamageCertifier` fast / exact / explain paths, triggered by `mpRampEnabled`.
+    - Why it under-counts: `mpVars` keeps only pure-MP skill vars and `grawVars` only the vars without MP, so the
+      paired var (+1 MP, +20 mastery) is in neither list.
+    - It hits most production max-damage requests: Poids Plume III is choosable by default, and at level ≥ 175 this
+      is every cell that does not spend the Major point on AP.
+    - Measured gaps: −5.3 % (AP-6 cell) and −3.6 % (AP-7 cell) on the repro. `MaxDamageSearch.proveOptimality`
+      awarded ProvenOptimal to a build 3.8 % below the true optimum.
+    - Fix: give vars carrying both MP and graw their own enumeration (MP on the MP axis plus their graw), or bail
+      when such a var exists.
+  - Review follow-ups (2026-10-03: both fixes were adversarially reviewed, MERGE with nits; none is an under-count):
+    - ✅ DONE (CERTIFIER_VERSION 51) Instrument only: the MM and MD-soft provenance replay (`provenance = true`, used by
+      harnesses, never in production) did not undo a stage's LOW-offset shift — each stage now records its shift and
+      the replay undoes it (`curK = geo.shiftLow(pk, -shift)`); the reviewer's ring +12 / amulet −10 repro is a lock.
+    - ✅ DONE (CERTIFIER_VERSION 51) Latent: the MM world-B subs and the assumed cap sub never feed the LOW dim —
+      `requestShape` bails on a negative capped-stat line on one of them; the MD-soft twin stages its world-B cappers,
+      so only its assumed cap sub needed the bail.
+    - ✅ DONE (CERTIFIER_VERSION 51) Test strength: the clamp-equality lock gained a fixture whose items alone carry
+      +9 MP (past the saturation plus Armure lourde II's debit, which every cell's optimum takes) — RED under the
+      `0L * laterDebit` mutation.
+    - ✅ DONE (CERTIFIER_VERSION 51) Harness: the manual max-damage fuzz remaps an unplayable element (CRA's WATER)
+      onto the class's playable ones, keeping every other seed's case unchanged.
+    - Cost (A1, measured): on the MD-soft S4 CRA-245 sweep the two crit-cap worlds grow from 87k to 334k states
+      (12 s → 24 s; the whole sweep 49.7 s → 54.9 s, same peak heap, same bounds). The production refinement of the
+      Mesure III world (DI10 without the 4× grid) was not measured; expect the same ~2.7× state growth there.
+  - Latent, with no catalog data affected today (closed by bails that never fire on the shipped catalog — locked by
+    `latent-shape bails never fire on the shipped catalog`):
+    - ✅ DONE (CERTIFIER_VERSION 51) A FLAT sub's ramp into a secondary mastery would be subtracted as a read source in
+      the max-damage world N — world N bails on that shape.
+    - ✅ DONE (CERTIFIER_VERSION 51) An item's POSITIVE `MAX_ACTION_POINT` / `MAX_MOVEMENT_POINT` line would be
+      under-counted by the MM certificate (`statOf(AP/MP)` ignores the MAX_* riders) — MM and MD-soft bail on a
+      positive rider, on an item or a sub.
+    - ✅ DONE (CERTIFIER_VERSION 51) Dead code: MD-soft's never-set `Opt.mpCapMinus` (and its key bit) removed, keys
+      and bounds unchanged.
+- **DOMINATION CONTRACT — ✅ FIXED (2026-10-03, CERTIFIER_VERSION 53; found by the adversarial review of PR #222).** The
+  per-slot domination pre-filter (`DominationFilter.kt`) feeds the search AND every certificate (`proveOptimality`,
+  the MM bound, the soft certificate: all `applyDomination = true`), so an item it wrongly evicts makes CP-SAT prove
+  `OPTIMAL` on the reduced pool and the certificate agree — a wrong "proven optimal" badge, in every mode.
+  - **The reported bug.** The rarity guard was one-way: an EPIC item could not dominate a non-epic one, but a non-epic
+    item could evict an EPIC (RELIC) one — although only an EPIC (RELIC) item can carry an epic (relic) sub
+    (`Σ epicSub ≤ Σ epicItem`). Repro (`DominationSoundnessReproTest`): level 200, an HP-only EPIC belt, a LEGENDARY belt
+    with 50 fire mastery, Mesure III — full pool 1 909 930, production 1 636 955 with `isOptimal = true` and
+    ProvenOptimal (−16.7 %), free and AP-row request alike. Fix: while an epic (relic) sub is modelled
+    (`modelledSublimations`, the model's own list: choosable or forced, sublimations on or off for a forced one), A may
+    dominate B only if `B epic ⇒ A epic` (`B relic ⇒ A relic`); with no such sub the old one-way rule stays.
+  - **Audit — every dimension the model or a certificate reads from an item:**
+
+    | Dimension | Verdict |
+    |---|---|
+    | rarity budget (≤1 epic / ≤1 relic) | safe (the old `A epic ⇒ B epic` clause) |
+    | epic / relic sub carrier | **fixed** (above) |
+    | rune VALUE: the item's level caps its rune level (`RuneType.maxLevel`) | **fixed**: when runes can be modelled, A's rune-level cap must be ≥ B's whenever B has sockets — a level-200 helmet with 5 more fire evicted a level-220 one whose level-11 runes are worth 12 more (889 920 vs 885 800) |
+    | rune on a CAPPED stat (crit mastery under Secret critique, a secondary under the Neutralité family, dodge under Furie, when that rune type is modelled) | **fixed, defensively**: equal rune-level caps, and equal sockets under max-damage's one-type-per-item fold / collapse (extra sockets would carry more of the capped type). The swap proof needs it; no end-to-end repro — every build tried let the skill points absorb the cap's slack (Strength distance points are more slack-efficient than runes) |
+    | the max-damage choice collapse at rune level 1 (elemental and secondary runes tie, so the per-slot rune TYPE flips at level 2) | **fixed, defensively**: a level-1 carrier is only replaced by another one there |
+    | ring NAME (never two rings of one French name; rarity variants share it) | **fixed**: B is evicted only when its dominators span two names — k = 2 by ITEM let the legendary and mythic variants of ring N evict B, N's only partner (991 660 vs 866 360). Proof in the `dominatedWithin` KDoc |
+    | sockets: count (rune capacity, ≥3-socket normal-sub carrier) | safe (`A.sockets ≥ B.sockets`) |
+    | socket colours | safe: the model is colour-agnostic (doubling is per slot, golden runes form the sub patterns) |
+    | MAX_* riders | safe (pinned since 2026-10-01) |
+    | weapon handedness / slot occupancy | safe: the filter is per `ItemType`; `NO_OFFHAND_OR_TWO_HANDED` is swap-invariant, `WEAPON_TYPE_EQUIPPED` gates domination off |
+    | item level / minimum level | safe: filtered before domination (the rune value is the row above) |
+    | set bonuses / item-specific hooks | none in the model |
+    | forced / excluded items, per-item forced runes | safe: forced items and per-item runes gate domination off, excluded items are removed before it; a global forced rune (resolved by name) counts as any rune type in the rune clause |
+    | per-stat-step ramp source (Poids Plume: MP) | latent hardening: the ramp's source / target are compared in max-damage (MP is pinned anyway) |
+    | best-element concentration FORCED where no single scenario element exists (most-masteries / precision, multi-element) | **fixed (latent)**: gates domination off — the sub's "scenario element strongest" constraint is non-monotone in the off elements |
+    | a multi-element max-damage scenario | **fixed (latent)**: every candidate element's mastery is compared (production enumerates single-element solves) |
+
+  - **Locks** (deterministic CI tests: 1 worker, fixed seed, interleaved search), every one RED on main @ 379830da:
+    `DominationSoundnessReproTest` — the epic-carrier repro end to end (the production `MaxDamageSearch` equals the
+    full-pool optimum and its proof never claims optimal below it, free and AP-row), the ring-name and the rune-level
+    repros (domination-ON solve == full pool), and the real-catalog probe (levels 110 / 200 / 245, GUI-default and free
+    max-damage, GUI-default most-masteries, a forced relic sub: no EPIC / RELIC item that only its own rarity could
+    replace is evicted — main evicted 2–4 per request: Sain Turastil, Piquants du Guerrier Trool, Anneau d'Amakna,
+    Anneau de Sufokia); `DominationFilterTest` — the relation clause by clause, both directions.
+  - **Cost** (pool sizes base → main → now, runes + subs unless noted): max-damage free 2 771 → 2 062 → 2 199 (110),
+    6 416 → 5 272 → 5 551 (200), 7 899 → 6 609 → 6 938 (245, +5.0 %); GUI-default max-damage 245: 6 888 → 7 078
+    (+2.8 %); GUI-default most-masteries / S2 / S3 245: 6 921 → 7 080 (+2.3 %); subs off (no carrier or cap clause): free
+    max-damage 245 784 → 871, S3 3 204 → 3 306. Certificates on the same pools (1 thread): the max-damage fast ledger
+    16.1 → 16.3 s (free 245), 18.0 → 18.8 s (GUI 245), 5.5 → 5.2 s (free 110); the MM bound 17.3 → 18.2 s (S2) — every
+    certified value identical; the nightly lvl-245 fast-ledger oracle is reproduced bit for bit (no re-bank). CP-SAT
+    (1 worker + interleave, det 120): no measurable change (S3 110 and the subs-off free 110 prove OPTIMAL on both
+    pools, same objective, det 45.6 → 7.0 and 26.3 → 16.6 — noise; the subs-on free 110 stays FEASIBLE in both).
+  - **Real badges — none found wrong.** The production chain (10 cores, 180 s search, then the proof) over main's pool vs
+    the contract's (`DominationFilterTest` `manual impact …`): free max-damage 245 ProvenOptimal at 20 811 420 on both;
+    S2 / S3 245 CP-SAT OPTIMAL at the same objective on both; GUI-default max-damage 245 / 200 "within 6.66 % / 11.37 %"
+    on main's pool vs "within 5.97 % / 7.03 %" on the contract's — better incumbents, but neither build wears a readmitted
+    item (search variance) and the certified bounds agree to a few units (19 954 742 vs 19 954 690; 11 246 189 vs
+    11 246 185), so main's badges held. The evicted carriers (Sain Turastil, Piquants du Guerrier Trool, Anneau d'Amakna /
+    de Sufokia) are not in these optima; a request whose optimum needs one (e.g. an epic sub with no strong epic item
+    allowed) would get a wrong badge, as the synthetic repro shows.
+  - **Also fixed:** a latent target-aware RANGE-row bail (`MaxDamageCertifier.kt`): a RANGE_AT_LEAST sub whose OWN +range
+    line is permanent could meet its row through that line, which the free credit excludes — −2.5 % on the synthetic
+    lock (`MaxDamageTargetAwareCertificateTest`, n = 3, +1 range, permanent); no shipped sub has the shape (the extractor
+    flags only FLAT subs' lines permanent), locked by `latent-shape bails never fire on the shipped catalog`.
+  - **Found, out of scope — both since FIXED:** the max-damage rune CHOICE COLLAPSE booked every M-feeding rune
+    under the range-band mastery, so an elemental rune counted as a SECONDARY mastery and no Neutralité-family sub could
+    be active on a free max-damage build carrying runes (+17 % on a 3-item pool once the rune is booked as elemental) —
+    ✅ FIXED, CERTIFIER_VERSION 54 (next item); and the multi-element item PREFILTER (a top-8 heuristic) let
+    most-masteries / precision report CP-SAT `OPTIMAL` as "proven optimal" — ✅ FIXED by #227 (`d4f69bbb`: prefiltered
+    requests withhold every optimality proof).
+- **RUNE CHOICE COLLAPSE — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 54; #226, superseded by its rebase + mitigation); its
+  search cost — OPEN (follow-up below).** Details and measurements: `docs/RUNE_CHOICE_COLLAPSE_FIX.md`.
+  - **The bug.** The collapse keyed a carrier's best M-feeding rune under the range-band mastery, so the Neutralité
+    family's `secondary masteries ≤ 0` charged elemental runes: CRA 80 fire / melee / face proved 796,125 on main while
+    797,775 exists (Neutralité III + Inflexibilité II + Ambition III). A wrong "Optimal proven" badge was possible.
+  - **The fix (#226).** Each rune is keyed under its OWN characteristic; a carrier whose best rune is a secondary mastery
+    read by a cap keeps explicit picks (a cheaper elemental rune can free budget); the AP-cell certifier mirrors both
+    shapes (world N reads an elemental default as E).
+  - **Its search cost and the mitigation.** #226 gave those carriers 3–4 pick bools on 7 of 9 socketed slot kinds (the
+    family is choosable by default): free max-damage searches lost their proofs (80 melee face: proven 41 s → within
+    7.51 %; MD245F on 10 cores: proven 47 s → 100 s). Now each carrier keeps the Pareto set of its candidates over every
+    read of the model (`MaxDamageRuneReads`: the objective, each modelled condition — the cap was read as the SUM of all
+    six secondaries, crit included, at weight 1, wrong: per stat since CERTIFIER_VERSION 56, next item — conversions;
+    forced subs read both ways; any other reader makes a type opaque), and a
+    choice only a choosable cap keeps is gated on those subs (`pick ≤ Σ subVar`). Forced items no longer trigger the
+    explicit picks (the readers come from the modelled subs, not the domination shape).
+  - **Measured (production path, 4 cores, 120 s, 2 runs; main / #226 / pruned):** MD110F back at main's value and badge
+    (1.60–1.61 M within 0.14–1.03 %; #226 1.48–1.52 M within 5.9–8.9 %); MD245F proven like main (54 / 56 s vs 50 / 58;
+    #226 57 / 64), 10 cores 96 / 86 s (main 51 / 100, #226 115 / 112). **Not recovered:** the free FACE requests (80 / 200
+    melee, 230 distance) stay unproven at 120 s — the fix opens the Neutralité world, which at 80 melee face holds a better
+    build than main's "proven" 796,125 (797,775 — the pruned model reaches it in 121 s on 10 cores); with the four caps
+    excluded the pruned model proves all three at main's values and speed (15 / 36 / 49 s), and the v54 certificate bounds
+    those shapes 4–5 % above the best builds. **OPEN follow-up:** a tighter world-N (capped-world) bound, or a cap-free /
+    capped world split of the search — the split would also give short searches their badge back (next bullet): its
+    cap-free world is the old compact collapse, whose first solution lands at det ≈ 2.
+  - **Its first-solution cost (measured 2026-10-05, when the nightly broke).** The explicit picks also delay CP-SAT's
+    FIRST solution, which every max-damage proof needs: the badge and the E8 rescue read the incumbent's raw proxy, and
+    only a solver solution carries one, so a search that ends on the greedy warm start gets no badge and no rescue at all.
+    CRA 110 fire / distance / face, free request, runes + subs; presolved model and det to the first solution, 1 worker +
+    interleave + seed 1:
+
+    | Commit | Full pool (the tests' path) | Production pool (domination on) |
+    |---|---|---|
+    | `d4f69bbb` (v53) | 2,792 vars / 515 constraints, det 3.2 | 2,522 / 477, det 2.75 |
+    | `8df87864` (#226, v54) | 7,553 / 1,973, det 18.6 | 6,795 / 1,793, det 17.6 |
+    | `f81b8b41` (pruning + gates) | 6,289 / 1,973, det 15.5 | 5,648 / 1,791, det 14.6 |
+    | `e0751351` (per-stat, v56) → `606211a4` | 4,914 / 1,426, det 16.9 | 4,301 / 1,252, det 14.6 |
+    | `0e6ed868`, the six cap subs excluded | — | 2,111 / 427, det 2.05 |
+
+    On the production path (`MaxDamageSearch.run`, 4 JVM cores) the shown build carries a solver proxy after 0.73–0.91 s
+    on `d4f69bbb` and 2.64–2.85 s now (Apple M5 performance cores); on its efficiency cores alone, 3.5–4.6 s before and
+    11.5 s or more now (two of three 10 s searches got none). So a free max-damage runes + subs search needs ~3 s on a fast
+    4-core machine, and 10 s or more on slow cores, before it can get any badge; a shorter one shows the greedy build with
+    no badge (before, ~1 s on fast cores was enough). The certificate and the construct are unaffected: from any solver
+    incumbent (the first solution, 18,000; a det-30 search, 1,229,685; a 3 s search, 1,053,430) they prove and construct the
+    same 1,447,590 optimum as `d4f69bbb`, the E8 fast step in 0.4–0.6 s; the certificate itself costs 23–31 s instead of
+    17 s (1 thread, 512 MB heap). The GUI-default request is unaffected: its HP / resistance / dodge rows select the general
+    rune fold, not the collapse (12,452 / 2,356 → 12,463 / 2,372 vars / constraints, first solution det 20.1 → 22.3), and at
+    the default durations (GUI 120 s, CLI 60 s) the badge and the rescue behave as before. The two short-budget nightly
+    proof tests broke on it (2026-10-05): the det-10 search of `max-damage proves the runes+subs level-110 optimum …` returned
+    no build, and the 3 s search of `a short max-damage search still ends proven …` most likely ended on the greedy build on
+    the 4-vCPU runner (the console showed only the failed assertion; reproduced on 4 cores with 1–1.5 s budgets, where
+    `d4f69bbb` still gets a solver incumbent at 1 s). The first now stops at CP-SAT's first solution, the second searches
+    20 s and asserts a solver incumbent; the nightly uploads its JUnit results. `MaxDamageFirstSolutionLatencyTest`
+    (the default `test` task, ~9 s) holds the production-pool first solution under det 20 — against FURTHER growth only (it
+    would not have caught #226, det 17.6); a budget of ~6 only makes sense once the world split exists.
+  - **Locks:** `RuneChoiceCollapseTest` (RED on main), `RuneChoicePruningTest` (the rule per slot on the real catalog,
+    the gates' sub sets, forced / opaque readers; pruned + gated == full-choice == general fold on 24 seeded pools,
+    mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
+- **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — OPEN (soundness; found 2026-10-04 by the #226 review).**
+  The max-damage fold (and the collapse built on it) fills each item with ONE rune type, on the premise (comment in
+  `WakfuBuildSolver.buildModel`) that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE
+  secondary line gives the cap a positive budget, which a mixed item (part secondary, part elemental) can fill exactly
+  while no single type fits. (Measured under the old SUM reading; since CERTIFIER_VERSION 56 a negative line funds only
+  ITS OWN stat — each secondary is capped on its own — so the gap is per stat; not re-measured.) Evidence (the review's collapse-shape fuzz, a scratch harness: free requests, and requests
+  with AP / MP / RANGE / CC rows): the per-stat COUNT model (`forceRuneCountModel`) beat the fold in 12 of 130
+  comparisons — 6 seeded pools, each diverging identically with Neutralité III choosable and forced — by 0.032 % /
+  0.063 % / 0.049 % (free, seeds 71015 / 71036 / 71037) and 0.072 % / 0.481 % / 0.129 % (rows, seeds 72006 / 72014 /
+  72023); the general fold equalled the collapse every time. Re-run on the pruned collapse (CERTIFIER_VERSION 54 as
+  shipped, fresh seeds 91000–91029 free and 92000–92019 with rows, both Neutralité modes): 7 of 50 pools, +0.032–0.242 %,
+  collapse == general fold again in all 100 comparisons. The certificate bounds the folded model, so a "proven optimal"
+  badge can sit up to that far below a mixed-rune build. Not started. Options: keep the count model (or bail the
+  certificate) when a modelled secondary cap meets a negative secondary line in the pool; or offer a mixed option only on
+  the carriers that can need it.
+- **NEUTRALITÉ FAMILY READ AS A SUM — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 56).** The engine credited Neutralité,
+  Ambition, Inflexibilité and Prétention whenever the SUM of the six secondary masteries was ≤ 0; the game requires EACH
+  of them to be ≤ 0, so a positive secondary could be offset by a negative one of another stat — bonuses the game never
+  grants, and optima (with badges) of the wrong model.
+  - **bdata evidence** (local client 1.93.1.62, State 67 → StaticEffect 68, dumped by `SecondaryMasteryCriterionTest`'s
+    install-gated case): Neutralité III (6931 → 317914 → 397776), Abandon II (6932 → 397775), Prétention III
+    (6933 → 397778), Ambition III (7115 → 397777) and Inflexibilité II (7256 → 394768, its live branch; the other branch,
+    330558, ends `and False` and never fires) all carry exactly
+    `GetCharac("MELEE_DMG", "target") <= 0 and GetCharac("RANGED_DMG", "target") <= 0 and GetCharac("BERSERK_DMG", "target") <= 0
+    and GetCharac("CRITICAL_BONUS", "target") <= 0 and GetCharac("BACKSTAB_BONUS", "target") <= 0 and GetCharac("HEAL_IN_PERCENT", "target") <= 0`.
+    `SublimationBuilder` split it on `and` and collapsed the six atoms into one `SECONDARY_MASTERIES_AT_MOST(0)`; the engine
+    (`SubConditionSpec.StatBound`) then summed them. The same collapse also mis-decoded Engagement (7880), whose criterion
+    is the lone `GetCharac("HEAL_IN_PERCENT", "caster") <= 0`: it is now `HEALING_MASTERY_AT_MOST` (display only — its
+    "+30 % heals performed" is not a modelled stat).
+  - **The report.** A player's saved Xelor 200 most-masteries build (fire / water, distance and critical rows, Mémoire
+    forced) carried Neutralité III + Ambition III + Inflexibilité II with distance +76, critical +240, rear −304 and
+    berserk −12: sum 0, so the app showed +44 % DI and +15 % crit that none of the three grants in game. Re-scored today:
+    DI 70 → 26, crit 100 → 85, score 5830 → 4458 (`SecondaryMasteriesEachTest`).
+  - **Fix.** `StatBound` holds iff EACH stat passes (CP-SAT: a reified max of the per-stat reads, reads that can never
+    exceed the threshold left out; re-scorer: each stat). The extractor validates the shape — exactly the six tokens, one
+    threshold, one argument, no `or`, no compound atom — and fails on any other mix. The max-damage rune choice collapse
+    reads one bound per secondary (`MaxDamageRuneReads`): an equal rear rune is no longer replaced by the distance one
+    (a −430-rear item can absorb the rear rune, not the distance one) — `docs/RUNE_CHOICE_COLLAPSE_FIX.md`, per-stat section.
+  - **Certificates.** Every certificate read of the condition is a SUM budget — world N's Lagrangian (`S = D + K + O ≤ 0`),
+    the soft certificate's secZero arm (knapsack, negative-budget cap, μ envelope), the MM world-B knapsack — a RELAXATION
+    of the per-stat rule (each ≤ t ⇒ any k of them sum to ≤ k·t): sound, looser. Their threshold is now read through
+    `secondaryMasteriesSumBound` (6·t for t ≥ 0, t below; the raw t would be stricter than the rule for t > 0 — no shipped
+    sub has t ≠ 0). One per-stat tightening shipped: the MM world-B M-cap is also bounded by Σ over the requested
+    masteries of (t + what lands outside the first-turn read). The inputs changed (the rune pick set), hence v56.
+  - **Open (per-stat tightenings not built).** World N could drop the read crit-mastery credit (K ≤ 0 on its own: λ_K = 0
+    — needs a bail on negative crit-mastery sub lines for Dénouement's conversion) and price a negative line of one
+    secondary at nothing for the others (only valid per stat; not uniformly tighter on sources with negative elemental and
+    positive scenario secondary). The capped world sits ~30 % below the normal worlds on real shapes, so neither moves a
+    production badge today. The single-type fold gap below is per stat now (a negative line funds ITS stat only).
+  - **Measured** (production path, 4-core profile `-XX:ActiveProcessorCount=4 -Xmx3g`, main `ed97adfa` → this fix):
+    - the player's request (Xelor 200, most-masteries, the saved rows, Vivacité II / Visibilité II excluded, Mémoire
+      forced, fire / distance / back, 240 s): main returned 8,470 and 8,532 — both carrying Neutralité III + Ambition III
+      + Inflexibilité II on cross-stat offsets (distance +256 / rear −256; distance +60 and crit +229 / rear −286 and
+      berserk −4), so not what the game gives (the second is worth 5,151 in game, the three caps inactive). The fix
+      returns 8,533 with the same three caps and EVERY secondary ≤ 0 (berserk −4, the rest 0): valid in game (DI 70,
+      crit 101). The saved build itself re-scores from 5,830 to 4,458;
+    - GUI-default most-masteries 245 (`MM245`, 120 s): the same optimum, 10,993 (no cap sub in it) — main "within
+      6.77 %" at the deadline, the fix CP-SAT OPTIMAL at 98 s (one run each; multi-worker variance);
+    - free max-damage 245 (`MD245F`, 120 s, three runs each): the same optimum, 20,811,420, ProvenOptimal every time
+      (no cap sub in it), at 58.3 / 64.1 / 61.7 s on main and 71.0 / 62.0 / 75.6 s with the fix (+13 % mean) — the
+      per-stat rune pick set (#226's size again, gated) costs the certificate warm-up that closes the proof;
+    - the nightly lvl-245 fast ledger (`:autobuilder:slowTest`, `lvl-245 fast certifier ledger`) reproduces the banked
+      oracle bit for bit — the added picks only tie existing ones, world N is unchanged — so nothing re-banked.
+  - **Soundness fuzz** (fresh seeds, 1 worker, seed 1, interleaved): MM with the whole family choosable
+    (`WAKFU_REVIEW_MM_NEUTRALITE=1`, seeds 56000–56039): 40 soft + 25 hard comparisons, 0 under-counts (a forced family
+    sub makes the MM certificate bail by design); max-damage with Neutralité III choosable (56000–56039) and forced
+    (56100–56139), collapse + pruning on: 1,213 cells, 80 ledgers, 0 bails, 292 cells whose optimum carries a dropped
+    family sub, pruned + gated == full-choice on all 80; with required rows (56200–56229): 463 cells, 221 target-aware
+    hard-leg cells — 0 under-counts throughout.
+  - **Locks:** `SecondaryMasteriesEachTest` (the player's build, per-stat unit cases, a CP-SAT fixture offsetting within one
+    stat but not across — RED under a sum reification), `RuneChoicePruningTest` (per-stat rule per slot; the rear-vs-distance
+    fixture: pruned + gated == full-choice == general fold — RED under a sum read: 1,852,970 vs 1,878,720),
+    `SecondaryMasteryCriterionTest` (shapes; the client's criteria), `BuildSearchModelSecondaryCapReloadTest` (a reloaded
+    max-damage build loses the bonus), `RuneChoiceCollapseTest` (its signed-rear helmet fixture re-banked 2,198,020 →
+    2,172,270: the −120 rear no longer funds distance beside Neutralité III). Since #232 (released in 1.14.1) a loaded
+    build is re-scored under the current rules, in every mode (`loadBuild` → `rescored()`: the search's own request
+    mapping and stats grid, scored by `WakfuBestBuildFinderAlgorithm.rescore`; no solver), so an old save shows the
+    corrected stats and score, and a stored "proven optimal" flag is dropped when the score moved. The library cards and
+    the compare view still read the stored entry, until the build is re-saved.
+- **OCTOBER 2026 FOLLOW-UPS — leftovers of the per-element random-roll work (#237, #238) — all OPEN, decided "later"
+  (recorded 2026-10-05).** #237 (`0e6ed868`) made the scorer keep every random-element roll once the targets are met;
+  #238 makes a family read through several per-element rows fold each roll ONCE, jointly (still open when this was
+  written: `ElementRowAssignment.kt` and the joint fold live on its branch until it merges). Both left the points
+  below; none is started.
+  - **MAX-DAMAGE HARD LEG WITH SEVERAL PER-ELEMENT RESISTANCE ROWS: SLOWER SINCE THE JOINT FOLD — OPEN (perf; found by
+    #238's A/B and its review).** The joint fold adds choices (where each roll lands) and the hard leg pays for them.
+    Fixture `maxdmg200res` (max-damage, fire + water resistance rows), 1 worker, seeds 1–3, 120 det-s: the mean final
+    build is about −0.2 % against main (66 438.7 on main; 66 320.7 and 66 424.8 in two runs with the fold), and the
+    proof takes about 3× longer (OPTIMAL at 290.6 det-s against main's 94.8–115.8). The old builds were truly feasible —
+    re-scored with the exact placement they meet the rows — so main's lead is real, not a phantom of its over-count.
+    These requests are prefiltered, so they never earn a badge: the longer proof only delays the search's early stop.
+    - Tried and dropped: hinting the `assign_*` booleans from a deficit greedy — worse.
+    - Idea (not built): solve the OLD over-counting model first, as a RELAXATION — same objective, looser rows, so a
+      superset of the new model's builds. If its optimum meets the rows under the exact placement, it is the proven
+      optimum of the new model too.
+  - **PRECISION RANDOM-ELEMENT ASSIGNMENT: THE PRIMARY IS THE UNWEIGHTED CAPPED SUM — OPEN (scorer consistency; found
+    during #237).** `assignMaxCapped` (`FindClosestBuildFromInputScoring.kt`) maximizes `Σ min(value_e, target_e)` first
+    and breaks only its ties by the weighted sum, while the score and the solver weight every row (`TargetStats.weight`
+    = `100 / target` × the row's priority). The two rank placements alike only when the unmet rows share a weight.
+    - Re-check first: #238 routes every family it reads jointly through its own weighted assignment
+      (`ElementRowObjective`: the solver's weights, priority included) and states that such a family never reaches
+      `assignMaxCapped`. By `readsJointPerElementRows`, what still reaches it in precision is a family with one wanted
+      element, or with no per-element row that has a target (the aggregate's four rows share one weight; 0-valued rows
+      weigh nothing) — so this item and the next may be unreachable once #238 lands. Confirm, then close both or keep
+      them as a guard.
+  - **THE USER'S PER-ROW PRIORITY NEVER REACHES THE RANDOM-ELEMENT ASSIGNMENT — OPEN (scorer consistency; found during
+    #237).** The assignments receive the targets only, so `precisionRowWeight` weighs a row as a default-priority row
+    of its target: with non-default priorities the assignment's tie-break reads default weights. Same re-check as the
+    previous item, which is its other half (the primary ignores weights altogether).
+  - **`assignMaxMin` IS A NEAR-EXHAUSTIVE ENUMERATION — OPEN (perf; found during #237).** The exact max-min
+    assignment of most-masteries (`FindClosestBuildFromInputScoring.kt`; the aggregate resistance row uses it too)
+    tries every way to put each roll on its elements. Its only prune is the average bound
+    `(Σ subset + mass left) / |subset| ≤ best minimum`, which bites only at perfect balance (and the weighted
+    per-element-DI fold has no bound at all). About 40 ms on a real 10-line aggregate build; 1.5–5 s on synthetic
+    4-element / 12-mixed-line instances.
+  - **THE EHP SURVIVABILITY PROXY STILL FOLDS PER-ELEMENT ROWS ONE AT A TIME — OPEN (model-only; found during #238).**
+    `StatBuilder.effectiveHpVar`, the proxy of the opt-in survivability soft floor, reads each of the four resistances
+    through its own single-element fold, so a positive random-element roll counts in full on every element — the
+    over-count #238 removes from the target rows (a negative one counts nowhere since #242: every resistance fold leaves it
+    to the elements it does not read). #238 leaves the proxy as it is and documents why: no scorer mirrors it and no
+    certificate reads it.
+  - **PRECISION: A 0-TARGET ROW OF A FAMILY NOT READ JOINTLY HALVES ON TWO DIFFERENT READS — ✅ CLOSED (2026-10-05,
+    zero-target rows).** A row of target 0 that reads below 0 halves the whole precision objective
+    (`StatBuilder.negativeTargetPenalty`). The solver read such a row's UNFOLDED stat (no "+all elements" lines, no random
+    rolls) while the displayed score halved on the FOLDED value. Rows of target 0 on a required stat are now FLOORS in
+    every mode (AGENTS.md "Rows of target 0"): a resistance one wants no element, and both sides read it on the family's
+    joint fold over the wanted and floored elements, rolls placed as the game lets the player place them (`StatBuilder.floorReads`
+    / `ElementRowObjective.placeKeepingFloors`; a first version read it without the rolls — conservative for a positive roll,
+    blind to a negative one, both wrong-badge risks the PR's review caught); a mastery one reads its element's fold on both
+    sides; a 0-valued row beside a row that targets the same element ("all resistances" + the default air 0) is left to that
+    row. `precisionModelObjective` and the score share `precisionHalves`. Locked by `ZeroTargetRowsTest`'s seeded fuzzes.
+  - **THE PER-ELEMENT-ROW PLACEMENT SEARCH CAN FLIP A HARD-LEG "MET" STATUS WHEN ITS NODE BUDGET BINDS — OPEN (hard-leg
+    status; found by #238's review; documented in the `NODE_BUDGET` KDoc).** `ElementRowAssignment` places a jointly
+    read family's rolls with an exact branch and bound under a deterministic 2M-node budget. Within the budget the
+    solver's hard leg and the scorer's placement agree on "met"; when the budget binds, the placement kept is complete
+    but can read a row as missed (one point short) that the hard leg meets. Seen on synthetic aggregate + per-element
+    shapes with tight targets: about 1.7–3.1 % of such probes. Never on real items: 0 of 12k probes, the worst real
+    case 593k nodes / 65 ms. Follow-up: a feasibility-first repair when the budget binds — #238 expects no clear gain,
+    since its pass 1 already looks for the all-met completions first.
+  - **PRECISION OBJECTIVE VS DISPLAYED SCORE MISMATCH ON `x9prec245` — OPEN (measurement: re-measure after #237 and
+    #238).** Seen with the full pool: solver objective +2.7 % vs displayed −21 %. Very likely explained by the two bugs
+    fixed in #237 (rolls dropped once the targets are met) and #238 (the per-element over-count). Re-measure once both
+    are on main; a gap that survives needs its own diagnosis.
+- **BACKGROUND FULL-CATALOG PROOF FOR MULTI-ELEMENT (PREFILTERED) REQUESTS — PLANNED, "later" (a feature, not a defect;
+  Phase 0 measured; recorded 2026-10-05).** A request on several elements of one family — two specific ones, or an
+  aggregate "all masteries" / "all resistances" row — searches a prefiltered pool (`needsItemPrefilter`: a heuristic
+  top-N per stat; see "The multi-element item pre-filter" in `AGENTS.md`, and `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`
+  §7b–§7c for its origin), so CP-SAT's `OPTIMAL` proves nothing global and the request never earns an optimality badge
+  (#227). The plan: after the search, prove the build over the FULL catalog in the background, and tell the player in
+  the GUI what happened.
+  - **Phase 0 — measured** (full pool + domination, hinted with the prefiltered build):
+    - 9 workers: 25 of 26 most-masteries fixtures proven, median 17.5 s, max about 64 s;
+    - 4 workers with CP-SAT's default portfolio: only 4 of 12;
+    - 4 workers with the subsolvers `[max_lp, reduced_costs, core, default_lp]`: 25 of 26, median 12 s, max 79 s, ≤ 2 GB
+      RSS. Single samples, so repeat before shipping (§C4: multi-worker proof times are variance-dominated, and its
+      "no solver knob" verdict was reached on max-damage, not on this workload);
+    - `xelor200` never proves.
+  - **GUI message, three states:** checking the full catalog / proven / not concluded (timed out, stopped, disabled).
+    Today's interim message says the opposite ("can't be proven, even with more time"): the stats headline explains the
+    missing badge (`UiState.prefilteredRequest`, `Tr.NO_PROOF_TITLE` / `Tr.NO_PROOF_BODY`) and `BuildSearchModel.search` does
+    not start the post-search check for such a request. Rework both with this feature.
+  - **Then a compute-settings panel:** cores used (and why), a simple priority / mode choice, and an on/off for the
+    optimality badge, each with a clear explanation in Settings. Today the "Check optimality after the search" switch
+    (`UiState.verifyOptimality`, persisted by `LibraryPreferences`) and the `proofState` pipeline exist; there is no
+    Settings screen yet.
+  - Open question: what the GUI shows when the full-catalog solve finds a BETTER build than the prefiltered one.
 
 ---
 

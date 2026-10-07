@@ -1,6 +1,7 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import com.google.ortools.sat.CpSolverStatus
+import kotlinx.coroutines.flow.toList
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Character
@@ -17,12 +18,17 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * M3-v2 tightness harness (plan §8.9 amendment). Computes the target-aware folded bound on the
- * campaign fixtures and compares against the banked same-protocol optima:
- *  - S2 frontier soft: folded optimum 67 295 807 882 856 (§8.1.1);
- *  - S3 DI isolate: core optimum 10 985 (v1's bound was 11 909, +8.4%).
+ * campaign fixtures and compares against the banked optima (re-banked 2026-10-02 on data 1.93.1.62,
+ * both proven OPTIMAL by the production portfolio; the 1.92.1.58 values of §8.1.1 were
+ * 67 295 807 882 856 / 10 985):
+ *  - S2 frontier soft: folded optimum 67 728 953 322 880 (hard-leg optimum 61 760 000 002 856);
+ *  - S3 DI isolate: core optimum 10 993.
  *
  * The bound must be ≥ the optimum (soundness canary — an under-count here is a bug, not a win);
- * the measured question is the OVERSHOOT ratio and the DP wall time.
+ * the measured question is the OVERSHOOT ratio and the DP wall time. Measured at CERTIFIER_VERSION
+ * 43 on 1.93: S2 +18.25% soft and +23.58% for the targets-met read a hard-leg result is compared
+ * with, S3 +6.77% (v40: +29.56% / +42.08% / +8.11% — docs/MOST_MASTERIES_PERF_PLAN.md §8.18; v37 on
+ * 1.92: +9.87% / +6.77%, loosened by the v38 soundness fixes, §8.16).
  *
  * ```shell
  * WAKFU_MM_M3V2=1 [WAKFU_MM_M3V2_DEBUG=1] \
@@ -30,8 +36,15 @@ import kotlin.time.Duration.Companion.seconds
  * ```
  */
 class MostMasteriesCertificateTest {
-    private val s2Optimum = 67_295_807_882_856L
-    private val s3Optimum = 10_985L
+    // Re-banked 2026-10-02 on data 1.93.1.62 (production portfolio, both OPTIMAL — S2 in 106 s, S3 in
+    // 16 s); the 1.92.1.58 optima were 67_295_807_882_856 / 10_985.
+    private val s2Optimum = 67_728_953_322_880L
+    private val s3Optimum = 10_993L
+
+    // S2's HARD-leg optimum (targets met — S2 is reachable on 1.93), converted to soft units like the production
+    // stamp (core 6 176, overshoot 2 856): proven OPTIMAL by the production hard leg (perf next-steps E0, 4 cores;
+    // re-proven 2026-10-02 by `manual production hard-leg optimum on S2` in 17.9 s on 10 cores).
+    private val s2HardOptimum = 61_760_000_002_856L
 
     /**
      * CI SOUNDNESS LOCK for the 2026-07-14 review findings A#1/A#2 — the two shapes where the
@@ -416,6 +429,669 @@ class MostMasteriesCertificateTest {
                 .isEmpty()
         }
 
+    private fun fixtureItem(
+        id: Int,
+        type: ItemType,
+        rarity: Rarity = Rarity.LEGENDARY,
+        stats: Map<Characteristic, Int>,
+    ) = me.chosante.common.Equipment(
+        equipmentId = id,
+        guiId = id,
+        level = 200,
+        name = me.chosante.common.I18nText("item$id", "item$id", "", ""),
+        rarity = rarity,
+        itemType = type,
+        characteristics = stats,
+        maxShardSlots = 3
+    )
+
+    private fun fixtureSub(
+        stateId: Int,
+        rarity: me.chosante.common.SublimationRarity,
+        condition: me.chosante.common.SublimationCondition?,
+        vararg effects: me.chosante.common.SublimationEffect,
+        // Cumulable stacking: maxStackLevel / maxTier full copies (the real catalog's Ravage secondaire II = 6 / 2).
+        maxStackLevel: Int = 1,
+        maxTier: Int = 1,
+    ) = me.chosante.common.Sublimation(
+        stateId = stateId,
+        name = me.chosante.common.I18nText("sub$stateId", "sub$stateId", "", ""),
+        rarity = rarity,
+        maxStackLevel = maxStackLevel,
+        maxTier = maxTier,
+        cumulable = maxStackLevel > maxTier,
+        kind = if (condition == null) me.chosante.common.SublimationKind.FLAT else me.chosante.common.SublimationKind.STATIC_CONDITIONAL,
+        solverChoosable = true,
+        condition = condition,
+        effects = effects.toList()
+    )
+
+    private fun fixtureFlat(
+        c: Characteristic,
+        v: Int,
+        beforeCombat: Boolean,
+    ) = me.chosante.common.SublimationEffect
+        .Flat(c, v, appliesBeforeCombat = beforeCombat)
+
+    private fun fixtureParams(targets: List<TargetStat>) =
+        WakfuBestBuildParams(
+            character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+            targetStats = TargetStats(targets),
+            searchDuration = 60.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+            useRunes = false,
+            useSublimations = true
+        )
+
+    private class BindingFixture(
+        val label: String,
+        val pool: Map<ItemType, List<me.chosante.common.Equipment>>,
+        val targets: List<TargetStat>,
+        val subs: List<me.chosante.common.Sublimation>,
+    )
+
+    /**
+     * The binding-target fixtures of the T5 / T1 / T3 port (plan §8.18): tiny pools whose optimum PAYS for its
+     * required targets — a target only a negative-DI-rider sub (or a start-of-combat crit sub) can close, a
+     * condition only a low-read-only sub can open, a target above the out-of-combat cap — so the certificate's
+     * new accounting (signed DI, raw packing, the start-of-combat crit dim, the targets-met read) is exercised
+     * where it binds, not where every target is met for free. The two RANGE fixtures (plan §8.20) bind the range
+     * dim: items paid in mastery, a packed +1-range sub with a DI rider, and a conditional epic's own range line.
+     */
+    private fun bindingFixtures(): List<BindingFixture> {
+        val epic = me.chosante.common.SublimationRarity.EPIC
+        val normal = me.chosante.common.SublimationRarity.NORMAL
+
+        fun cond(
+            type: me.chosante.common.SublimationConditionType,
+            value: Int,
+        ) = me.chosante.common.SublimationCondition(type, value = value)
+        return listOf(
+            // MP 9 is above the 8-MP out-of-combat cap: only the Vélocité-like +1 MP sub (−10 DI rider) closes
+            // it, so the optimum carries the rider; the +10 DI sub makes the knapsack's NET DI matter.
+            BindingFixture(
+                "neg-di-rider-mp-overflow",
+                listOf(
+                    fixtureItem(101, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                    fixtureItem(102, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100, Characteristic.MOVEMENT_POINT to 2)),
+                    fixtureItem(103, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100, Characteristic.MOVEMENT_POINT to 2)),
+                    fixtureItem(104, ItemType.BELT, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100, Characteristic.MOVEMENT_POINT to 1))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.MOVEMENT_POINT, 9)),
+                listOf(
+                    fixtureSub(9201, normal, null, fixtureFlat(Characteristic.DAMAGE_INFLICTED, -10, true), fixtureFlat(Characteristic.MOVEMENT_POINT, 1, true)),
+                    fixtureSub(9202, normal, null, fixtureFlat(Characteristic.DAMAGE_INFLICTED, 10, true))
+                )
+            ),
+            // An AP_AT_MOST 6 epic (+30 DI) on the only epic item (+1 AP): the condition opens only through the
+            // Carapace-like −1 MAX_AP sub, whose sole tracked effect is on the assume world's LOW read.
+            BindingFixture(
+                "low-read-only",
+                listOf(
+                    fixtureItem(111, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                    fixtureItem(112, ItemType.BOOTS, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 600, Characteristic.ACTION_POINT to 1)),
+                    fixtureItem(113, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)),
+                listOf(
+                    fixtureSub(9211, epic, cond(me.chosante.common.SublimationConditionType.AP_AT_MOST, 6), fixtureFlat(Characteristic.DAMAGE_INFLICTED, 30, false)),
+                    fixtureSub(
+                        9212,
+                        normal,
+                        null,
+                        fixtureFlat(Characteristic.MAX_ACTION_POINT, -1, true),
+                        fixtureFlat(Characteristic.RESISTANCE_ELEMENTARY, 75, true)
+                    )
+                )
+            ),
+            // CRIT_AT_MOST 10 epic (+20 DI) + CC 23: base 3 + helmet 5 = 8 pre-combat, the rest must come from
+            // START-OF-COMBAT crit (+12, and a 3-copy +3 stack — raw packing vs per-copy rounding).
+            BindingFixture(
+                "soc-crit-carrier",
+                listOf(
+                    fixtureItem(121, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300, Characteristic.CRITICAL_HIT to 5)),
+                    fixtureItem(122, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 200)),
+                    fixtureItem(123, ItemType.AMULET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 150, Characteristic.CRITICAL_HIT to 10)),
+                    fixtureItem(124, ItemType.AMULET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 250)),
+                    fixtureItem(125, ItemType.BELT, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100)),
+                    fixtureItem(126, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.CRITICAL_HIT, 23)),
+                listOf(
+                    fixtureSub(9221, epic, cond(me.chosante.common.SublimationConditionType.CRIT_AT_MOST, 10), fixtureFlat(Characteristic.DAMAGE_INFLICTED, 20, false)),
+                    fixtureSub(9222, normal, null, fixtureFlat(Characteristic.CRITICAL_HIT, 12, false)),
+                    fixtureSub(9223, normal, null, fixtureFlat(Characteristic.CRITICAL_HIT, 3, false), maxStackLevel = 6, maxTier = 2)
+                )
+            ),
+            // AP 8 = base 6 + the Major point + ONE item AP: the optimum trades 130 mastery for the AP ring.
+            BindingFixture(
+                "binding-ap",
+                listOf(
+                    fixtureItem(131, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                    fixtureItem(132, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 50, Characteristic.ACTION_POINT to 1)),
+                    fixtureItem(133, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200)),
+                    fixtureItem(134, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 180)),
+                    fixtureItem(135, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100, Characteristic.ACTION_POINT to 1)),
+                    fixtureItem(136, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 250))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.ACTION_POINT, 8)),
+                emptyList()
+            ),
+            // AP 9 costs the 1 000-mastery helmet: the SOFT optimum misses the target (×(7/9)⁶ beats −950
+            // mastery) while the HARD leg must pay it — the soft and targets-met reads split.
+            BindingFixture(
+                "hard-soft-split",
+                listOf(
+                    fixtureItem(141, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 1000)),
+                    fixtureItem(142, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 50, Characteristic.ACTION_POINT to 2)),
+                    fixtureItem(143, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200)),
+                    fixtureItem(144, ItemType.BELT, stats = mapOf(Characteristic.MASTERY_DISTANCE to 120, Characteristic.HP to 300))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.ACTION_POINT, 9), TargetStat(Characteristic.HP, 2400)),
+                emptyList()
+            ),
+            // RANGE 3 (plan §8.20) = the Major range point + two more: a Visibilité-like +1-range sub with a −5 DI
+            // rider, a ring (50 vs 200 / 180 mastery) or boots (100 vs 250) carrying +1 — the optimum pays for range.
+            BindingFixture(
+                "binding-range",
+                listOf(
+                    fixtureItem(151, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                    fixtureItem(152, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 50, Characteristic.RANGE to 1)),
+                    fixtureItem(153, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200)),
+                    fixtureItem(154, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 180)),
+                    fixtureItem(155, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100, Characteristic.RANGE to 1)),
+                    fixtureItem(156, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 250))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.RANGE, 3)),
+                listOf(
+                    fixtureSub(9231, normal, null, fixtureFlat(Characteristic.RANGE, 1, true), fixtureFlat(Characteristic.DAMAGE_INFLICTED, -5, true))
+                )
+            ),
+            // A Furie-II-like EPIC sub (range ≥ 2 pre-combat ⇒ +1 range at start of combat, +20 DI) on the only epic
+            // item, whose own +1 range opens the condition: the RANGE 3 target closes only through the sub's line.
+            BindingFixture(
+                "range-epic-carrier",
+                listOf(
+                    fixtureItem(161, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                    fixtureItem(162, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 200, Characteristic.RANGE to 1)),
+                    fixtureItem(163, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 260)),
+                    fixtureItem(164, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 250))
+                ).groupBy { it.itemType },
+                listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.RANGE, 3)),
+                listOf(
+                    fixtureSub(
+                        9241,
+                        epic,
+                        cond(me.chosante.common.SublimationConditionType.RANGE_AT_LEAST, 2),
+                        fixtureFlat(Characteristic.RANGE, 1, false),
+                        fixtureFlat(Characteristic.DAMAGE_INFLICTED, 20, false)
+                    )
+                )
+            )
+        )
+    }
+
+    /**
+     * CI SOUNDNESS LOCK for the T5 / T1 port (plan §8.18): on [bindingFixtures] the certificate's soft read must
+     * upper-bound the pinned CP-SAT soft optimum. Two of them caught latent v40 under-counts (fixed with T5):
+     * `low-read-only` (a sub whose only tracked effect is a NEGATIVE pre-combat AP was dropped as "all-zero", so
+     * the AP_AT_MOST assume world rejected its carrier) and `neg-di-rider-mp-overflow` (the MP dim saturated at
+     * the 8-MP out-of-combat cap, but a sub's +1 MP lands above it — the read stopped one short of the target).
+     */
+    @Test
+    fun `certificate soft read covers binding-target optima`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 60.0)
+            val underCounts = mutableListOf<String>()
+            for (f in bindingFixtures()) {
+                val p = fixtureParams(f.targets)
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(p, f.pool, emptyList(), f.subs, tuning, hardConstraints = false)
+                    .collect { last = it }
+                val final = requireNotNull(last) { "${f.label}: the soft solve emitted nothing" }
+                val incumbent = requireNotNull(final.mostMasteriesObjective) { "${f.label}: no comparable objective stamped" }
+                val bound =
+                    requireNotNull(MostMasteriesCertificate.bound(p, f.pool, emptyList(), f.subs)) { "${f.label}: the certificate bailed on a supported shape" }
+                println(
+                    "MM_CERT_BINDING_LOCK ${f.label} softOptimum=$incumbent softBound=${bound.foldedBound} " +
+                        "gap=${"%+.2f%%".format(Locale.ROOT, (bound.foldedBound.toDouble() / incumbent - 1) * 100)} optimal=${final.isOptimal}"
+                )
+                assertThat(final.isOptimal).describedAs("${f.label}: the tiny pool must be PROVEN, so the lock compares to the optimum").isTrue()
+                if (bound.foldedBound < incumbent) underCounts += "${f.label}: bound ${bound.foldedBound} < optimum $incumbent"
+            }
+            assertThat(underCounts)
+                .describedAs("SOUNDNESS — the certificate must never under-count the CP-SAT soft optimum")
+                .isEmpty()
+        }
+
+    /**
+     * CI SOUNDNESS LOCK for T3 (plan §8.18): the certificate's TARGETS-MET read must upper-bound the pinned CP-SAT
+     * HARD-leg optimum — converted to soft units, the stamp production compares — on [bindingFixtures], and never
+     * exceed the soft read (the same fold on a subset of the states). A hard-leg result is compared with exactly that
+     * read ([MostMasteriesCertificate.Result.comparableUpper]); the `hard-soft-split` fixture is where it pays: its
+     * soft optimum misses a target the hard leg must meet.
+     */
+    @Test
+    fun `certificate targets-met read covers the pinned hard-leg optimum`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 60.0)
+            val underCounts = mutableListOf<String>()
+            for (f in bindingFixtures()) {
+                val p = fixtureParams(f.targets)
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                var outcome: WakfuBuildSolver.SolveOutcome? = null
+                WakfuBuildSolver
+                    .optimize(p, f.pool, emptyList(), f.subs, tuning, hardConstraints = true, onTermination = { outcome = it })
+                    .collect { last = it }
+                assertThat(outcome?.status).describedAs("${f.label}: the tiny pool's hard leg must be PROVEN").isEqualTo(CpSolverStatus.OPTIMAL)
+                val incumbent = requireNotNull(last?.mostMasteriesObjective) { "${f.label}: the hard leg must stamp a (converted) objective" }
+                val bound =
+                    requireNotNull(MostMasteriesCertificate.bound(p, f.pool, emptyList(), f.subs)) { "${f.label}: the certificate bailed on a supported shape" }
+                val hasRequired = f.targets.any { it.characteristic.isRequiredMostMasteriesTarget() }
+                val hardUpper = bound.comparableUpper(hardLeg = true, hasRequiredTargets = hasRequired)
+                println(
+                    "MM_CERT_T3_LOCK ${f.label} hardOptimum=$incumbent targetsMetBound=$hardUpper softBound=${bound.foldedBound} " +
+                        "gap=${"%+.2f%%".format(Locale.ROOT, (hardUpper.toDouble() / incumbent - 1) * 100)} " +
+                        "softGap=${"%+.2f%%".format(Locale.ROOT, (bound.comparableUpper(false, hasRequired).toDouble() / incumbent - 1) * 100)}"
+                )
+                assertThat(hardUpper).isEqualTo(if (hasRequired) bound.hardFoldedBound else bound.coreBound)
+                assertThat(bound.hardFoldedBound)
+                    .describedAs("${f.label}: the targets-met read is the soft fold on a subset of the states")
+                    .isLessThanOrEqualTo(bound.foldedBound)
+                if (hardUpper < incumbent) underCounts += "${f.label}: targets-met bound $hardUpper < hard-leg optimum $incumbent"
+            }
+            assertThat(underCounts)
+                .describedAs("SOUNDNESS — the targets-met read must never under-count the CP-SAT hard-leg optimum")
+                .isEmpty()
+        }
+
+    /**
+     * Production wiring for T3 (plan §8.18): every SOLVED hard-leg emission of the most-masteries orchestration carries
+     * [me.chosante.autobuilder.genetic.SolverResult.mostMasteriesHardConstraintsMet] — what makes the quality proof
+     * compare it with the targets-met read — while the greedy warm start (it precedes the solve) and the soft
+     * fallback's emissions never do. Real production path (wall clock), tiny pools.
+     */
+    @Test
+    fun `hard-then-soft stamps the hard-leg provenance the quality proof trusts`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val f = bindingFixtures().first { it.label == "binding-ap" }
+            val reachable =
+                WakfuBestBuildFinderAlgorithm
+                    .mostMasteriesHardThenSoft(fixtureParams(f.targets).copy(searchDuration = 10.seconds), f.pool, emptyList(), f.subs)
+                    .toList()
+            assertThat(reachable.last().progressPercentage).isEqualTo(100)
+            assertThat(reachable.filter { it.greedyWarmStartEmission }.none { it.mostMasteriesHardConstraintsMet })
+                .describedAs("the pre-solve greedy build must never carry hard-leg provenance")
+                .isTrue()
+            assertThat(reachable.filterNot { it.greedyWarmStartEmission }).isNotEmpty().allMatch { it.mostMasteriesHardConstraintsMet }
+            // AP 12 is out of this pool's reach (base 6 + Major 1 + ring 1 + boots 1): the hard leg yields nothing and
+            // the soft fallback's builds must stay unflagged — they may miss the target.
+            val unreachable =
+                WakfuBestBuildFinderAlgorithm
+                    .mostMasteriesHardThenSoft(
+                        fixtureParams(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.ACTION_POINT, 12)))
+                            .copy(searchDuration = 10.seconds),
+                        f.pool,
+                        emptyList(),
+                        f.subs
+                    ).toList()
+            assertThat(unreachable.last().progressPercentage).describedAs("the soft fallback's guaranteed final send").isEqualTo(100)
+            assertThat(unreachable.none { it.mostMasteriesHardConstraintsMet }).isTrue()
+        }
+
+    /**
+     * CI EXACTNESS LOCK for the 0-valued-row skip (plan §8.20). A required row with target 0 — the GUI's default
+     * "wind resistance 0" / "dodge 0", of ANY stat — weighs 0 in the model (TargetStats: its penalty term, its share of
+     * the expected total and its overshoot term all vanish) and the hard leg only constrains `target > 0`. Next to a
+     * POSITIVE required row the model's objective is therefore IDENTICAL with or without such rows, and so must be every
+     * read of the certificate (bit-identical: the binding fixtures + a seeded pool with the real catalog and runes). With
+     * ONLY 0-valued required rows the model still FOLDS (its predicate is "any required-target stat", at the bucket-1
+     * multiplier): the certificate must fold the same way and cover the pinned CP-SAT optimum of both legs.
+     */
+    @Test
+    fun `0-valued required rows are an exact skip`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val zeroRows =
+                listOf(
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                    TargetStat(Characteristic.DODGE, 0),
+                    TargetStat(Characteristic.LOCK, 0),
+                    TargetStat(Characteristic.RANGE, 0),
+                    // A 0-valued twin of a tracked stat (the soc-crit fixture's CC 23) weighs 0 in the model too.
+                    TargetStat(Characteristic.CRITICAL_HIT, 0)
+                )
+
+            fun reads(r: MostMasteriesCertificate.Result?) = r?.let { listOf(it.foldedBound, it.coreBound, it.hardFoldedBound, it.hardCoreBound, it.states.toLong()) }
+
+            data class Case(
+                val label: String,
+                val targets: List<TargetStat>,
+                val pool: Map<ItemType, List<me.chosante.common.Equipment>>,
+                val runes: List<me.chosante.common.RuneType>,
+                val subs: List<me.chosante.common.Sublimation>,
+                val useRunes: Boolean,
+            )
+            val rng = java.util.Random(7)
+            val seededPool =
+                listOf(ItemType.HELMET, ItemType.CAPE, ItemType.BELT, ItemType.BOOTS, ItemType.AMULET, ItemType.RING, ItemType.RING, ItemType.TWO_HANDED_WEAPONS)
+                    .mapIndexed { i, type ->
+                        fixtureItem(
+                            700 + i,
+                            type,
+                            if (i == 3) Rarity.EPIC else Rarity.LEGENDARY,
+                            mapOf(
+                                Characteristic.MASTERY_DISTANCE to 50 + rng.nextInt(250),
+                                Characteristic.HP to 50 + rng.nextInt(300),
+                                Characteristic.ACTION_POINT to rng.nextInt(2),
+                                Characteristic.RANGE to rng.nextInt(2)
+                            )
+                        )
+                    }.groupBy { it.itemType }
+            val cases =
+                bindingFixtures()
+                    .filter { f -> f.targets.any { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 } }
+                    .map { Case(it.label, it.targets, it.pool, emptyList(), it.subs, useRunes = false) } +
+                    Case(
+                        "seeded-catalog",
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.ACTION_POINT, 9), TargetStat(Characteristic.HP, 3000)),
+                        seededPool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        useRunes = true
+                    )
+            val mismatches = mutableListOf<String>()
+            for (c in cases) {
+                val plain = fixtureParams(c.targets).copy(useRunes = c.useRunes)
+                val zeroed = plain.copy(targetStats = TargetStats(c.targets + zeroRows))
+                assertThat(MostMasteriesCertificate.supportsRequest(zeroed, c.subs)).describedAs("${c.label}: 0-valued rows are supported").isTrue()
+                val a = reads(MostMasteriesCertificate.bound(plain, c.pool, c.runes, c.subs))
+                val b = reads(MostMasteriesCertificate.bound(zeroed, c.pool, c.runes, c.subs))
+                println("MM_ZERO_ROWS_LOCK ${c.label} plain=$a zeroed=$b")
+                if (a == null || a != b) mismatches += "${c.label}: plain $a vs zeroed $b"
+            }
+            assertThat(mismatches).describedAs("EXACTNESS — 0-valued required rows must never move a read").isEmpty()
+
+            // Only 0-valued required rows: the objective folds at the bucket-1 multiplier, in both legs.
+            val f = bindingFixtures().first { it.label == "binding-ap" }
+            val zeroOnly = fixtureParams(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)) + zeroRows)
+            val bound = requireNotNull(MostMasteriesCertificate.bound(zeroOnly, f.pool, emptyList(), f.subs)) { "0-valued-only rows bailed" }
+            val multiplier = requireNotNull(MostMasteriesCertificate.fullTargetsMultiplier(zeroOnly)) { "0-valued rows must fold" }
+            val scale = WakfuBuildSolver.OVERSHOOT_SCALE
+            assertThat(bound.foldedBound).describedAs("folded at the bucket-1 multiplier").isEqualTo(bound.coreBound * multiplier * scale + (scale - 1))
+            assertThat(bound.hardFoldedBound).describedAs("no target > 0: every state meets the (empty) hard leg").isEqualTo(bound.foldedBound)
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 60.0)
+            for (hardLeg in listOf(false, true)) {
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(zeroOnly, f.pool, emptyList(), f.subs, tuning, hardConstraints = hardLeg)
+                    .collect { last = it }
+                val final = requireNotNull(last) { "hardLeg=$hardLeg: the solve emitted nothing" }
+                assertThat(final.isOptimal).describedAs("hardLeg=$hardLeg: the tiny pool must be PROVEN").isTrue()
+                val incumbent = requireNotNull(final.mostMasteriesObjective) { "hardLeg=$hardLeg: no comparable objective stamped" }
+                val upper = bound.comparableUpper(hardLeg = hardLeg, hasRequiredTargets = true)
+                println("MM_ZERO_ROWS_LOCK zero-only hardLeg=$hardLeg optimum=$incumbent upper=$upper core=${bound.coreBound}")
+                assertThat(upper).describedAs("hardLeg=$hardLeg: SOUNDNESS in the folded units").isGreaterThanOrEqualTo(incumbent)
+                assertThat(upper.toDouble() / incumbent).describedAs("hardLeg=$hardLeg: same units (a unit slip reads ~1e6×)").isLessThan(2.0)
+            }
+        }
+
+    /**
+     * CI SOUNDNESS LOCK for the late-staged sub HP (plan §8.20 — the §8.18 open lead 2). The Intelligence %HP skill
+     * multiplies the WHOLE flat HP, but the EPIC/RELIC sub stages run after the skills stage and the world-B / assumed
+     * cap subs are credited at the collapse: their flat HP entered UNSCALED, an under-count of any HP read they feed.
+     * No choosable sub carries HP on 1.93, so three SYNTHETIC +3 000 HP subs — one per path — carry an HP 8 000 target
+     * only %HP-scaled: (1 050 base + 3 000) × 2 = 8 100 at level 100 (25 Intelligence points = +100%), while
+     * (1 050 + 25 Strength points × 20) × 2 = 3 100 stays far short without them. Before the fix the certificate's HP
+     * read topped at 7 000 on every path: the soft read −55.65% and the targets-met read 0 under the pinned optimum. The
+     * HARD-leg optimum (proven in ~50 ms; the soft solve takes ~20 s) is the yardstick of BOTH reads: it meets every
+     * target, so its converted stamp is also that build's soft objective — a lower bound of the soft optimum.
+     */
+    @Test
+    fun `certificate scales the late-staged subs' HP by the percent-HP skill`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val epic = me.chosante.common.SublimationRarity.EPIC
+            val normal = me.chosante.common.SublimationRarity.NORMAL
+
+            fun cond(
+                type: me.chosante.common.SublimationConditionType,
+                value: Int,
+            ) = me.chosante.common.SublimationCondition(type, value = value)
+            val pool =
+                listOf(
+                    fixtureItem(171, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                    fixtureItem(172, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                ).groupBy { it.itemType }
+            val p =
+                fixtureParams(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.HP, 8_000)))
+                    .copy(character = Character(CharacterClass.CRA, 100, 0, CharacterSkills(100)))
+            val fixtures =
+                listOf(
+                    // An unconditional EPIC: staged in the `subs-epic` stage, after the skills.
+                    "epic-stage" to fixtureSub(9251, epic, null, fixtureFlat(Characteristic.HP, 3_000, true)),
+                    // An objective-capping NORMAL (secondary masteries ≤ 100 000 — always met): world B, folded per state.
+                    "world-b" to
+                        fixtureSub(
+                            9252,
+                            normal,
+                            cond(me.chosante.common.SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 100_000),
+                            fixtureFlat(Characteristic.HP, 3_000, false)
+                        ),
+                    // An AP_AT_MOST EPIC (base 6 AP + the Major point ≤ 12 — met): the assumed sub of its own world.
+                    "assumed-cap-sub" to fixtureSub(9253, epic, cond(me.chosante.common.SublimationConditionType.AP_AT_MOST, 12), fixtureFlat(Characteristic.HP, 3_000, false))
+                )
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 60.0)
+            val underCounts = mutableListOf<String>()
+            for ((label, sub) in fixtures) {
+                val bound = requireNotNull(MostMasteriesCertificate.bound(p, pool, emptyList(), listOf(sub))) { "$label: the certificate bailed" }
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                var outcome: WakfuBuildSolver.SolveOutcome? = null
+                WakfuBuildSolver
+                    .optimize(p, pool, emptyList(), listOf(sub), tuning, hardConstraints = true, onTermination = { outcome = it })
+                    .collect { last = it }
+                assertThat(outcome?.status).describedAs("$label: the tiny pool's hard leg must be PROVEN (it needs the sub)").isEqualTo(CpSolverStatus.OPTIMAL)
+                val optimum = requireNotNull(last?.mostMasteriesObjective) { "$label: no comparable objective stamped" }
+                for (hardLeg in listOf(false, true)) {
+                    val upper = bound.comparableUpper(hardLeg = hardLeg, hasRequiredTargets = true)
+                    println(
+                        "MM_CERT_HP_SCALE_LOCK $label read=${if (hardLeg) "targetsMet" else "soft"} hardOptimum=$optimum upper=$upper " +
+                            "gap=${"%+.2f%%".format(Locale.ROOT, (upper.toDouble() / optimum - 1) * 100)} binding=${bound.hardBindingState}"
+                    )
+                    if (upper < optimum) underCounts += "$label ${if (hardLeg) "targets-met" else "soft"} read: bound $upper < optimum $optimum"
+                }
+            }
+            assertThat(underCounts).describedAs("SOUNDNESS — late-staged sub HP must be %HP-scaled like the solver's").isEmpty()
+        }
+
+    /**
+     * CI EXACTNESS LOCK for the stage-option Pareto pruning (perf next-steps P2): the pruned DP must return
+     * the SAME folded and core bounds as the unpruned one — pruning a dominated option is exact only if every
+     * transition and the collapse fold stay monotone in [MostMasteriesCertificate]'s dominance order, which a
+     * new option field or a non-monotone fold would silently break. Random seeded pools (1-2 items per slot,
+     * epic/relic items, signed AP and −MAX_AP lines, block, 0-2 sockets) with the real sub catalog and runes,
+     * × six target shapes × both tiers. No CP-SAT; the UNPRUNED reference DP is the cost (~1 s per case), so CI
+     * runs 4 seeds — `WAKFU_MM_PRUNE_LOCK_SEEDS=8` reproduces the 64-case screen the pruning shipped with (four
+     * shapes then; the fifth, plan §8.18, exercises the T5/T1/T3 regions; the sixth, plan §8.20, the RANGE dim; the
+     * seventh, A1, negative crit lines on a pool variant — the offset LOW dim).
+     */
+    @Test
+    fun `stage-option pruning is bit-identical on seeded random pools`() {
+        val slotTypes =
+            listOf(
+                ItemType.HELMET,
+                ItemType.CAPE,
+                ItemType.BELT,
+                ItemType.BOOTS,
+                ItemType.AMULET,
+                ItemType.RING,
+                ItemType.CHEST_PLATE,
+                ItemType.SHOULDER_PADS,
+                ItemType.ONE_HANDED_WEAPONS,
+                ItemType.OFF_HAND_WEAPONS,
+                ItemType.TWO_HANDED_WEAPONS,
+                ItemType.EMBLEM
+            )
+        val palette =
+            listOf(
+                Characteristic.MASTERY_DISTANCE,
+                Characteristic.ACTION_POINT,
+                Characteristic.MOVEMENT_POINT,
+                Characteristic.CRITICAL_HIT,
+                Characteristic.HP,
+                Characteristic.DAMAGE_INFLICTED,
+                Characteristic.BLOCK_PERCENTAGE,
+                Characteristic.MASTERY_BERSERK,
+                Characteristic.MAX_ACTION_POINT
+            )
+        val shapes =
+            listOf(
+                emptyList(),
+                listOf(TargetStat(Characteristic.ACTION_POINT, 9), TargetStat(Characteristic.HP, 3500)),
+                listOf(TargetStat(Characteristic.MOVEMENT_POINT, 5), TargetStat(Characteristic.CRITICAL_HIT, 40)),
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 10),
+                    TargetStat(Characteristic.MOVEMENT_POINT, 5),
+                    TargetStat(Characteristic.CRITICAL_HIT, 30),
+                    TargetStat(Characteristic.HP, 4000)
+                ),
+                // Plan §8.18: AP / MP above the 16 / 8 out-of-combat caps (the dims now saturate past them). Every
+                // shape runs the catalog's signed-DI normal subs (Vélocité II) through the exact knapsack, the CC
+                // shapes run Constance's assume world with the start-of-combat crit dim, and every targeted shape
+                // compares the targets-met read too. (A CC 80 + HP variant drove the UNPRUNED reference past 20M
+                // states — out of a CI heap; the pruned DP stayed under 30k.)
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 17),
+                    TargetStat(Characteristic.MOVEMENT_POINT, 9)
+                ),
+                // Plan §8.20: the RANGE dim — the pools' ±range lines, the catalog's Visibilité II (packed) and Furie II
+                // (epic, credited as held), the Major range point — next to the assume-AP world of the AP target.
+                listOf(
+                    TargetStat(Characteristic.RANGE, 3),
+                    TargetStat(Characteristic.ACTION_POINT, 9)
+                )
+            )
+        val mismatches = mutableListOf<String>()
+        var compared = 0
+        val seeds = System.getenv("WAKFU_MM_PRUNE_LOCK_SEEDS")?.toLongOrNull() ?: 4L
+        for (seed in 1L..seeds) {
+            val rng = java.util.Random(seed)
+            // RANGE lines come from their own stream, so the other shapes keep their exact pools and cost (an untracked
+            // range never reaches an option).
+            val rangeRng = java.util.Random(seed * 1_000_003L)
+            var id = 0
+            val pool =
+                slotTypes
+                    .flatMap { type ->
+                        (0 until 1 + rng.nextInt(2)).map {
+                            id++
+                            val drawn =
+                                (0 until 2 + rng.nextInt(4)).associate {
+                                    val stat = palette[rng.nextInt(palette.size)]
+                                    val magnitude =
+                                        when (stat) {
+                                            Characteristic.ACTION_POINT, Characteristic.MOVEMENT_POINT ->
+                                                1 + rng.nextInt(2) * (if (rng.nextInt(6) == 0) -2 else 1)
+                                            Characteristic.MAX_ACTION_POINT -> -1
+                                            Characteristic.CRITICAL_HIT -> 1 + rng.nextInt(12)
+                                            Characteristic.HP -> 50 + rng.nextInt(500)
+                                            Characteristic.DAMAGE_INFLICTED -> 1 + rng.nextInt(12)
+                                            Characteristic.BLOCK_PERCENTAGE -> 1 + rng.nextInt(15)
+                                            else -> 20 + rng.nextInt(200) * (if (rng.nextInt(5) == 0) -1 else 1)
+                                        }
+                                    stat to magnitude
+                                }
+                            val stats =
+                                if (rangeRng.nextInt(3) == 0) {
+                                    drawn + (Characteristic.RANGE to (if (rangeRng.nextInt(5) == 0) -1 else 1 + rangeRng.nextInt(2)))
+                                } else {
+                                    drawn
+                                }
+                            val rarity =
+                                when (rng.nextInt(8)) {
+                                    0 -> Rarity.EPIC
+                                    1 -> Rarity.RELIC
+                                    else -> Rarity.LEGENDARY
+                                }
+                            me.chosante.common.Equipment(
+                                equipmentId = seed.toInt() * 10_000 + id,
+                                guiId = id,
+                                level = 200,
+                                name = me.chosante.common.I18nText("p2i$seed-$id", "p2i$seed-$id", "", ""),
+                                rarity = rarity,
+                                itemType = type,
+                                characteristics = stats,
+                                maxShardSlots = rng.nextInt(3)
+                            )
+                        }
+                    }.groupBy { it.itemType }
+            // A1 (CERTIFIER_VERSION 50): a seventh shape on a pool variant with NEGATIVE crit lines (the catalog's −10
+            // rings) — they drive the assume-CC worlds' LOW dim below the real 0 (the offset path) and exercise the ≤
+            // direction of [Opt.dominates] on it. Own stream and its own CC-only shape: the other shapes keep their
+            // exact pools (the four-target shape's UNPRUNED reference on this variant leaves a CI heap).
+            val negCritRng = java.util.Random(seed * 2_000_003L)
+            val negCritPool =
+                pool.mapValues { (_, items) ->
+                    items.map { e ->
+                        if (negCritRng.nextInt(3) == 0) {
+                            e.copy(characteristics = e.characteristics + (Characteristic.CRITICAL_HIT to -(1 + negCritRng.nextInt(10))))
+                        } else {
+                            e
+                        }
+                    }
+                }
+            val cases =
+                shapes.map { it to pool } +
+                    (listOf(TargetStat(Characteristic.MOVEMENT_POINT, 5), TargetStat(Characteristic.CRITICAL_HIT, 30)) to negCritPool)
+            for ((shapeIndex, case) in cases.withIndex()) {
+                val (targets, casePool) = case
+                val p =
+                    WakfuBestBuildParams(
+                        character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                        targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)) + targets),
+                        searchDuration = 60.seconds,
+                        stopWhenBuildMatch = false,
+                        maxRarity = Rarity.EPIC,
+                        forcedItems = emptyList(),
+                        excludedItems = emptyList(),
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                        useRunes = true,
+                        useSublimations = true
+                    )
+                for (blockGate in listOf(false, true)) {
+                    fun boundOf(prune: Boolean) =
+                        MostMasteriesCertificate.bound(
+                            p,
+                            casePool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations,
+                            blockGate = blockGate,
+                            pruneDominatedOptions = prune
+                        )
+                    val reference = boundOf(prune = false)
+                    val pruned = boundOf(prune = true)
+                    val label = "seed $seed shape=$shapeIndex blockGate=$blockGate"
+                    println("MM_PRUNE_LOCK $label states=${reference?.states}/${pruned?.states} wallMs=${reference?.wallMs}/${pruned?.wallMs}")
+                    if (pruned?.foldedBound != reference?.foldedBound ||
+                        pruned?.coreBound != reference?.coreBound ||
+                        pruned?.hardFoldedBound != reference?.hardFoldedBound ||
+                        pruned?.hardCoreBound != reference?.hardCoreBound
+                    ) {
+                        mismatches +=
+                            "$label: pruned ${pruned?.foldedBound}/${pruned?.coreBound} hard ${pruned?.hardFoldedBound}/${pruned?.hardCoreBound} " +
+                            "vs unpruned ${reference?.foldedBound}/${reference?.coreBound} hard ${reference?.hardFoldedBound}/${reference?.hardCoreBound}"
+                    }
+                    compared++
+                }
+            }
+        }
+        assertThat(compared).isEqualTo(seeds.toInt() * (shapes.size + 1) * 2)
+        assertThat(mismatches).describedAs("EXACTNESS — pruning dominated stage options must never move a bound").isEmpty()
+    }
+
     /**
      * The most-masteries HARD leg (targets enforced) emits `core × SCALE + bonus`; its stamp must be
      * CONVERTED into the certificate's soft units (× the full-targets penalty multiplier, ≈1e6). The raw
@@ -621,10 +1297,17 @@ class MostMasteriesCertificateTest {
             val fixtures =
                 (1L..3L).map { seed ->
                     val rng = java.util.Random(seed)
+                    // Plan §8.20: ±range lines from their own stream (the other stats keep their seeded draws). The RANGE 8
+                    // target below binds: next to the Major point, Visibilité II and Furie II (+1 each, Furie's only at a
+                    // pre-combat range ≥ 4), the items carry 7 / 4 / 6 positive range (seed 1 / 2 / 3) — seed 2 tops out at
+                    // 7 (the soft leg prices the shortfall), seed 3 must drop its −1-range helmet or two-hander, seed 1
+                    // reaches it through the Major point and the sub. (RANGE 4 was met for free on every seed: bound and
+                    // optimum cores identical to the range-free request.)
+                    val rangeRng = java.util.Random(seed * 1_000_003L)
                     "seed$seed" to
                         slotTypes
                             .mapIndexed { i, type ->
-                                val stats =
+                                val drawn =
                                     (0 until 2 + rng.nextInt(3)).associate {
                                         val stat = statPalette[rng.nextInt(statPalette.size)]
                                         val magnitude =
@@ -636,6 +1319,12 @@ class MostMasteriesCertificateTest {
                                                 else -> 20 + rng.nextInt(120) * (if (rng.nextInt(5) == 0) -1 else 1)
                                             }
                                         stat to magnitude
+                                    }
+                                val stats =
+                                    if (rangeRng.nextInt(3) == 0) {
+                                        drawn + (Characteristic.RANGE to (if (rangeRng.nextInt(5) == 0) -1 else 1 + rangeRng.nextInt(2)))
+                                    } else {
+                                        drawn
                                     }
                                 item(seed.toInt() * 100 + i, type, if (i == 3) Rarity.EPIC else Rarity.LEGENDARY, stats)
                             }.groupBy { it.itemType }
@@ -649,7 +1338,8 @@ class MostMasteriesCertificateTest {
                             listOf(
                                 TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
                                 TargetStat(Characteristic.ACTION_POINT, 8),
-                                TargetStat(Characteristic.HP, 3000)
+                                TargetStat(Characteristic.HP, 3000),
+                                TargetStat(Characteristic.RANGE, 8)
                             )
                         ),
                     searchDuration = 60.seconds,
@@ -1095,6 +1785,197 @@ class MostMasteriesCertificateTest {
             node++
         }
     }
+
+    /**
+     * Per-world tightness readout on S2 and S3 (plan §8.18): the production orchestration's worlds read one by
+     * one — the main world (`worldDropCaps`, full tier) and one `worldAssume` world per AT_MOST cap sub (quick
+     * grid, as production runs them) — then the overall production call (full tier) with its wall time. S2's
+     * soft read is compared with the banked soft optimum; S3 has no required target (core read).
+     *
+     * ```shell
+     * WAKFU_MM_TIGHT=1 [WAKFU_MM_TIGHT_REPS=3] [WAKFU_MM_TIGHT_WORKERS=0,1] WAKFU_TEST_MAX_HEAP=6g \
+     *   ./gradlew --no-daemon :autobuilder:test --tests '*MostMasteriesCertificateTest*per-world*' --rerun
+     * ```
+     */
+    @Test
+    fun `manual per-world tightness on S2 and S3`() {
+        assumeTrue(System.getenv("WAKFU_MM_TIGHT") == "1")
+        val level = 245
+        val subs = WakfuBestBuildFinderAlgorithm.sublimations
+        val runes = WakfuBestBuildFinderAlgorithm.runes
+        val capSubs =
+            subs.filter {
+                it.solverChoosable &&
+                    it.condition?.type in
+                    setOf(
+                        me.chosante.common.SublimationConditionType.AP_AT_MOST,
+                        me.chosante.common.SublimationConditionType.AP_EXACT,
+                        me.chosante.common.SublimationConditionType.CRIT_AT_MOST
+                    )
+            }
+
+        fun pct(
+            bound: Long,
+            ref: Long,
+        ) = "%+.2f%%".format(Locale.ROOT, (bound.toDouble() / ref - 1) * 100)
+        val frontier =
+            listOf(
+                TargetStat(Characteristic.ACTION_POINT, 16),
+                TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                TargetStat(Characteristic.CRITICAL_HIT, 100),
+                TargetStat(Characteristic.HP, 12000)
+            )
+        // WAKFU_MM_TIGHT_WORKERS=a,b,…: stage-advance worker counts for the TIMED production calls (0 = the default, cores − 1;
+        // the search-time warm-up runs ONE). The first count also reads the bounds.
+        val workerCounts =
+            System
+                .getenv("WAKFU_MM_TIGHT_WORKERS")
+                ?.split(',')
+                ?.mapNotNull { it.trim().toIntOrNull() }
+                ?.ifEmpty { null } ?: listOf(0)
+
+        fun parallelismOf(workers: Int): () -> Int = if (workers > 0) ({ workers }) else LongLongMaxMap::defaultWorkers
+        for ((label, required, optimum) in listOf(Triple("S2", frontier, s2Optimum), Triple("S3", emptyList(), s3Optimum))) {
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)) + required),
+                    searchDuration = 600.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val basePool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, requireNotNull(dominationShape(p, subs)))
+            val value = { r: MostMasteriesCertificate.Result -> if (required.isEmpty()) r.coreBound else r.foldedBound }
+            // The targets-met read (T3) — what a HARD-leg result is compared with — vs the banked hard-leg optimum.
+            val hard = { r: MostMasteriesCertificate.Result ->
+                if (required.isEmpty()) "" else " hard=${r.hardFoldedBound} vsHardOptimum=${pct(r.hardFoldedBound, s2HardOptimum)}"
+            }
+            // The overall production call (full tier) FIRST — S2's is then the JVM's first certificate run, the
+            // protocol of the §8.16/§8.17 wall figures. Its bound is the max over the worlds read below.
+            val overall = requireNotNull(MostMasteriesCertificate.bound(p, pool, runes, subs, parallelism = parallelismOf(workerCounts.first()))) { "$label: bailed" }
+            println(
+                "MM_TIGHT shape=$label world=OVERALL soft=${value(overall)} vsOptimum=${pct(value(overall), optimum)}${hard(overall)} " +
+                    "states=${overall.states} wallMs=${overall.wallMs} workers=${workerCounts.first()} hardBinding=${overall.hardBindingState}"
+            )
+            assertThat(value(overall)).describedAs("$label: SOUNDNESS — never under the banked optimum").isGreaterThanOrEqualTo(optimum)
+            // WAKFU_MM_TIGHT_REPS=n: n timed production calls per worker count (n − 1 more for the first; a shared machine's
+            // load makes one wall noisy).
+            val reps = System.getenv("WAKFU_MM_TIGHT_REPS")?.toIntOrNull() ?: 1
+            for ((index, workers) in workerCounts.withIndex()) {
+                repeat(if (index == 0) reps - 1 else reps) { rep ->
+                    val again = requireNotNull(MostMasteriesCertificate.bound(p, pool, runes, subs, parallelism = parallelismOf(workers)))
+                    check(again.foldedBound == overall.foldedBound && again.hardFoldedBound == overall.hardFoldedBound) { "$label: worker count moved the bound" }
+                    println("MM_TIGHT shape=$label world=OVERALL rep=${rep + (if (index == 0) 2 else 1)} wallMs=${again.wallMs} workers=$workers")
+                }
+            }
+            if (required.isNotEmpty()) {
+                assertThat(overall.hardFoldedBound)
+                    .describedAs("$label: SOUNDNESS — the targets-met read never under the banked hard-leg optimum")
+                    .isGreaterThanOrEqualTo(s2HardOptimum)
+            }
+            val worlds = listOf<me.chosante.common.Sublimation?>(null) + capSubs
+            for (assume in worlds) {
+                val t0 = System.nanoTime()
+                val w =
+                    requireNotNull(
+                        MostMasteriesCertificate.bound(
+                            p,
+                            pool,
+                            runes,
+                            subs,
+                            blockGate = assume == null,
+                            worldAssume = assume,
+                            worldDropCaps = assume == null
+                        )
+                    ) { "$label: world ${assume?.name?.fr ?: "main"} bailed" }
+                println(
+                    "MM_TIGHT shape=$label world=${assume?.name?.fr ?: "main"} soft=${value(w)} vsOptimum=${pct(value(w), optimum)}${hard(w)} " +
+                        "states=${w.states} wallMs=${(System.nanoTime() - t0) / 1_000_000} binding=${w.bindingState}"
+                )
+            }
+        }
+    }
+
+    /**
+     * Re-proves [s2HardOptimum] — the S2 HARD-leg optimum the targets-met read (T3) is measured against — on the
+     * PRODUCTION portfolio (wall clock, cores − 1 workers, domination), and reads the certificate's targets-met
+     * bound on the same shape: the real-shape soundness check of T3 (bound ≥ the proven hard optimum).
+     *
+     * ```shell
+     * WAKFU_MM_HARD_S2=1 [WAKFU_MM_HARD_S2_SECONDS=300] WAKFU_TEST_MAX_HEAP=6g \
+     *   ./gradlew --no-daemon :autobuilder:test --tests '*MostMasteriesCertificateTest*hard-leg optimum on S2*' --rerun
+     * ```
+     */
+    @Test
+    fun `manual production hard-leg optimum on S2`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_HARD_S2") == "1")
+            val seconds = System.getenv("WAKFU_MM_HARD_S2_SECONDS")?.toLongOrNull() ?: 300L
+            val level = 245
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 16),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                                TargetStat(Characteristic.CRITICAL_HIT, 100),
+                                TargetStat(Characteristic.HP, 12000)
+                            )
+                        ),
+                    searchDuration = seconds.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val subs = WakfuBestBuildFinderAlgorithm.sublimations
+            val runes = WakfuBestBuildFinderAlgorithm.runes
+            val basePool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            WakfuBuildSolver.warmUp()
+            val termination =
+                java.util.concurrent.atomic
+                    .AtomicReference<WakfuBuildSolver.SolveOutcome?>(null)
+            val t0 = System.nanoTime()
+            var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+            WakfuBuildSolver
+                .optimize(p, basePool, runes, subs, tuning = null, hardConstraints = true, onTermination = { termination.set(it) })
+                .collect { last = it }
+            val outcome = termination.get()
+            println(
+                "MM_HARD_S2 SOLVER wallMs=${(System.nanoTime() - t0) / 1_000_000} status=${outcome?.status} raw=${outcome?.objectiveValue} " +
+                    "stamped=${last?.mostMasteriesObjective} banked=$s2HardOptimum"
+            )
+            val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, requireNotNull(dominationShape(p, subs)))
+            val bound = requireNotNull(MostMasteriesCertificate.bound(p, pool, runes, subs))
+            val stamped = requireNotNull(last?.mostMasteriesObjective)
+            println(
+                "MM_HARD_S2 CERT targetsMet=${bound.hardFoldedBound} soft=${bound.foldedBound} " +
+                    "targetsMetVsHard=${"%+.2f%%".format(Locale.ROOT, (bound.hardFoldedBound.toDouble() / stamped - 1) * 100)} " +
+                    "softVsHard=${"%+.2f%%".format(Locale.ROOT, (bound.foldedBound.toDouble() / stamped - 1) * 100)} " +
+                    "hardBinding=${bound.hardBindingState}"
+            )
+            assertThat(bound.hardFoldedBound).describedAs("SOUNDNESS on the real shape").isGreaterThanOrEqualTo(stamped)
+        }
 
     @Test
     fun `manual M3-v2 tightness on S2 and S3`() {

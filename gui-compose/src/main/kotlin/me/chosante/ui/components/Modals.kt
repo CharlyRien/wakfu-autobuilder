@@ -1,8 +1,10 @@
 package me.chosante.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +44,16 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +61,7 @@ import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
@@ -69,6 +81,7 @@ import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.PickerMode
 import me.chosante.ui.state.color
+import me.chosante.ui.state.freeBuildName
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.tagInputSuggestions
 import me.chosante.ui.theme.WColor
@@ -105,6 +118,7 @@ fun ModalHost(
     suggestedSaveName: String = "",
     isEditingExisting: Boolean = false,
     takenNames: Set<String> = emptySet(),
+    takenNamesForNew: Set<String> = takenNames + if (isEditingExisting) setOf(suggestedSaveName.trim().lowercase()) else emptySet(),
     editingEntry: HistoryEntry? = null,
     existingFolders: List<String> = emptyList(),
     existingTags: List<String> = emptyList(),
@@ -180,6 +194,7 @@ fun ModalHost(
                     initialName = suggestedSaveName,
                     isEditingExisting = isEditingExisting,
                     takenNames = takenNames,
+                    takenNamesForNew = takenNamesForNew,
                     onSave = onSaveBuild,
                     onCancel = onDismiss
                 )
@@ -293,16 +308,28 @@ internal fun Scrim(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // The card holds the keyboard focus from the start, so Esc works in every modal — a confirm dialog with no text field
+    // included. A field that asks for the focus after it (SearchField's autoFocus) just takes it over: it is inside the card.
+    val cardFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { cardFocus.requestFocus() }
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
                 .background(Color(0xCC0B0C0F))
-                .noRippleClickable(onClick = onDismiss),
+                // Esc closes whichever modal is open. A preview handler, so it fires wherever the focus is inside the card.
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                        onDismiss()
+                        true
+                    } else {
+                        false
+                    }
+                }.noRippleClickable(onClick = onDismiss),
         contentAlignment = Alignment.Center
     ) {
         // Card swallows its own clicks so it does not dismiss the scrim.
-        Box(modifier = Modifier.noRippleClickable {}) {
+        Box(modifier = Modifier.focusRequester(cardFocus).noRippleClickable {}) {
             content()
         }
     }
@@ -337,7 +364,7 @@ private fun AddStatModal(
             }
         }
     ModalCard(title = tr(Tr.ADD_TARGET_STAT_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.FILTER_STATS))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.FILTER_STATS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         Column(
             modifier =
@@ -488,13 +515,15 @@ private fun ItemPickerModal(
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
     var equippableOnly by remember { mutableStateOf(true) }
+    var slotFilter by remember { mutableStateOf<ItemType?>(null) }
     val results =
-        remember(query, equipmentCatalog, selectedNames, level, minLevel, maxRarity, excludedRarities, equippableOnly, lang) {
+        remember(query, equipmentCatalog, selectedNames, level, minLevel, maxRarity, excludedRarities, equippableOnly, slotFilter, lang) {
             val catalog = equipmentCatalog ?: return@remember emptyList()
             val q = query.trim()
             catalog
                 .asSequence()
                 .filterNot { it.name.fr in selectedNames }
+                .filter { slotFilter == null || it.itemType == slotFilter }
                 .filter { !equippableOnly || it.isEquippableForPicker(level, minLevel, maxRarity, excludedRarities) }
                 .filter { equipment ->
                     q.isBlank() ||
@@ -503,8 +532,8 @@ private fun ItemPickerModal(
                         equipment.name.es.contains(q, ignoreCase = true)
                 }.toList()
                 .sortedByLocalized(lang) { it.localizedName(lang) }
-                .take(if (q.isBlank()) 60 else 120)
         }
+    val catalogById = remember(equipmentCatalog) { equipmentCatalog.orEmpty().associateBy { it.equipmentId } }
     val title = if (mode == PickerMode.Forced) tr(Tr.REQUIRE_ITEM_TITLE) else tr(Tr.BAN_ITEM_TITLE)
     val accent = if (mode == PickerMode.Forced) WColor.success else WColor.danger
     ModalCard(title = title) {
@@ -518,14 +547,17 @@ private fun ItemPickerModal(
             onToggle = { equippableOnly = !equippableOnly }
         )
         Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS))
+        ItemSlotFilter(selected = slotFilter, onSelect = { slotFilter = it })
         Spacer(modifier = Modifier.height(WDimens.gap))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS), autoFocus = true)
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        PickerMatchCount(results.size)
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(results, key = { it.equipmentId }) { equipment ->
-                ItemResultRow(equipment = equipment, mode = mode, accent = accent, onClick = { onPick(equipment) })
+                ItemResultRow(equipment = equipment, catalog = catalogById, mode = mode, accent = accent, onClick = { onPick(equipment) })
             }
         }
         if (results.isEmpty()) {
@@ -536,6 +568,38 @@ private fun ItemPickerModal(
             )
         }
         PickerDoneButton(onDone = onDone)
+    }
+}
+
+@Composable
+private fun PickerMatchCount(count: Int) {
+    Text(
+        text = tr(Tr.PICKER_MATCH_COUNT).format(count),
+        style = WTypography.labelSmall.copy(color = WColor.muted),
+        modifier = Modifier.padding(bottom = WDimens.gap)
+    )
+}
+
+@Composable
+private fun ItemSlotFilter(
+    selected: ItemType?,
+    onSelect: (ItemType?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PickerFilterChip(label = tr(Tr.ALL_SLOTS), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
+        ItemType.entries.forEach { slot ->
+            PickerFilterChip(
+                label = slot.label(LocalLang.current),
+                selected = selected == slot,
+                color = WColor.accent,
+                onClick = { onSelect(slot) },
+                iconPath = "assets/itemTypes/${slot.id}.png"
+            )
+        }
     }
 }
 
@@ -568,52 +632,61 @@ private fun LoadingState(message: String) {
     }
 }
 
+/** A compact lazy item row with the game's equip conditions below its name. */
 @Composable
 private fun ItemResultRow(
     equipment: Equipment,
+    catalog: Map<Int, Equipment>,
     mode: PickerMode,
     accent: Color,
     onClick: () -> Unit,
 ) {
     val lang = LocalLang.current
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 11.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        ItemThumbnail(equipment = equipment, size = 38.dp)
-        Column(modifier = Modifier.weight(1f)) {
-            val name = equipment.name.localized(lang)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                RarityIcon(rarity = equipment.rarity, size = 14.dp)
+    val conditions =
+        remember(equipment, catalog, lang) {
+            formatItemEquipConditions(equipment.equipCriterion ?: ItemEquipCriterion(equipment.equipmentId, raw = ""), catalog, lang)
+        }
+    ItemConditionsHover(conditions) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ItemThumbnail(equipment = equipment, size = 38.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                val name = equipment.name.localized(lang)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    RarityIcon(rarity = equipment.rarity, size = 14.dp)
+                    Text(
+                        text = name,
+                        style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                ItemConditionLines(conditions, compact = true)
                 Text(
-                    text = name,
-                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                    text = "${tr(Tr.LEVEL_PREFIX_SHORT)} ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
+                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             Text(
-                text = "${Tr.LEVEL_PREFIX_SHORT.value(lang)} ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
-                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
+                style = WTypography.labelMedium.copy(color = accent)
             )
         }
-        Text(
-            text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
-            style = WTypography.labelMedium.copy(color = accent)
-        )
     }
 }
 
@@ -650,13 +723,14 @@ private fun SublimationPickerModal(
                         .thenComparator { left, right ->
                             localizedCollator(lang).compare(left.name.localized(lang), right.name.localized(lang))
                         }
-                ).take(120)
+                )
         }
     ModalCard(title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE)) {
         SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
         Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
+        PickerMatchCount(filtered.size)
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -705,7 +779,7 @@ private fun SublimationResultRow(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = sub.rarity.name,
+                text = sub.rarity.label(lang),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = sub.rarity.displayColor())
             )
             Text(
@@ -733,9 +807,9 @@ private fun SublimationRarityFilter(
     onSelect: (SublimationRarity?) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        SublimationRarityChip(label = tr(Tr.RARITY_ALL), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
+        PickerFilterChip(label = tr(Tr.RARITY_ALL), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
         listOf(SublimationRarity.NORMAL, SublimationRarity.EPIC, SublimationRarity.RELIC).forEach { rarity ->
-            SublimationRarityChip(
+            PickerFilterChip(
                 label = rarity.label(LocalLang.current),
                 selected = selected == rarity,
                 color = rarity.displayColor(),
@@ -746,11 +820,12 @@ private fun SublimationRarityFilter(
 }
 
 @Composable
-private fun SublimationRarityChip(
+private fun PickerFilterChip(
     label: String,
     selected: Boolean,
     color: Color,
     onClick: () -> Unit,
+    iconPath: String? = null,
 ) {
     Box(
         modifier =
@@ -763,10 +838,17 @@ private fun SublimationRarityChip(
                 .padding(horizontal = 9.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = WTypography.labelSmall.copy(color = if (selected) color else WColor.muted, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            iconPath?.let { path ->
+                rememberClasspathBitmap(path)?.let { bitmap ->
+                    Image(bitmap = bitmap, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+            }
+            Text(
+                text = label,
+                style = WTypography.labelSmall.copy(color = if (selected) color else WColor.muted, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+            )
+        }
     }
 }
 
@@ -806,11 +888,11 @@ private fun PassivePickerModal(
                         passive.description?.localized(lang)?.contains(q, ignoreCase = true) == true
                 }.toList()
                 .sortedByLocalized(lang) { it.name?.localized(lang).orEmpty() }
-                .take(120)
         }
     ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
+        PickerMatchCount(filtered.size)
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -871,29 +953,14 @@ private fun PassiveResultRow(
 @Composable
 private fun BossPickerModal(onPick: (Monster) -> Unit) {
     val lang = LocalLang.current
-    val results =
-        remember(lang) {
-            WakfuBestBuildFinderAlgorithm.monsters
-                // Boss mode targets bosses, not every creature in the bestiary — keep only boss-tier
-                // entries (rank ≥ 1: bosses, golems, ultimate/"Dominant" variants): ~226 of the ~2841 in
-                // the full bdata-sourced bestiary (regular monsters are intentionally hidden from the picker).
-                .filter { it.isBoss }
-                .sortedByLocalized(lang) { it.name.localized(lang) }
-        }
+    // Boss mode targets bosses, not every creature in the bestiary: the roster keeps only boss-tier entries (rank ≥ 1, ~225 of
+    // the ~2 850 monsters), named and sorted in the language of the app. It is short enough to list in full, so there is no
+    // cap — the old take(120) silently hid every boss past "M".
+    val results = remember(lang) { bossRoster(WakfuBestBuildFinderAlgorithm.monsters, lang) }
     var query by remember { mutableStateOf("") }
-    val filtered =
-        remember(query, results) {
-            val q = query.trim()
-            if (q.isBlank()) {
-                results
-            } else {
-                results.filter {
-                    it.name.fr.contains(q, ignoreCase = true) || it.name.en.contains(q, ignoreCase = true) || it.name.es.contains(q, ignoreCase = true)
-                }
-            }.take(120)
-        }
+    val filtered = remember(query, results) { results.filter { it.matchesQuery(query) } }
     ModalCard(title = tr(Tr.CHOOSE_BOSS_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
@@ -918,6 +985,7 @@ private fun BossResultRow(
     monster: Monster,
     onClick: () -> Unit,
 ) {
+    val lang = LocalLang.current
     Row(
         modifier =
             Modifier
@@ -939,17 +1007,17 @@ private fun BossResultRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // The bestiary's English names are lowercased; French is the canonical proper-cased form
-                // (and search matches both), so we display the French name regardless of UI language.
+                // The name in the language of the app (the list is sorted by it, and search matches both languages). The level
+                // beside it is what tells apart bosses that share a name ("Cire Momore" exists at levels 58, 73 and 233).
                 Text(
-                    text = monster.name.fr.ifBlank { monster.name.en },
+                    text = monster.displayName(lang),
                     style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "${Tr.LEVEL_PREFIX_SHORT.value(LocalLang.current)} ${monster.level}",
+                    text = "${tr(Tr.BOSS_LEVEL_SHORT)} ${monster.level}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                 )
             }
@@ -995,7 +1063,7 @@ private fun ItemRunePickerModal(
             style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
         )
         Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 360.dp),
@@ -1184,11 +1252,12 @@ private fun RuneColor.pickerColor(): Color =
 @Composable
 internal fun ModalCard(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier =
-            Modifier
+            modifier
                 .widthIn(min = 380.dp, max = 460.dp)
                 .clip(RoundedCornerShape(WDimens.radius))
                 .background(WColor.surface)
@@ -1204,14 +1273,26 @@ internal fun ModalCard(
     }
 }
 
+/**
+ * The modals' single-line text input. It never takes the keyboard focus by itself: a form with several fields used to end up
+ * with the focus on whichever one was composed LAST (the Save dialog opened on its note field, the Edit dialog on its tags),
+ * so the field that should start focused — a picker's only field, a form's first one — asks for it with [autoFocus].
+ * [onEnter] runs when Enter is pressed in the field (and consumes the key).
+ */
 @Composable
 private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     placeholder: String,
+    autoFocus: Boolean = false,
+    onEnter: (() -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(autoFocus) { if (autoFocus) focusRequester.requestFocus() }
+    // The caller owns the text; the cursor / selection live here. A field that takes the focus on open starts with its whole
+    // text selected, so typing replaces a pre-filled name (a plain String field would leave the cursor at position 0, in
+    // front of the suggestion, and typing would garble it).
+    var field by remember { mutableStateOf(TextFieldValue(text = query, selection = if (autoFocus) TextRange(0, query.length) else TextRange.Zero)) }
     Box(
         modifier =
             Modifier
@@ -1224,12 +1305,19 @@ private fun SearchField(
         contentAlignment = Alignment.CenterStart
     ) {
         BasicTextField(
-            value = query,
-            onValueChange = onQueryChange,
+            value = if (field.text == query) field else field.copy(text = query),
+            onValueChange = { updated ->
+                field = updated
+                if (updated.text != query) onQueryChange(updated.text)
+            },
             singleLine = true,
             cursorBrush = SolidColor(WColor.accent),
             textStyle = WTypography.bodyMedium.copy(color = WColor.text),
-            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .then(if (onEnter != null) Modifier.onEnterKey(onEnter) else Modifier)
         )
         if (query.isEmpty()) {
             Text(text = placeholder, style = WTypography.bodyMedium.copy(color = WColor.faint))
@@ -1237,23 +1325,57 @@ private fun SearchField(
     }
 }
 
+private fun Key.isEnter(): Boolean = this == Key.Enter || this == Key.NumPadEnter
+
+/** Runs [action] when Enter is pressed and consumes the key. A preview handler, so the text field never sees it first. */
+private fun Modifier.onEnterKey(action: () -> Unit): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type == KeyEventType.KeyDown && event.key.isEnter()) {
+            action()
+            true
+        } else {
+            false
+        }
+    }
+
+/** Runs [action] on Ctrl+Enter or Cmd+Enter anywhere inside — the "submit" of a form that has a free-text field. */
+private fun Modifier.onSubmitShortcut(action: () -> Unit): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type == KeyEventType.KeyDown && event.key.isEnter() && (event.isCtrlPressed || event.isMetaPressed)) {
+            action()
+            true
+        } else {
+            false
+        }
+    }
+
 @Composable
 private fun SaveBuildModal(
     initialName: String,
     isEditingExisting: Boolean,
     takenNames: Set<String>,
+    takenNamesForNew: Set<String>,
     onSave: (name: String, note: String?, asNew: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var note by remember { mutableStateOf("") }
-    val nameTaken = name.trim().lowercase() in takenNames
-    ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE)) {
+    var asNew by remember { mutableStateOf(false) }
+    val nameTaken = name.trim().lowercase() in if (asNew) takenNamesForNew else takenNames
+    // Block any save whose name collides with a *different* saved build, so two builds never
+    // share a name (which would make the library and compare view ambiguous).
+    val canSave = name.isNotBlank() && !nameTaken
+    // Enter in the name field and Ctrl/Cmd+Enter anywhere in the dialog do what the highlighted button does ("Update" for a
+    // loaded build, "Save" otherwise), and nothing while that button is disabled.
+    val submit = { if (canSave) onSave(name, note.ifBlank { null }, asNew) }
+    ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE), modifier = Modifier.onSubmitShortcut(submit)) {
         LabeledField(
             label = tr(Tr.SAVE_NAME_LABEL),
             value = name,
             onValueChange = { name = it },
-            placeholder = ""
+            placeholder = "",
+            autoFocus = true,
+            onEnter = submit
         )
         if (nameTaken) {
             Spacer(modifier = Modifier.height(6.dp))
@@ -1269,7 +1391,7 @@ private fun SaveBuildModal(
             onValueChange = { note = it },
             placeholder = ""
         )
-        if (isEditingExisting) {
+        if (isEditingExisting && !asNew) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = tr(Tr.SAVE_UPDATE_HINT),
@@ -1277,18 +1399,18 @@ private fun SaveBuildModal(
             )
         }
         Spacer(modifier = Modifier.height(WDimens.gap))
-        // Block any save whose name collides with a *different* saved build, so two builds never
-        // share a name (which would make the library and compare view ambiguous).
-        val canSave = name.isNotBlank() && !nameTaken
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
-            if (isEditingExisting) {
+            if (isEditingExisting && !asNew) {
                 DialogButton(
                     text = tr(Tr.SAVE_AS_NEW),
                     filled = false,
                     color = WColor.accent2,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, true) },
+                    onClick = {
+                        name = freeBuildName(name, takenNamesForNew)
+                        asNew = true
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 DialogButton(
@@ -1296,7 +1418,7 @@ private fun SaveBuildModal(
                     filled = true,
                     color = WColor.accent,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    onClick = submit,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -1305,7 +1427,7 @@ private fun SaveBuildModal(
                     filled = true,
                     color = WColor.accent,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    onClick = submit,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1399,9 +1521,12 @@ private fun EditBuildModal(
     // The build's own name must not count as "taken" (editing it isn't a collision with itself).
     val ownName = entry.name.trim().lowercase()
     val nameTaken = name.trim().lowercase().let { it != ownName && it in takenNames }
+    val canSave = name.isNotBlank() && !nameTaken
+    // Same keys as the Save dialog: Enter in the name field, Ctrl/Cmd+Enter anywhere (the note, the tags…).
+    val submit = { if (canSave) onSave(entry.id, name, note.ifBlank { null }, tags, folder) }
 
-    ModalCard(title = tr(Tr.EDIT_BUILD_TITLE)) {
-        LabeledField(label = tr(Tr.SAVE_NAME_LABEL), value = name, onValueChange = { name = it }, placeholder = "")
+    ModalCard(title = tr(Tr.EDIT_BUILD_TITLE), modifier = Modifier.onSubmitShortcut(submit)) {
+        LabeledField(label = tr(Tr.SAVE_NAME_LABEL), value = name, onValueChange = { name = it }, placeholder = "", autoFocus = true, onEnter = submit)
         if (nameTaken) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = tr(Tr.SAVE_NAME_TAKEN), style = WTypography.labelSmall.copy(color = WColor.danger))
@@ -1432,7 +1557,7 @@ private fun EditBuildModal(
                 text = tr(Tr.SAVE),
                 filled = true,
                 color = WColor.accent,
-                enabled = name.isNotBlank() && !nameTaken,
+                enabled = canSave,
                 onClick = { onSave(entry.id, name, note.ifBlank { null }, tags, folder) },
                 modifier = Modifier.weight(1f)
             )
@@ -1508,7 +1633,7 @@ private fun FolderPicker(
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
-                    SearchField(query = draft, onQueryChange = { draft = it }, placeholder = tr(Tr.FOLDER_NEW))
+                    SearchField(query = draft, onQueryChange = { draft = it }, placeholder = tr(Tr.FOLDER_NEW), autoFocus = true)
                 }
                 DialogButton(
                     text = tr(Tr.TAG_ADD),
@@ -1535,7 +1660,14 @@ private fun RenameValueModal(
 ) {
     var name by remember { mutableStateOf(initialName) }
     ModalCard(title = title) {
-        LabeledField(label = label, value = name, onValueChange = { name = it }, placeholder = "")
+        LabeledField(
+            label = label,
+            value = name,
+            onValueChange = { name = it },
+            placeholder = "",
+            autoFocus = true,
+            onEnter = { if (name.isNotBlank()) onRename(name) }
+        )
         Spacer(modifier = Modifier.height(WDimens.gap))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
@@ -1727,11 +1859,13 @@ private fun LabeledField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
+    autoFocus: Boolean = false,
+    onEnter: (() -> Unit)? = null,
 ) {
     Column {
         Text(text = label, style = WTypography.labelMedium.copy(color = WColor.muted))
         Spacer(modifier = Modifier.height(6.dp))
-        SearchField(query = value, onQueryChange = onValueChange, placeholder = placeholder)
+        SearchField(query = value, onQueryChange = onValueChange, placeholder = placeholder, autoFocus = autoFocus, onEnter = onEnter)
     }
 }
 

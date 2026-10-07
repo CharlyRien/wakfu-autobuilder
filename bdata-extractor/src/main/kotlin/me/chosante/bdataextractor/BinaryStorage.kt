@@ -111,7 +111,7 @@ internal fun readZipEntryBytes(
 }
 
 /** Reads the index block (entry table + secondary index groups), leaving the decoder ready for [BinaryDecoder.reset]. */
-private fun BinaryDecoder.readIndex(): List<Entry> {
+internal fun BinaryDecoder.readIndex(): List<Entry> {
     val entryCount = i32()
     val entries = ArrayList<Entry>(entryCount)
     repeat(entryCount) { entries.add(Entry(i64(), i32(), i32(), i8())) }

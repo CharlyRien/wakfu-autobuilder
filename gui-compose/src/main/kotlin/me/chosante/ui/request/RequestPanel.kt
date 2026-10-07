@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -65,6 +67,8 @@ import me.chosante.ui.components.MonsterIcon
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.displayFamily
+import me.chosante.ui.components.displayName
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -115,6 +119,7 @@ fun RequestPanel(
     onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit = {},
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
+    onVerifyOptimalityChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -133,9 +138,11 @@ fun RequestPanel(
                 selected = ui.mode,
                 duration = ui.duration,
                 stopAtMatch = ui.stopAtMatch,
+                verifyOptimality = ui.verifyOptimality,
                 onSelect = onModeChange,
                 onDurationChange = onDurationChange,
-                onStopAtMatchChange = onStopAtMatchChange
+                onStopAtMatchChange = onStopAtMatchChange,
+                onVerifyOptimalityChange = onVerifyOptimalityChange
             )
             if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                 BossCard(
@@ -206,48 +213,22 @@ fun RequestPanel(
     }
 }
 
+/** Test tag of the "Check optimality after the search" switch (see [SearchModeCard]). */
+internal const val VERIFY_OPTIMALITY_TOGGLE_TAG = "verify-optimality-toggle"
+
 @Composable
-private fun SearchModeCard(
+internal fun SearchModeCard(
     selected: ScoreComputationMode,
     duration: String,
     stopAtMatch: Boolean,
+    verifyOptimality: Boolean,
     onSelect: (ScoreComputationMode) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
+    onVerifyOptimalityChange: (Boolean) -> Unit,
 ) {
     RequestCard(title = tr(Tr.SEARCH_MODE)) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(WColor.bg)
-                    .border(1.dp, WColor.border, RoundedCornerShape(10.dp))
-                    .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            ModeSegment(
-                title = tr(Tr.MODE_MASTERIES),
-                subtitle = tr(Tr.MODE_MASTERIES_SUB),
-                selected = selected == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
-                onClick = { onSelect(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) },
-                modifier = Modifier.weight(1f)
-            )
-            ModeSegment(
-                title = tr(Tr.MODE_PRECISION),
-                subtitle = tr(Tr.MODE_PRECISION_SUB),
-                selected = selected == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
-                onClick = { onSelect(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) },
-                modifier = Modifier.weight(1f)
-            )
-            ModeSegment(
-                title = tr(Tr.MODE_MAX_DAMAGE),
-                subtitle = tr(Tr.MODE_MAX_DAMAGE_SUB),
-                selected = selected == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                onClick = { onSelect(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) },
-                modifier = Modifier.weight(1f)
-            )
-        }
+        ModeSelector(selected = selected, onSelect = onSelect)
         Spacer(modifier = Modifier.height(12.dp))
         Hairline()
         ConstraintRow(label = tr(Tr.SEARCH_DURATION), sublabel = tr(Tr.SEARCH_DURATION_SUB)) {
@@ -255,6 +236,19 @@ private fun SearchModeCard(
                 NumberField(value = duration, onValueChange = onDurationChange, width = 56.dp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = tr(Tr.SECONDS_SHORT), style = WTypography.labelMedium)
+            }
+        }
+        // The post-search optimality check only exists for the two maximizing modes (most masteries, max damage):
+        // precision mode has no proof to run afterwards, so a switch there would do nothing — it is not offered
+        // (the value persists, and is back as soon as another mode is picked).
+        if (selected != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+            Hairline()
+            ConstraintRow(label = tr(Tr.VERIFY_OPTIMALITY), sublabel = tr(Tr.VERIFY_OPTIMALITY_SUB)) {
+                Toggle(
+                    checked = verifyOptimality,
+                    onCheckedChange = onVerifyOptimalityChange,
+                    modifier = Modifier.testTag(VERIFY_OPTIMALITY_TOGGLE_TAG)
+                )
             }
         }
         // "Stop at 100% match" only makes sense in precision mode — it's the only mode with an exact
@@ -305,7 +299,7 @@ private fun BossCard(
                     MonsterIcon(monster = boss, size = 44.dp)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = boss.name.fr.ifBlank { boss.name.en },
+                            text = boss.displayName(lang),
                             style = WTypography.bodyLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -316,7 +310,7 @@ private fun BossCard(
                                     append(tr(Tr.BOSS_LEVEL_SHORT))
                                     append(' ')
                                     append(boss.level)
-                                    boss.family?.fr?.takeIf { it.isNotBlank() }?.let {
+                                    boss.displayFamily(lang)?.let {
                                         append("  ·  ")
                                         append(it)
                                     }
@@ -613,39 +607,127 @@ private fun ScenarioNumberField(
     }
 }
 
+/** A search mode as the selector offers it: its title, and the sentence that says what it does (caption + hover tooltip). */
+private class ModeOption(
+    val mode: ScoreComputationMode,
+    val title: Tr,
+    val description: Tr,
+)
+
+private val modeOptions =
+    listOf(
+        ModeOption(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, Tr.MODE_MASTERIES, Tr.MODE_MASTERIES_SUB),
+        ModeOption(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT, Tr.MODE_PRECISION, Tr.MODE_PRECISION_SUB),
+        ModeOption(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE, Tr.MODE_MAX_DAMAGE, Tr.MODE_MAX_DAMAGE_SUB)
+    )
+
+/**
+ * Narrower than this the three titles no longer fit side by side without a word breaking in the middle: the longest word
+ * ("Masteries", 57 dp at the segment font) needs a segment of ~68 dp, so three segments plus the control's padding want 220 dp.
+ * The selector then stacks its options, one full-width row each.
+ */
+private val MODE_SELECTOR_SIDE_BY_SIDE_MIN_WIDTH = 220.dp
+
+/**
+ * The search-mode selector: the three modes as titled segments, and under them one sentence saying what the SELECTED mode does
+ * (the others show theirs in a hover tooltip). The segments used to carry a second line each — "minimum constraints,",
+ * "Précisi/on" — that was clipped at every width the panel can be resized to; wrapping a sentence under the control instead
+ * fits at any width, and the options stack when the panel is too narrow for three titles side by side.
+ */
+@Composable
+private fun ModeSelector(
+    selected: ScoreComputationMode,
+    onSelect: (ScoreComputationMode) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val sideBySide = maxWidth >= MODE_SELECTOR_SIDE_BY_SIDE_MIN_WIDTH
+            val frame =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(WColor.bg)
+                    .border(1.dp, WColor.border, RoundedCornerShape(10.dp))
+                    .padding(4.dp)
+            if (sideBySide) {
+                Row(modifier = frame, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    modeOptions.forEach { option ->
+                        ModeSegment(
+                            option = option,
+                            selected = selected == option.mode,
+                            onClick = { onSelect(option.mode) },
+                            modifier = Modifier.weight(1f).height(40.dp)
+                        )
+                    }
+                }
+            } else {
+                Column(modifier = frame, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    modeOptions.forEach { option ->
+                        ModeSegment(
+                            option = option,
+                            selected = selected == option.mode,
+                            onClick = { onSelect(option.mode) },
+                            modifier = Modifier.fillMaxWidth().height(34.dp)
+                        )
+                    }
+                }
+            }
+        }
+        modeOptions.firstOrNull { it.mode == selected }?.let { option ->
+            Text(
+                text = tr(option.description).replaceFirstChar { it.titlecase() },
+                style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 14.sp),
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ModeSegment(
-    title: String,
-    subtitle: String,
+    option: ModeOption,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier =
-            modifier
-                .height(58.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(if (selected) WColor.raised else Color.Transparent)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 8.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+    TooltipArea(
+        modifier = modifier,
+        delayMillis = 350,
+        tooltip = {
+            Box(
+                modifier =
+                    Modifier
+                        .widthIn(max = 260.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(WColor.raised)
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
+            ) {
+                Text(text = tr(option.description).replaceFirstChar { it.titlecase() }, style = WTypography.labelSmall.copy(color = WColor.text))
+            }
+        }
     ) {
-        Text(
-            text = title,
-            style =
-                WTypography.labelMedium.copy(
-                    color = if (selected) WColor.text else WColor.muted,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 14.sp
-                )
-        )
-        Text(
-            text = subtitle,
-            style = WTypography.labelSmall.copy(textAlign = TextAlign.Center, lineHeight = 11.sp),
-            maxLines = 2
-        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(if (selected) WColor.raised else Color.Transparent)
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = tr(option.title),
+                style =
+                    WTypography.labelMedium.copy(
+                        color = if (selected) WColor.text else WColor.muted,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    )
+            )
+        }
     }
 }
 
@@ -952,72 +1034,127 @@ private fun TargetStatRow(
     onWeightChange: (Int) -> Unit,
     onRemove: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        GlyphChip(characteristic = target.characteristic, label = target.glyph, color = target.color)
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            val fullLabel = target.characteristic.label(LocalLang.current)
-            TooltipArea(
-                delayMillis = 350,
-                tooltip = {
-                    Box(
-                        modifier =
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(WColor.raised)
-                                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                                .padding(horizontal = 10.dp, vertical = 7.dp)
-                    ) {
-                        Text(text = fullLabel, style = WTypography.labelMedium.copy(color = WColor.text))
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        val priority: @Composable () -> Unit = {
+            PriorityMeter(
+                weight = target.weight,
+                onChange = onWeightChange,
+                modifier = Modifier.testTag(priorityMeterTestTag(target.id))
+            )
+        }
+        if (maxWidth >= TARGET_ROW_ROOMY_MIN_WIDTH) {
+            // Glyph | name over (kind + priority) | value | remove. The name column gets everything the controls leave over.
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                GlyphChip(characteristic = target.characteristic, label = target.glyph, color = target.color)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    TargetLabel(target)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(text = kind, style = WTypography.labelSmall, maxLines = 1)
+                        priority()
                     }
                 }
-            ) {
-                Text(
-                    text = fullLabel,
-                    style = WTypography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Spacer(modifier = Modifier.width(6.dp))
+                NumberField(value = target.value, onValueChange = onValueChange, width = TARGET_VALUE_WIDTH)
+                Spacer(modifier = Modifier.width(6.dp))
+                RemoveTargetButton(onRemove)
             }
-            Text(text = kind, style = WTypography.labelSmall)
-        }
-        NumberField(
-            value = target.value,
-            onValueChange = onValueChange,
-            width = 62.dp
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        PriorityMeter(
-            weight = target.weight,
-            onChange = onWeightChange,
-            modifier = Modifier.testTag(priorityMeterTestTag(target.id))
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Box(
-            modifier =
-                Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .clickable(onClick = onRemove),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "×",
-                style =
-                    WTypography.bodySmall.copy(
-                        color = WColor.faint,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 14.sp
-                    )
-            )
+        } else {
+            // Too narrow to leave the name room beside value + priority (the name read "Cri…" / "He…"): the name gets the
+            // full width of its own line, with the controls on a second line under it.
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    GlyphChip(characteristic = target.characteristic, label = target.glyph, color = target.color)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        TargetLabel(target)
+                        Text(text = kind, style = WTypography.labelSmall, maxLines = 1)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    RemoveTargetButton(onRemove)
+                }
+                Row(
+                    modifier = Modifier.padding(start = 36.dp, top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    NumberField(value = target.value, onValueChange = onValueChange, width = TARGET_VALUE_WIDTH)
+                    priority()
+                }
+            }
         }
     }
 }
 
+/** Width of a target row's value field: five digits ("10000" HP) fit. */
+private val TARGET_VALUE_WIDTH = 62.dp
+
+/**
+ * Below this row width the stat name can no longer sit beside the value field and the priority bar without being cut to
+ * "Cri…": the name column would have to hold the "minimum + priority" line (~104 dp) and still be allowed to wrap, and the
+ * fixed parts (glyph 28 + value 62 + remove 24 + gaps 20) already take 134 dp. The row then uses its two-line layout.
+ */
+private val TARGET_ROW_ROOMY_MIN_WIDTH = 240.dp
+
+/** The stat's name, wrapping at word boundaries (two lines) instead of being cut; a hover tooltip shows it in full. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TargetLabel(target: TargetRow) {
+    val fullLabel = target.characteristic.label(LocalLang.current)
+    TooltipArea(
+        delayMillis = 350,
+        tooltip = {
+            Box(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(WColor.raised)
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
+            ) {
+                Text(text = fullLabel, style = WTypography.labelMedium.copy(color = WColor.text))
+            }
+        }
+    ) {
+        Text(
+            text = fullLabel,
+            style = WTypography.bodyLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun RemoveTargetButton(onRemove: () -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .clickable(onClick = onRemove),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "×",
+            style =
+                WTypography.bodySmall.copy(
+                    color = WColor.faint,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 14.sp
+                )
+        )
+    }
+}
+
 private const val PRIORITY_MAX = 5
+
+/**
+ * The priority bar is 5 × 9 dp + 4 × 2 dp = 53 dp (it was 77): the whole bar is still ONE click/drag target, so narrower blocks
+ * lose nothing, and the 24 dp saved go to the stat name that the bar used to squeeze to "Cri…".
+ */
+private val PRIORITY_BLOCK_WIDTH = 9.dp
+private val PRIORITY_BLOCK_GAP = 2.dp
 
 /** Test tag for a row's priority meter, keyed by the row id so UI tests can target one specific row. */
 internal fun priorityMeterTestTag(rowId: String): String = "priority-meter-$rowId"
@@ -1090,7 +1227,7 @@ private fun PriorityMeter(
                             currentOnChange(levelForX(change.position.x, size.width))
                         }
                     },
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(PRIORITY_BLOCK_GAP),
             verticalAlignment = Alignment.CenterVertically
         ) {
             for (segment in 1..PRIORITY_MAX) {
@@ -1098,7 +1235,7 @@ private fun PriorityMeter(
                 Box(
                     modifier =
                         Modifier
-                            .size(width = 13.dp, height = 16.dp)
+                            .size(width = PRIORITY_BLOCK_WIDTH, height = 16.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(if (lit) priorityColor(segment) else WColor.raised)
                             .then(if (lit) Modifier else Modifier.border(1.dp, WColor.border, RoundedCornerShape(4.dp)))
@@ -1197,10 +1334,11 @@ private fun ConstraintRow(
 private fun Toggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier =
-            Modifier
+            modifier
                 .width(44.dp)
                 .height(24.dp)
                 .clip(RoundedCornerShape(999.dp))

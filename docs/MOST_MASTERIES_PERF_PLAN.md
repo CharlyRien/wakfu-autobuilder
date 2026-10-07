@@ -897,7 +897,8 @@ Wired end-to-end (maintainer UX choice: AUTOMATIC + phase display):
 - **GUI**: automatic trigger after a most-masteries search whose CP-SAT leg ended non-OPTIMAL,
   through the EXISTING ProofState pipeline — the user sees "Vérification de l'optimalité… (Xs)"
   then "Optimal prouvé à X% près" (or the proven-optimal headline if the incumbent reaches the
-  bound). No new UI surface needed.
+  bound). No new UI surface needed. (Since §8.19 the bound is computed BESIDE the search, so the
+  spinner phase is usually skipped: the verdict lands when the search ends.)
 - **Locks**: CI soundness fuzz (3 seeded pools, bound ≥ pinned CP-SAT soft optimum — also locks the
   stamping end-to-end); full autobuilder suite + gui-compose suite green.
 
@@ -1131,11 +1132,314 @@ at ~+10% on S2-class folded shapes; only the item-space search itself (CP-SAT) c
 mile — which is the §8 decomposition verdict re-derived from the dual side.**
 
 **Operating point stands as shipped**: two-tier badge (+11.2% quick / +9.87% full) as the
-low-core backup; prod multi-worker CP-SAT proves S2 in 199 s. Campaign artifacts kept:
+low-core backup; prod multi-worker CP-SAT proves S2 in 199 s. (Superseded 2026-10-02: one full-tier
+pass computed beside the search, §8.19.) Campaign artifacts kept:
 `MostMasteriesRestrictedDD`(+Test) — a validated sound-primal beam (useful if a node-incumbent
 consumer ever appears) — and the certificate's `optionVeto` seam (harness-only). The only
 remaining never-proves workload stays S4 (max-damage soft, 4.18× — needs a D·Graw certificate,
 a different construct, priced separately).
+
+### 8.16 Re-baseline (2026-10-02): 1.93 optima re-banked; the v38 soundness wave loosened S2 to +29.6%
+
+The +9.87% / +6.77% quoted above (and the §8.1.1 optima) had gone stale. Re-measured with the M3-v2
+harness (`manual M3-v2 tightness on S2 and S3`, full tier, `WAKFU_TEST_MAX_HEAP=6g`) on archived
+snapshots of each commit, and the optima re-proven with the campaign-2 baseline matrix on the
+production portfolio (`WAKFU_MM_C2_PROD=1`, OPTIMAL in 106 s for S2, 16 s for S3):
+
+| code | data | S2 optimum | S2 bound | S2 gap | S3 optimum | S3 bound | S3 gap |
+|---|---|---|---|---|---|---|---|
+| v37 (`ef822b80`) | 1.92.1.58 | 67 295 807 882 856 | 73 934 594 729 999 | +9.87% | 10 985 | 11 729 | +6.77% |
+| v38 (`f12c888d`) | 1.92.1.58 | (same) | 87 682 584 629 999 | +30.29% | (same) | 11 876 | +8.11% |
+| v39 (penalty floor) | 1.93.1.62 | **67 728 953 322 880** | 87 747 187 749 999 | **+29.56%** | **10 993** | 11 885 | **+8.11%** |
+
+- The 1.93 data is negligible (bound +0.07%, optimum +0.64%); v39's penalty floor is bit-identical
+  (measured). The whole move is the v38 pre-release soundness wave (`f12c888d`) on identical data.
+  Soundness holds on the re-banked optima (bound ≥ optimum on both shapes).
+- Per world (`bound(worldDropCaps = true)` + one `worldAssume` per cap sub), v37 → v38: main
+  73.93T → 84.93T (+14.9%; binding state M 6 164 → 6 621, DI 20 → 30), Inflexibilité 60.71T →
+  65.60T, Constance 20.09T → 46.88T, **Mesure III 38.88T → 87.68T — now the binding world**.
+- Mesure III (EPIC, crit ≤ 50) is lifted by the assume-world `outsideReadMax(CRITICAL_HIT)`
+  constant: the start-of-combat crit of EVERY choosable normal sub at max copies (Ambition III +15,
+  Influence vitale III +12 ×2, Ravage secondaire II +3) is credited on every state, regardless of
+  the 10-sub budget — the CC credit climbs from 50 to ~92 of the 100 target. Real builds can do it
+  (the S2 optimum carries Influence vitale III ×2 + Ravage secondaire II), but not for free.
+- The main world's DI +10 is consistent with Mesure's BLOCK ≥ 40 gate (+10 DI), opened in v38 only
+  because block-only subs (Dérobade continue III) are now kept — and the S2 optimum carries Mesure +
+  Dérobade continue III ×2, so part of the +14.9% is v37 under-crediting a real build.
+- User impact: when CP-SAT has not proven the result itself, the MM "proven within X%" badge on
+  S2-like shapes reads ~30% instead of ~10%.
+- Leads (not started): (1) price the start-of-combat crit lines INSIDE the DP (sub options feeding
+  a final-crit dim that never enters the LOW read) instead of a budget-free constant — caps the
+  Mesure III world's lead (at most −3.2pt, down to the main world's +26.2% on 1.92); (2) bisect the
+  main world's +14.9% across `f12c888d`'s individual credits (paired MP, Armure lourde debit,
+  block-only subs, start-of-combat LOW-dim exclusion) to separate honest credits from avoidable slack.
+
+### 8.17 SHIPPED (2026-10-02, CERTIFIER_VERSION 40): exact stage-option pruning + primitive DP maps
+
+From the perf next-steps pass (P2 + P1). Bound and core are bit-identical; only the work changes.
+
+- **P2 — `paretoPrune`**: every stage's option list (across a slot's items, a branch's skill allocations,
+  the sub knapsack's outputs) is cut to its exact Pareto front under `Opt.dominates` before the advance.
+  Exact because a dominating option has identical flags and yields a successor that is ≥ on every
+  over-counted dim, ≤ on the assume-world LOW dims and ≥ on M, and every later transition and the
+  collapse fold are monotone in that order. Measured per-stage cuts (S2 main world, quick tier):
+  item slots ~3-4k → 46-83 options, skills-Strength 1 722 → 41, normal-sub knapsack 223 → 5. The
+  ring-pair list (> 200k options, pruned per pair already) is skipped.
+- **P1 — `LongLongMaxMap`**: the stage advance max-merges into a primitive open-addressing map instead of
+  boxed `HashMap<Long, Long>` sweeps (no boxed key per transition, ~32 B vs ~72 B per entry, no chain
+  degradation on colliding packed keys); states stay a `HashMap` between stages for the collapse/provenance.
+- Production path, 10 cores, same JVM protocol as §8.16: **S2 full tier 66.4 s → 8.8 s, 4 597 924 →
+  45 214 states**; S3 2.0 s → 1.6 s, 11 904 → 2 368 states; bounds unchanged (87 747 187 749 999 /
+  11 885). The probe pass measured quick tier 35.6 s → 7.9 s and, on a 4-core profile (3 GB heap), the
+  GUI's quick → full chain 207 s → 19 s.
+- Locks: `stage-option pruning is bit-identical on seeded random pools` (CI, 4 seeds × 4 target shapes ×
+  both tiers vs the unpruned DP; `WAKFU_MM_PRUNE_LOCK_SEEDS=8` = the 64-case screen it shipped with, all
+  identical) and `LongLongMaxMapTest`.
+- Follow-up: the full tier now costs about what the quick tier does, so the GUI's two-tier badge
+  (quick first, full refine) could become one full pass started during the search — DONE, §8.19.
+
+### 8.18 SHIPPED (2026-10-02, CERTIFIER_VERSION 41 → 43): T5, T1, T3 — S2 soft +29.56% → +18.25%, hard leg +42.08% → +23.58%
+
+The tightening trio of the perf next-steps pass (`docs/perf-next-steps-2026-10.md` §3 #2-#3, §4.3 — prototyped there
+behind default-OFF seams on v38), ported one step per CERTIFIER_VERSION, each the only code path. Measured with
+`manual per-world tightness on S2 and S3` (MostMasteriesCertificateTest: the production call first — full tier, S2's
+the JVM's first certificate run like §8.16/§8.17 — then every world read alone), `WAKFU_TEST_MAX_HEAP=6g`, 10 cores,
+`--no-daemon`, single runs. References: S2 soft optimum 67 728 953 322 880, S2 hard-leg optimum
+61 760 000 002 856 (core 6 176 — S2 is reachable on 1.93, so production returns a HARD-leg build there), S3 10 993.
+
+| step | version | S2 soft bound | vs soft opt | what an S2 hard-leg result is compared with | vs hard opt | S3 bound | vs opt | S2 full tier |
+|---|---|---|---|---|---|---|---|---|
+| base | 40 | 87 747 187 749 999 | +29.56% | the soft bound | +42.08% | 11 885 | +8.11% | 8.9 s, 45 214 states |
+| T5 exact normal-sub packing | 41 | 82 691 993 609 999 | +22.09% | the soft bound | +33.89% | 11 737 | +6.77% | 9.0 s, 49 398 states |
+| T1 start-of-combat crit dim | 42 | 80 090 257 809 999 | +18.25% | the soft bound | +29.68% | 11 737 | +6.77% | 10.2 s, 67 318 states (*) |
+| T3 targets-met read | 43 | 80 090 257 809 999 | +18.25% | the targets-met read 76 320 000 009 999 | **+23.58%** | 11 737 | +6.77% | (same run as T1) |
+
+(*) single cold runs; see "Wall" below for the same-load A/B (v43 within +2-3% of v40).
+
+S2 per world (soft read; the targets-met read in brackets at v43):
+
+| world | v40 | v41 (T5) | v42/v43 (T1) |
+|---|---|---|---|
+| main (no cap sub) | 84.996 T | 80.090 T | **80.090 T** [76.320 T] — binds |
+| assume Inflexibilité (AP ≤ 10) | 65.646 T | 64.831 T | 64.831 T [0] |
+| assume Constance (CC ≤ 10) | 46.884 T | 46.257 T | 36.675 T [0] |
+| assume Mesure III (CC ≤ 50) | 87.747 T — bound | 82.692 T — bound | 66.965 T [0] |
+
+S3 has no required target and no CC target: T1 and T3 cannot move it; T5 takes it from +8.11% to +6.77% (main world
++1.52% → +0.25%: the ramp's MP had been bought with Vélocité II's free +1 MP — its −10 DI now pays).
+
+- **T5 (v41) — exact normal-sub packing**, the port of the soft certificate's `exactNormalSubPacking`. The 10-slot
+  knapsack sums every axis RAW per subset (CC, HP, block — three +3 CC copies used to be credited a full 10-CC bucket
+  each) and DI SIGNED (Vélocité II's −10 rider now pays against the subset's other DI); the DP rounds each axis once
+  when the packed option enters it. Every other sub carries its NET DI clamped at 0. Sound: a subset's sums are exact
+  up to saturation at the dims' own caps; the DI dim takes the negative delta with `nextDi` (UP-rounded quotient, floor
+  at 0, a saturated dim stays saturated — its real DI may sit anywhere above the cap); a rider is priced only on a
+  CARRIED sub, and a solver-chosen sub always applies (`subVar ≤ condHolds`).
+- **Two latent v40 under-counts**, found by the new binding fixtures (measured on the v40 base) and fixed with T5:
+  (1) the AP/MP dims saturated at the 16/8 out-of-combat caps, but those cap only the PRE-sublimation sheet —
+  Vivacité II / Vélocité II land above them, so a reachable AP 17 / MP 9 target read one short
+  (`neg-di-rider-mp-overflow`: bound 5.43e12 < optimum 1.009e13, −46%); the dims now saturate at
+  min(target, 16/8 + every positive sub/passive/ramp line). (2) A sub whose only tracked effect is a NEGATIVE
+  pre-combat AP (Carapace II's −1 MAX_AP) was dropped as "all-zero", so an AP_AT_MOST assume world rejected the real
+  carrier it opens (`low-read-only`: 1 342 < 1 708, −21%); low-read-only subs are kept, like in the soft certificate.
+- **T1 (v42) — start-of-combat crit dim.** In an assume-CC world the fold credited
+  `threshold + outsideReadMax(CRITICAL_HIT)`: the start-of-combat crit of EVERY choosable sub at max copies,
+  budget-free (§8.16's lead 1). The crit the path's staged subs actually carry now rides a saturating state dim
+  (`soc`, raw, cap `target − threshold` — past it the read meets the target whatever else lands, so saturating is
+  exact; the packed knapsack sums it raw too); world-B subs' crit rides their per-state `extra` (it used to be counted
+  twice); the constant keeps passives, ramps and never-staged subs. Sound: the dim over-counts the carried crit and
+  every staged sub feeds it. Note: the prototype's assume-CC per-world readings (Constance 29.7 T, Mesure III 55.4 T)
+  were UNDER-counts — its knapsack decoded the copy count as `k shr 52` while the soc field sat at bits 56-61, so a
+  packed state carrying start-of-combat crit stopped growing; the port (data-class key) reads 36.7 T / 67.0 T, the
+  binding state hand-checked (CC read 10 + 33 carried + 15 Ambition III = 58). The overall bound is the main world's
+  either way.
+- **T3 (v43) — the targets-met read**, from the SAME DP pass: the collapse reads every (state, world-B subset) a second
+  time, keeping only the states whose over-counted reads meet every required target > 0, folded at the full-targets
+  multiplier ([MostMasteriesCertificate.Result.hardFoldedBound]). A most-masteries HARD-leg result is the optimum over
+  exactly the builds with `actual ≥ target` for every target > 0 (`StatBuilder.addRequiredTargetHardConstraints`), and
+  its stamp is `core × fullTargetsMultiplier × SCALE + bonus` — the same units. Sound: every read over-counts the final
+  stat (or saturates at ≥ the target — the AP/MP fix above makes that true past the out-of-combat caps), so a
+  targets-met build's own state passes; never above the soft read (the same fold on a subset of the states). On S2 the
+  three assume worlds cannot meet the targets (0) and the main world's 80.090 T soft state misses one: 76.320 T.
+  Production wiring: `SolverResult.mostMasteriesHardConstraintsMet` (mirrors `maxDamageHardConstraintsMet`) is set by
+  `mostMasteriesHardThenSoft` on every solved hard-leg emission (never on the greedy warm start nor the soft
+  fallback); `proveMostMasteriesQuality` compares through `Result.comparableUpper(hardLeg, hasRequiredTargets)`.
+- **Exactness of the Pareto pruning** (§8.17) is preserved: `ccSoc` joins `Opt.dominates` (≥, over-counted), `nextDi`
+  is monotone in both arguments, and the targets-met filter is monotone in the reads.
+- **Wall**: the raw knapsack and the soc dim add states (S2 45k → 67k; the assume-CC worlds carry the soc dim). Single
+  cold runs read S2's full tier 8.9 s → 10.2 s, but the shared machine's load moves single runs by ±30%: a back-to-back
+  A/B under the same load (4 timed production calls per JVM) gave v40 min 12.5 s / median 13.0 s vs v43 min 12.8 s /
+  median 13.4 s — +2-3%, within the noise. The pruning lock's UNPRUNED reference grew more (2.8M states on its 4-target
+  shape; a CC 80 + HP variant passed 20M and was dropped): that lock now takes ~80-130 s (was ~40 s).
+- **Locks** (MostMasteriesCertificateTest, CI): `certificate soft read covers binding-target optima` (5 tiny pinned
+  fixtures where the targets bind: negative-DI-rider carrier above the MP cap, low-read-only opener, start-of-combat
+  crit carrier with a 3-copy stack, binding AP, a soft/hard split); `certificate targets-met read covers the pinned
+  hard-leg optimum` (same fixtures, CP-SAT hard leg OPTIMAL; `hard-soft-split`: targets-met read +0.00%, soft read
+  +15.71% over the hard optimum); `hard-then-soft stamps the hard-leg provenance the quality proof trusts`; the
+  pruning bit-identity lock extended (5th shape AP 17 / MP 9; the targets-met read compared too). Manual:
+  `manual per-world tightness on S2 and S3` (`WAKFU_MM_TIGHT=1`), `manual production hard-leg optimum on S2`
+  (`WAKFU_MM_HARD_S2=1`, re-proves the banked hard optimum and checks the targets-met read against it).
+- **Open leads** (not done): (1) in an assume world the assumed sub holds the single epic slot, yet world-B subsets
+  may still contain an EPIC member — Inflexibilité II rides the binding states of Constance's and Mesure III's worlds
+  (exact to exclude; not binding overall today); (2) the Intelligence %HP does not scale the flat HP of epic/relic,
+  world-B or assumed subs (staged/folded after the skills) — latent, no choosable sub carries HP today; (3) the S2
+  residual (+18.25% soft / +23.58% hard) is the main world's: the perf pass measured the block gate (T2) and the ramp
+  slot (T4) null.
+
+### 8.19 SHIPPED (2026-10-02, orchestration only — bounds bit-identical, no CERTIFIER_VERSION bump): one-pass badge computed in the search's tail (E10-for-MM)
+
+§8.17 made the full tier cost what the quick tier did, so the quick → full chain is gone: production computes
+ONE full-tier bound. It is incumbent-free, so — like max-damage's E10 — it is computed during the search and the
+post-search proof only compares.
+
+- **Wiring.** `WakfuBestBuildFinderAlgorithm.run` wraps the most-masteries flow in
+  `MostMasteriesBoundCache.withSearchTimeWarmup`: memo keyed on the request (search-only fields normalized, data +
+  certifier versions; a bail is memoized too); single-flight (the post-search proof waits for the in-flight
+  compute, or starts one on demand and cancels it if it gives up); the DP stage advance on ONE thread while a
+  most-masteries search runs, all chunk workers once none does (`bound(parallelism)` → `LongLongMaxMap.advance
+  (workers)`, bit-identical at any count); only for requests `MostMasteriesCertificate.supportsRequest` accepts;
+  superseded by any new search (any mode); cancelled when the search ends OPTIMAL, without a comparable objective,
+  or is cancelled. API: `mostMasteriesQualityBound` (compute) + `compareMostMasteriesQuality` (pure compare — the one
+  line a hard-leg read switches), composed by `proveMostMasteriesQuality(params, result, shouldContinue)` (GUI one
+  pass; the CLI now prints the most-masteries verdict too).
+- **Measured on the 4-core laptop profile** (`-XX:ActiveProcessorCount=4 -Xmx3g`, M5; S2 = lvl-245 CRA distance +
+  AP16/MP8/CC100/HP12000, runes + subs, EPIC; harness `MostMasteriesBadgeOverlapTest`, `WAKFU_MM_OVERLAP=1`):
+  - the bound alone: full tier **9.2 s** at 3 stage workers, **12.3 s** at 1, bit-identical (87 747 187 749 999; the
+    quick tier reads the same value on S2 in 8.3 s — the binding Mesure III world always runs the quick grid); pool +
+    domination 0.8 s.
+  - interference, race-free (1-worker deterministic hard leg, det 15, identical trajectory and objective): 22.4 /
+    22.5 s alone, 25.5 / 26.4 s beside a 1-thread bound loop (**−15% CP-SAT throughput**), 27.3 / 30.1 s beside a
+    3-worker loop (−22..34%) ⇒ one stage worker while the search runs.
+  - the production search (3 workers, 40 s budget) with the bound from its START: both bound-free runs followed one
+    trajectory (44.6T at 10 s, 59.4-60.1T at 20 s); all six runs with a bound running from the start (warm-up,
+    1-thread loop, 3-worker loop) sat below both at every 10-25 s checkpoint (24.8-33.5T at 10 s, 46.7-55.9T at
+    20 s), reaching ~57-60T only at 22-40 s. Final objectives stayed within race noise (61.3 / 60.3T vs 59.4 / 60.2T)
+    but the early anytime curve was clearly worse ⇒ **never in the search's first 30 s**.
+- **Shipped schedule**: start at `max(30 s, budget − 30 s)` into the search (`warmupStartDelay`; none when the
+  budget is ≤ 30 s — the proof then computes it on demand, all workers). At the GUI default (120 s) it starts at
+  90 s: S2 proves OPTIMAL at ~83 s there on 4 cores (§E0), so it never runs.
+- **Badge delay after search end, S2** (4-core profile). BEFORE — the old quick → full chain, whatever the budget
+  (6 runs at 40 / 45 / 75 s): quick badge **+10.3 to +12.3 s**, full badge **+19.6 to +23.3 s**. AFTER, per budget
+  (warm-up start in brackets):
+
+  | budget | after (one pass) | notes |
+  |---|---|---|
+  | 30 s (none) | +12.2 / +13.1 s | the proof computes the bound on demand (all workers) |
+  | 45 s (30 s) | **+0.9 / +2.5 s** | the bound finishes just after the search |
+  | 55 s (30 s) | **0 ms** | bound done at 51.9 s (rep 1: CP-SAT proved OPTIMAL at 52.4 s instead) |
+  | 75 s (45 s) | — | CP-SAT proved OPTIMAL at 53.4 / 49.5 s; warm-up cancelled after 8.4 / 4.5 s |
+  | 40 s (from the start — NOT shipped) | 0 ms | bound done at ~20 s, but the early phase slowed (above) |
+
+  Final objectives with the shipped schedule stay within race noise: at 45 s OFF 60.36 / 61.33T vs ON 60.08 /
+  61.17T, while the two arms — identical code until 30 s — already differed by up to ±1.5T at 30 s.
+
+- Locks: `MostMasteriesBoundCacheTest` (memo/single-flight, give-up cancel, replaced dying flight, bail memo,
+  throttle 1 → all workers, proof joins the warm-up, OPTIMAL / non-comparable / mid-flight cancel, same-request
+  adoption vs supersede, ineligible shapes, the schedule, delayed start, `supportsRequest` ↔ `bound` parity, compare
+  arithmetic, end-to-end one-item pool vs the direct certificate), `LongLongMaxMapTest` (every worker count gives
+  the identical map) and three `BuildSearchModelE2ETest` cases (one pass, a superseded proof never lands, no proof
+  for a CP-SAT-proven result).
+
+### 8.20 SHIPPED (2026-10-02, CERTIFIER_VERSION 45 → 47): one source for the request-level bails; RANGE + 0-valued rows — the GUI-default request gets its badge; %HP on late-staged sub HP
+
+The coverage hole of the perf pass's E0 (`docs/perf-next-steps-2026-10.md` §1, §3 #5, §4.7): on a 4-core laptop the
+GUI-default most-masteries request at level 245 ends with no CP-SAT proof in 120 s AND no badge — the certificate bailed
+on its RANGE row and on its 0-valued rows. One step per CERTIFIER_VERSION; S2 / S3 bit-identical (soft
+80 090 257 809 999, targets-met 76 320 000 009 999, S3 11 737 — measured at v45 and v46 with `manual per-world tightness
+on S2 and S3`; v47 only scales HP lines no catalog sub carries).
+
+**What the GUI sends** (most-masteries mode, `UiState.defaultTargetValues` → `BuildSearchModel.toTargetStats`): all eight
+rows — AP 11, MP 4, RANGE 4, CC 25, distance mastery 1, HP 2000, wind resistance 0, dodge 0. `toTargetStats` drops a
+0-valued per-element resistance row only inside `expandGlobalResistance`, i.e. only when a GLOBAL resistance row exists;
+the defaults have none, so both 0-valued rows reach the engine (the field accepts digits only: no negative target).
+**What the model does with them**: `TargetStats` weighs a 0-valued row 0 (`associateWeights`), so its penalty term, its
+share of the expected total and its overshoot term all vanish, and the hard leg constrains `target > 0` only; the row
+still FOLDS the objective (the predicate is "any required-target stat"). Its shard type (dodge / wind resistance) joins
+the rune model — objective-neutral, a blank socket for the certificate.
+
+- **v45 — one source of truth for the request-level bails.** `requestShape(params, subs, diag, blockGate)` computes every
+  request-level fact (requested masteries, required / tracked rows, passives, cap subs, block gate, the MP→DI ramp, the
+  final AP/MP uppers) and every request-level bail; `bound` reads it in every world and `supportsRequest` (the warm-up's
+  gate) is `requestShape(…, no diag, full tier) != null`. The gate had missed the final-stat-upper conversion bail, the
+  AP/MP field overflow, the cap-sub count / non-EPIC bails and the second-ramp bail. Hardening bails on shapes no current
+  request reaches: one stat required twice (the fold read one row per stat — an under-count), a choosable sub converting
+  into DI or a tracked CC / HP / block / range (its moved value rode no option — an under-count; only Dénouement converts
+  today, into the untracked elemental mastery), and the CC / HP / block packed-field overflows (were exceptions). Lock:
+  `supportsRequest and bound share every request-level bail on synthetic catalogs` (MostMasteriesBoundCacheTest, every
+  bail and its control through both entries).
+- **v46 — coverage.** (a) A 0-valued required row of ANY stat is an exact skip: no dim, no rune axis, no skill relevance,
+  no fold or targets-met term — only the fold predicate keeps it (0-valued-only requests still fold, at the bucket-1
+  multiplier, like the model). (b) RANGE gets a saturating state dim (5 bits, raw, saturating at the target; a target
+  above 31 bails): items' positive range, a RANGE shard axis (none exists on 1.93), subs' positive range in every path
+  (the exact normal packing — Visibilité II —, the epic stage — Furie II, credited as if its `range ≥ 4` held —, world-B
+  and assumed credits), the Major "Range and damage" point, passives; negative lines (Combat rapproché II, −1/−2 items)
+  dropped (an over-count). The model caps range nowhere (`applyOutOfCombatCaps`: AP / MP / WP / crit only), so unlike
+  T5's AP / MP no final-stat upper can sit below the target. `Opt.range` joins `Opt.dominates` (≥).
+  GUI-default bound (10 cores, 6 GB; `MostMasteriesCoverageHarnessTest`, `WAKFU_MM_COVERAGE_BOUND_ONLY=1`):
+
+  | level | supportsRequest | soft = targets-met read | core (soft / targets-met) | states | wall |
+  |---|---|---|---|---|---|
+  | 245 | false → **true** | 117 018 242 119 999 | 11 737 / 11 737 | 94 896 | 8.6 s |
+  | 110 | false → **true** | 18 524 315 749 999 | 1 971 / 1 858 | 227 688 | 1.1 s |
+
+  At 245 the binding state (Mesure III world) meets every target, RANGE 4 included, and its core equals the range-free
+  S3 bound — the perf pass's upper estimate (§4.7) is exactly reached: against E0's 4-core incumbent (core 10 469) the
+  badge reads **≈ +12.1 %** where it read Unavailable. (Not re-measured on the 4-core production path: the harness's
+  search mode, `MostMasteriesCoverageHarnessTest` without `BOUND_ONLY`, is ready for it.)
+- **v47 — %HP on late-staged sub HP** (§8.18 open lead 2). The %HP skill scales the whole flat HP, but the EPIC/RELIC sub
+  stages run after the skills stage and the world-B / assumed subs are credited at the collapse: their flat HP entered
+  unscaled. It is now scaled by the largest reachable %HP (Σ PERCENT-HP skill × points; an over-count). No choosable sub
+  carries HP on 1.93 (bit-identical bounds). Lock `certificate scales the late-staged subs' HP by the percent-HP skill`:
+  three synthetic +3 000 HP subs (one per path, HP 8 000 at level 100 = (1 050 + 3 000) × 2) — the v46 certificate read
+  −55.65 % (soft) and 0 (targets-met) under the pinned hard-leg optimum on all three.
+- **Locks** (MostMasteriesCertificateTest, CI): `0-valued required rows are an exact skip` (binding fixtures + a seeded
+  catalog pool: all four reads AND the state count identical with and without five 0-valued rows; a 0-valued-only
+  request folds and covers the pinned soft and hard optima); two RANGE binding fixtures in the soft and targets-met locks
+  (`binding-range` +4.76 %, `range-epic-carrier` +0.00 %); the soft fuzz with ±range lines and a binding RANGE 8 target
+  (RANGE 4 was met for free on every seed — identical bounds); the pruning bit-identity lock with ±range lines and a sixth
+  shape (RANGE 3 + AP 9). Manual: `MostMasteriesCoverageHarnessTest` (`WAKFU_MM_COVERAGE=1`: the GUI-default request on
+  the production path, 4-core profile), the per-world harness's `WAKFU_MM_TIGHT_WORKERS` / `_REPS`.
+- **Not done** (stopped for budget): P3 (ring / weapon pair options built once per proof — a superset build + per-world
+  projection and re-prune, exact as a set; prototyped, unmeasured); the 4-core production run of the GUI default.
+
+### 8.21 FIXED (2026-10-02, CERTIFIER_VERSION 50): A1 — the assume worlds' LOW dims are no longer floored at 0
+
+The soundness bug A1 (`perf-review-backlog.md` §E). An assume world (Constance / Mesure III: `CRIT ≤ t`; Inflexibilité:
+`AP ≤ t`) tracks the capped stat in a LOW dim that must stay ≤ the real pre-combat read. Every transition clamped it at
+0, and so did the seed. The real read goes negative, because the solver floors the pre-sub sheet at −9 only. Example: a
+−10-crit ring staged first, then +12: the dim read 12 > 10 while the real read was 5, so the real Constance carrier was
+rejected in its own world. The soft read and the targets-met read were both affected, in this certificate and in its
+max-damage soft twin (`MaxDamageSoftCertificate`).
+
+- **Fix (both certificates).** The LOW dim is stored with an OFFSET: `dim = LOW read + lowOff`. `step()` grows `lowOff`
+  by each stage's worst negative LOW delta (items, ring / weapon pairs, the normal knapsack's aggregate, sub stages,
+  skills; the seed too) and re-keys the states before the stage runs, so no transition needs a floor. The saturation
+  moves with it (`threshold + 1 + lowOff`), and the collapse filters `dim − lowOff > threshold`. The provenance log keeps
+  each stage's offset for the replay.
+- **Field width.** The level-245 catalog has a −5…−30 crit item in nearly every slot: `lowOff` reaches 118 (Constance:
+  129, Mesure III: 169 of the field). That overflows the 7-bit CC field, and a bail would have dropped the crit worlds
+  on every level ≥ 140 request. The LOW dim therefore takes the key's 2 spare bits @61, giving AP 7 bits and raw CC 9
+  bits (≤ 511). A world whose offset still outgrows the field bails (pool-dependent, so it is not a `requestShape`
+  bail). Measured with no bail on S2, the GUI default and a CC-40 request at levels 50 / 110 / 140 / 200 / 245.
+- **Exactness of the Pareto pruning (P2).** `Opt.dominates` compares the LOW dims with `≤`. A dominator's LOW delta is
+  ≤, so the stage minimum (the offset) is the same with or without pruning. The bit-identity lock gains a seventh case:
+  MP 5 + CC 30 on a pool variant with −1…−10 crit lines. Injecting them into every shape pushed the unpruned four-target
+  reference past a 512 MB CI heap.
+- **Effect.**
+
+  | case | before (v48) | after (v50) |
+  |---|---|---|
+  | 3-item repro (core) | 3 102 (−15.4 %; badge ProvenOptimal on the no-sub build) | 3 666 = optimum (ProvenWithin 18.2 %) |
+  | real catalog, Mesure III excluded (soft = targets-met) | 44 715 584 559 999 (−7.1 %) | 48 155 244 909 999 (optimum 48 155 244 901 818) |
+  | real level-245 items with Tyra 'neau (both reads) | 73 180 020 209 999 (−0.81 %) | 76 809 111 129 999 (+4.1 %) |
+  | max-damage soft twin, production setting | 1 394 410 000 000 (−4.8 %) | 1 593 100 000 000 (+8.7 %) |
+  | S2 soft / targets-met, S3 | 80 090 257 809 999 / 76 320 000 009 999, 11 737 | **bit-identical** (S3's Constance world 11 729 → 11 737) |
+
+  No pinned figure moved, so nothing was re-banked. Cost (per-world harness, 4 cores, 3 reps): S2 overall 22.4–28.4 s
+  vs 21.0–31.8 s on v48, within noise. S2's final state count is 67 k → 240 k, because the crit worlds no longer merge
+  their sub-zero states. S3 is unchanged (2.4–3.7 s).
+- **Locks.** In `SoundnessReviewAdversarialTest`, the four A1 repros are now CI locks (each runs in under 1 s) and the
+  control stays. The pruning lock gains its seventh case.
 
 ## 9. CAMPAIGN — the S4 D·Graw certificate (max-damage soft leg; maintainer GO 2026-07-14)
 

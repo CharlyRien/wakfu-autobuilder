@@ -317,6 +317,16 @@ beaten by brute force — `RandomElementAssignmentTest` locks each exact assignm
 locked end-to-end: the solver's optimum == the exact-scorer exhaustive optimum on small pools with random items,
 for aggregate mastery, the unequal-target multi-specific case, aggregate resistance, AND precision aggregate.
 
+**Tie-break (2026-10): every roll is placed.** Both exact assignments used to start from "no roll placed" and to replace
+it only on a STRICT gain of their own objective, so a roll the objective cannot see vanished from the displayed stats:
+in precision once the non-random stats already met every target (nothing can raise `Σ min(value, target)`, and the
+score above 100 % then read no roll at all — the freed model, whose overflow bonus does count them, ranked builds the
+re-scorer disagreed with), in most-masteries when the minimum cannot move. They now start from a complete water-fill
+placement and break ties deterministically, the primary objective untouched: precision — capped sum, then the score's
+own reading above 100 %, `Σ weight · value` (its rows weighted like `TargetStats.weight`); most-masteries — the minimum,
+then the mastery on the minimised elements. Locked against an exhaustive lexicographic optimum in
+`RandomRollsTieBreakTest`, plus the solver's optimum == the scorer's best when only the rolls tell the builds apart.
+
 **Result (lvl-245, prefiltered production pool):** aggregate **most-masteries FEASIBLE 204 s → OPTIMAL 3.8 s**
 (constraints 10 379 → 2 139), proven optimum **rose 4336 → 4755** (greedy was leaving mastery on the table); the
 full unprefiltered pool now even proves (≈72 s) to the same 4755. Aggregate **precision → OPTIMAL 1.6 s**. The
@@ -447,7 +457,14 @@ duplicated here) — the short version of where it landed:
   `proofState` badge (proven optimal / within X% / unavailable). Memory-only per-cell cache keyed on
   `WakfuData.VERSION` + `CERTIFIER_VERSION`.
 - **Coverage**: forced-item pinning and forced-sublimation credit (FLAT, conditional, conversion,
-  crit-secret, combat-conditional) are all certified where sound; every unsupported shape BAILS.
+  crit-secret, combat-conditional) are all certified where sound; every unsupported shape BAILS. Since
+  CERTIFIER_VERSION 44 (2026-10-02, `CERTIFICATE_PROD_PLAN.md` P5.4) that includes the GUI-default target rows:
+  an HP / resistance / dodge row switches the model to the general single-type rune fold, which the certifier now
+  mirrors (non-damage runes = zero-delta options) instead of bailing every cell; and the two sub families the pools
+  used to DROP unguarded (the Neutralité family, the EPIC block sub Mesure — an under-count when the optimum carries
+  one) are covered by fast-tier AUX worlds. Since CERTIFIER_VERSION 48 (P5.4b) one relaxed world stands for the six
+  secondary-capped ones (their exact split runs only when it could move a value) and the aux floor is applied once
+  at the end of the ledger, computed beside the normal worlds — same certified values, the flagship early stop kept.
 - **The one law — never under-count** (a wrong badge). Every pass is a sound upper bound, exact on most
   shapes, loose on some; locks assert `≥`, not `==`. The P6.1 fuzz lock caught a real pre-existing
   under-count in the **below-AP-constant** (negative-AP charging) exact DP — now walled off by a bail so

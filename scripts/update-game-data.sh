@@ -11,8 +11,9 @@
 #   2. Equipments (Ankama CDN) — fetched for the pinned WakfuData.VERSION, like every other extractor.
 #   3. Spells (Ankama encyclopedia).
 #   4. bdata artifacts (local game binaries): cast-limits, passives, sublimations (effects from bdata +
-#      metadata from the CDN items.json), sublimation-stacking, and monsters (local Monster table — no more
-#      MethodWakfu/Fandom scrape, no more WakForge sublimation pipeline).
+#      metadata from the CDN items.json), sublimation-stacking, monsters (local Monster table — no more
+#      MethodWakfu/Fandom scrape, no more WakForge sublimation pipeline) and item-criteria (local Item table:
+#      the items' equip conditions) and achievement-names (only the achievements those criteria reference).
 #   5. Item / spell / monster icons.
 #
 # Resource files have FIXED names (equipments.json, spells.json, …) — a version bump no longer renames
@@ -43,8 +44,11 @@ echo "==> [4/5] bdata artifacts + sublimations + monsters (local game binaries a
 # It decodes cast-limits + passives + the Monster table (42) + the State/StaticEffect tables, and fetches the
 # CDN items.json + actions.json for sublimation metadata + action semantics. It produces spell-cast-limits.json,
 # spell-passives.json, spell-damage.json (per-level damage formula anchored on the encyclopedia spells.json,
-# so it MUST run after step 3), monsters.json, sublimations.json, sublimation-stacking.json and runes.json
-# (CDN items.json itemTypeId 811 shards). The Monster layout is
+# so it MUST run after step 3), monsters.json, sublimations.json, sublimation-stacking.json, runes.json
+# (CDN items.json itemTypeId 811 shards) and item-criteria.json (the Item table's EQUIP criteria of the equipments.json
+# items — so it MUST run after step 2; table, record prefix, kinds and breeds found structurally in the client
+# bytecode). achievement-names.json joins the referenced achievements with the local i18n bundles; its table
+# id, schema and name namespace are found from client bytecode too. The Monster layout is
 # auto-derived from the client bytecode (SchemaGenerator), so version drift needs no hand-RE; only boss-tier
 # rank comes from the committed monster-overlay.json. Replaces the MethodWakfu/Fandom scrape AND the WakForge
 # sublimation pipeline. BDATA_FORCE_WRITE=1 accepts the (expected) data changes; the diff is printed first.

@@ -1,11 +1,15 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import com.google.ortools.sat.BoolVar
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.IntVar
 import com.google.ortools.sat.LinearExpr
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.holdsOnEvery
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
@@ -21,9 +25,11 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.skillVariableCaps
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.sumVar
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
-import me.chosante.common.Rarity
+import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
@@ -157,6 +163,16 @@ internal class StatBuilder(
     // cancelled proof (the user restarted / closed the search) stops within a stage instead of running the whole
     // ~minutes-per-cell pass to completion. Default never-cancel keeps every existing caller byte-identical.
     internal val certifierCancelled: () -> Boolean = { false },
+    // CERTIFIER_VERSION 52: the max-damage certificate is computed for a HARD-LEG result (every required target met in
+    // the solver's exact arithmetic), so every pass also enforces the request's AP / MP / CC / RANGE rows — the ledger
+    // bounds the targets-met builds only (see the row block of [certifyMaxPerHitAtApPass]). False (the default: the soft
+    // leg, the free request, every test seam) ⇒ the target-blind certifier. Read together with the
+    // [CertifierTuning.targetAwareEnabled] kill switch; set by `WakfuBuildSolver.maxDamageCertificate(targetAware = …)`.
+    internal val certifierTargetAware: Boolean = false,
+    // Relax-then-check (most-masteries — `WakfuBuildSolver.relaxThenCheck`): the model WITHOUT the request's floors. No floor is
+    // read ([floorReads] is empty: no `≥ 0` on the hard leg, no halving on the soft one) and no fold is built for one — each
+    // resistance family is folded over its wanted elements alone, as if no row of target 0 named it. Never set otherwise.
+    internal val relaxFloors: Boolean = false,
 ) {
     /**
      * Seeds the cumulable-sub COPY vars as the plain booleans they are. They are minted inside
@@ -181,6 +197,14 @@ internal class StatBuilder(
     // -1 where it bails). Compared against [certifierObjectivesForTest] by the `fast ≥ exact` lock. The
     // fast pass computes every cell in one shared DP; here it is still built cell-by-cell (P2 in progress).
     val certifierFastObjectivesForTest = linkedMapOf<Int, Long>()
+
+    // Test seam (v44, see [certifyForTest]): the AUX worlds' per-cell fast bound alone (same objective scaling, -1
+    // where an aux world bails; empty when the shape has no aux world) — already folded into the maps above.
+    val certifierAuxObjectivesForTest = linkedMapOf<Int, Long>()
+
+    // Test seam (v47, see [certifyForTest]): per AP cell, the RELAXED capped aux world's objective and the max over the
+    // exact capped split it stands for (same scaling, -1 where a world bails); empty without a relaxed world.
+    val certifierAuxRelaxedVsSplitForTest = linkedMapOf<Int, Pair<Long, Long>>()
 
     // Test seam (B7, see [certifyForTest]): the TIER-1.5 sharpened fast pass's AP cell → objective (sound upper
     // bound, -1 where it bails). The `fast ≥ tier1.5 ≥ exact` lock asserts it sits between the two.
@@ -351,11 +375,13 @@ internal class StatBuilder(
             val relic: Int,
         )
 
+        // The budgets are the "only one equipped at a time" groups the model constrains ([Equipment.exclusiveGroup]): an
+        // EPIC-group COMMON item (18691, 18693) takes the epic slot here as it does there.
         fun counts(equip: Equipment): Pair<Int, Int> =
-            when (equip.rarity) {
-                Rarity.EPIC -> 1 to 0
-                Rarity.RELIC -> 0 to 1
-                else -> 0 to 0
+            when (equip.exclusiveGroup) {
+                ExclusiveGroup.EPIC -> 1 to 0
+                ExclusiveGroup.RELIC -> 0 to 1
+                ExclusiveGroup.NONE -> 0 to 0
             }
 
         fun topByRarity(entries: List<Pair<Equipment, LongRange>>): List<Option> {
@@ -855,7 +881,11 @@ internal class StatBuilder(
     // cached LinearTermSum.terms list is read-only at every consumer; do not mutate it in place.
     private val damagePreMasteryTermsCache = mutableMapOf<DamageScenario, LinearTermSum?>()
     private val actualCache = mutableMapOf<Characteristic, IntVar>()
-    private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
+    private val elementCache = mutableMapOf<Pair<Characteristic, Set<Characteristic>>, Map<Characteristic, IntVar>>()
+
+    // Test seam (read through BuiltModel.elementRowReads): every per-element var a target ROW reads — the per-element rows
+    // and the aggregate rows, i.e. each family's fold — so a lock compares the model's claimed values with the scorer's.
+    internal val elementRowReads = LinkedHashMap<Characteristic, IntVar>()
     internal val appliesVarCache = mutableMapOf<Sublimation, IntVar>()
 
     // The PERMANENT (out-of-combat / character-sheet) sublimation contributions — the subset of FLAT-sub
@@ -868,7 +898,7 @@ internal class StatBuilder(
     internal val permanentSubTermsByStat: Map<Characteristic, List<Term>> = buildPermanentSubTerms()
 
     // The START-OF-COMBAT contributions of unconditional FLAT subs — the extra layer a FIRST-TURN
-    // condition sees on top of [preCombatStat] (Neutralité's `secondary masteries ≤ 0` is checked by
+    // condition sees on top of [preCombatStat] (Neutralité's `each secondary mastery ≤ 0` is checked by
     // the game on the first turn, AFTER start-of-combat effects like Ravage's masteries landed —
     // in-game verified 2026-07-14). Same subVar gating as [permanentSubTermsByStat] (FLAT ⇒ no
     // condition), so [firstTurnStat] stays acyclic from [reifyCondition].
@@ -934,8 +964,10 @@ internal class StatBuilder(
         // and makes the model intractable on the full item set. The low clamp at -target is
         // faithful to the scorer: totalActualScore is floored at 1 before the penalty ratio, so a
         // constraint dragged below -target already maxes out the penalty either way.
+        // A row of target 0 scores clamp(actual, 0, 0) = 0 here: it is left out (its floor is [floorReads]'), so no fold is built
+        // for an element nobody wants — nor the four-element one of an "all resistances 0" row.
         val contributions =
-            requiredTargets.map { targetStat ->
+            requiredTargets.filter { it.target != 0 }.map { targetStat ->
                 val actual = requiredActualStat(targetStat.characteristic)
                 val weight = targetStats.scaledWeight(targetStat)
                 val target = targetStat.target.toLong()
@@ -971,8 +1003,9 @@ internal class StatBuilder(
         targetStats: TargetStats,
         encoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
     ): IntVar {
+        // A row of target 0 overshoots by clamp(actual, 0, 0) = 0: left out, like in [totalActualScore].
         val contributions =
-            requiredTargets.map { targetStat ->
+            requiredTargets.filter { it.target != 0 }.map { targetStat ->
                 val actual = requiredActualStat(targetStat.characteristic)
                 val weight = targetStats.scaledWeight(targetStat)
                 val target = targetStat.target.toLong().coerceAtLeast(0)
@@ -1062,11 +1095,13 @@ internal class StatBuilder(
             val name = targetStat.characteristic.name
             val (cappedVar, uncappedVar) =
                 when (targetStat.characteristic) {
+                    // The aggregate wants all four elements: its fold is the family's joint fold, shared with any
+                    // per-element row of the same family (see [foldedElementalStat]).
                     Characteristic.MASTERY_ELEMENTARY ->
-                        averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).values.toList(), weight, expected, name)
+                        averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).also { elementRowReads.putAll(it) }.values.toList(), weight, expected, name)
 
                     Characteristic.RESISTANCE_ELEMENTARY ->
-                        averagedContribution(elementResistanceVars(ELEMENTARY_RESISTANCES).values.toList(), weight, expected, name)
+                        averagedContribution(elementResistanceVars(ELEMENTARY_RESISTANCES).also { elementRowReads.putAll(it) }.values.toList(), weight, expected, name)
 
                     else -> cappedContribution(foldedElementalStat(targetStat.characteristic), weight, expected, name)
                 }
@@ -1161,26 +1196,16 @@ internal class StatBuilder(
         low: Long,
         high: Long,
     ): IntVar {
-        val zeroTargets =
-            targetStats.filter {
-                it.target == 0 &&
-                    it.characteristic != Characteristic.MASTERY_ELEMENTARY &&
-                    it.characteristic != Characteristic.RESISTANCE_ELEMENTARY
-            }
-        if (zeroTargets.isEmpty()) return cappedSum
-
-        val flagsSum = LinearExpr.newBuilder()
-        for (targetStat in zeroTargets) {
-            val actual = actualStat(targetStat.characteristic)
-            val isNegative = model.newBoolVar("precNeg_${targetStat.characteristic.name}")
-            model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
-            model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())
-            flagsSum.addTerm(isNegative, 1)
-        }
-        val anyNegative = model.newBoolVar("precAnyNegativeTarget0")
-        val flags = flagsSum.build()
-        model.addGreaterOrEqual(flags, 1L).onlyEnforceIf(anyNegative)
-        model.addLessOrEqual(flags, 0L).onlyEnforceIf(anyNegative.not())
+        // The halving reads every floor ([floorReads]: a resistance floor on its family's joint fold, "all resistances 0" on each
+        // element) and every mastery of target 0 ([TargetStats.zeroMasteries]) on its fold — an element's random rolls placed,
+        // jointly when its family is read jointly, so where they land decides the halving. Mirrored by [precisionModelObjective].
+        val reads =
+            floorReads +
+                targetStats.zeroMasteries
+                    .map { it to foldedElementalStat(it) }
+                    .filter { (_, read) -> tracker.of(read).first < 0L }
+        val anyNegative = anyBelowZero(reads, "precNeg", "precAnyNegativeTarget0") ?: return cappedSum
+        halvingFlagForTest = anyNegative
 
         val halved = model.newIntVar(low, high, "precHalvedCapped")
         model.addDivisionEquality(halved, cappedSum, model.newConstant(2L))
@@ -1440,15 +1465,18 @@ internal class StatBuilder(
      * by survivability (more HP and more resist both raise it) without being a true effective-HP.
      * Resistance is averaged (not summed) so a single high element can't masquerade as overall
      * tankiness; the cap mirrors Wakfu's soft resistance ceiling and keeps the proxy honest against
-     * a few extreme resist rolls. Each element is read through [foldedElementalStat] so the generic
-     * "+all elements" resistance and random-resistance gear count exactly as they do elsewhere.
+     * a few extreme resist rolls. Each element is read through its own single-element fold, so the generic
+     * "+all elements" resistance and the random-resistance gear count for it — every positive random roll in full on every
+     * element (a negative one nowhere: a single-element fold leaves it to the three other elements, [rollCover]), an
+     * over-estimate this model-only proxy (no scorer mirrors it, no certificate reads it) has always made, kept as is when the
+     * per-element target rows moved to one joint fold ([foldedElementalStat]).
      */
     fun effectiveHpVar(): IntVar {
         val hp = model.clampVar(actualStat(Characteristic.HP), 0L, EHP_HP_MAX, "ehpHp")
         val resSum =
             model.sumVar(
                 "ehpResSum",
-                ELEMENTARY_RESISTANCES.map { foldedElementalStat(it) },
+                ELEMENTARY_RESISTANCES.map { elementResistanceVars(listOf(it)).getValue(it) },
                 -STAT_WITH_PERCENT_ABS_MAX,
                 STAT_WITH_PERCENT_ABS_MAX
             )
@@ -1479,6 +1507,91 @@ internal class StatBuilder(
         model.addLessOrEqual(preSubStat(Characteristic.WAKFU_POINT), MAX_OUT_OF_COMBAT_WP)
         // Negative-crit gear is condition-limited: the sheet can't drop below −9% Critical Hit.
         model.addGreaterOrEqual(preSubStat(Characteristic.CRITICAL_HIT), MIN_OUT_OF_COMBAT_CRIT)
+        applyItemStatGates()
+    }
+
+    /**
+     * The item STAT GATES (AGENTS.md §4 "Item equip conditions"): for every pool item whose EQUIP criterion compares a
+     * characteristic (`GetCharac("RANGE") <= 3`, `GetCharacMax("AP") <= 11`, `GetCharac("FEROCITY") > -10`), the reified
+     * `x_item ⇒ outOfCombatStat(stat) <op> value` — in game the item is inactive (red) on a sheet that breaks it, so such a build
+     * is not a valid build. Called from [applyOutOfCombatCaps], which every model variant (the three modes, both legs, the
+     * relaxed / floored stages, the E8 re-solves) runs; the scorer-side twin is `statGateViolations` (domain/EquipConditions.kt).
+     *
+     * A gate every build of the model meets anyway ([outOfCombatReach] — the tracked reach, narrowed by the caps above) adds
+     * nothing: the 89 "critical hit > −10" gates are implied by the `≥ −9` crit cap as long as no out-of-combat extra carries
+     * negative crit (none in the data), so they cost no constraint.
+     *
+     * The certificates ignore the gates: they only REMOVE builds, so every bound computed without them stays an upper bound
+     * (a relaxation, sound; CERTIFIER_VERSION untouched by it).
+     */
+    private fun applyItemStatGates() {
+        for (item in allEquips) {
+            val gates = item.statGates
+            if (gates.isEmpty()) continue
+            val itemVar = equipVars.getValue(item) as BoolVar
+            for (gate in gates) {
+                val characteristic = gate.sheetCharacteristic
+                if (gate.holdsOnEvery(outOfCombatReach(characteristic))) continue
+                val stat = outOfCombatStat(characteristic)
+                val value = gate.value.toLong()
+                when (gate.comparison) {
+                    CriterionComparison.LT -> model.addLessOrEqual(stat, value - 1)
+                    CriterionComparison.LE -> model.addLessOrEqual(stat, value)
+                    CriterionComparison.GT -> model.addGreaterOrEqual(stat, value + 1)
+                    CriterionComparison.GE -> model.addGreaterOrEqual(stat, value)
+                    CriterionComparison.EQ -> model.addEquality(stat, value)
+                    CriterionComparison.NE -> model.addDifferent(stat, value)
+                }.onlyEnforceIf(itemVar)
+            }
+        }
+    }
+
+    // The out-of-combat sheet's extras on top of [preSubStat]: the permanent, scenario-free sub effects and the passives' flat
+    // stats (see [outOfCombatStat]). Lazy: only a pool with a gated item reads it.
+    private val outOfCombatExtraTermsByStat: Map<Characteristic, List<Term>> by lazy {
+        val map = HashMap<Characteristic, MutableList<Term>>()
+        for ((characteristic, terms) in buildOutOfCombatSubTerms()) map.getOrPut(characteristic) { mutableListOf() } += terms
+        for ((characteristic, terms) in passiveTermsByStat) map.getOrPut(characteristic) { mutableListOf() } += terms
+        map
+    }
+    private val outOfCombatCache = mutableMapOf<Characteristic, IntVar>()
+
+    /**
+     * OUT-OF-COMBAT (character-sheet) value of [char], what an item stat gate reads: [preSubStat] (base + items — the gated item's
+     * own line included — + runes + the skills' fixed lines; AP / MP / WP with their MAX_* lines, so a `GetCharacMax` gate reads
+     * it too: out of combat a pool is full) + the PERMANENT, scenario-free sublimation effects ([buildOutOfCombatSubTerms]:
+     * Visibilité's range, never Abandon's start-of-combat one) + the selected passives' flat stats. Unlike [preCombatStat] (what a
+     * sub's start-of-combat CONDITION reads, passives left out) it counts the passives: the game shows them on the sheet. The
+     * scorer-side twin is `outOfCombatSheet`.
+     */
+    internal fun outOfCombatStat(char: Characteristic): IntVar =
+        outOfCombatCache.getOrPut(char) {
+            val extras = outOfCombatExtraTermsByStat[char].orEmpty()
+            if (extras.isEmpty()) return@getOrPut preSubStat(char)
+            val terms = mutableListOf(Term(preSubStat(char), 1L))
+            terms.addAll(extras)
+            tSum("outOfCombat_${char.name}", terms, 0L, reachableSumDomain(terms, 0L), -STAT_ABS_MAX, STAT_ABS_MAX)
+        }
+
+    /**
+     * A sound reach of [outOfCombatStat] ([char]) WITHOUT building it: the reach of the [preSubStat] terms narrowed by the
+     * out-of-combat caps [applyOutOfCombatCaps] puts on it (≤ 16 AP / 8 MP / 20 WP, ≥ −9 crit), plus the extras' reach.
+     */
+    internal fun outOfCombatReach(char: Characteristic): LongRange {
+        val (terms, base) = baseTermsFor(char)
+        val preSub = reachableSumDomain(terms, base)
+        val capped =
+            when (char) {
+                Characteristic.ACTION_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_AP)
+                Characteristic.MOVEMENT_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_MP)
+                Characteristic.WAKFU_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_WP)
+                Characteristic.CRITICAL_HIT -> maxOf(preSub.first, MIN_OUT_OF_COMBAT_CRIT)..preSub.last
+                else -> preSub
+            }
+        val extras = outOfCombatExtraTermsByStat[char].orEmpty()
+        if (extras.isEmpty()) return capped
+        val extraReach = reachableSumDomain(extras, 0L)
+        return capped.first + extraReach.first..capped.last + extraReach.last
     }
 
     internal fun actualActionPointCeiling(): Long =
@@ -1696,6 +1809,71 @@ internal class StatBuilder(
 
     internal fun damagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? = damagePreMasteryTermsCache.getOrPut(scenario) { computeDamagePreMasteryTerms(scenario) }
 
+    /**
+     * The certifier's SECONDARY-CAPPED world (CERTIFIER_VERSION 44, see `certifyMaxPerHitAtApPass`) re-values every
+     * mastery source by how the Neutralité-family condition (`SECONDARY_MASTERIES_AT_MOST ≤ 0`) reads it, so it needs
+     * [damagePreMasteryTerms] split by category: [elemental] (the scenario element + generic + random elemental lines,
+     * constant = the base 100 + their bases), [scenarioSecondary] (the secondary masteries the scenario sums into M —
+     * the range band, rear/berserk/healing when granted) and [otherSecondary] (every OTHER secondary mastery except
+     * critical mastery, which the certifier reads through its own term list). Null when a percent skill touches any of
+     * them (the certifier bails, exactly like [damagePreMasteryTerms]). Memoized (the certifier passes read it from
+     * worker threads); mints no model variable for these stats (no ramp targets a mastery).
+     */
+    internal class DamageMasteryCategories(
+        val elemental: List<Term>,
+        val elementalConst: Long,
+        val scenarioSecondary: List<Term>,
+        val scenarioSecondaryConst: Long,
+        val otherSecondary: List<Term>,
+        val otherSecondaryConst: Long,
+    )
+
+    private val damageMasteryCategoriesCache = HashMap<DamageScenario, DamageMasteryCategories?>()
+
+    internal fun damageMasteryCategories(scenario: DamageScenario): DamageMasteryCategories? =
+        synchronized(damageMasteryCategoriesCache) {
+            damageMasteryCategoriesCache.getOrPut(scenario) { computeDamageMasteryCategories(scenario) }
+        }
+
+    private fun computeDamageMasteryCategories(scenario: DamageScenario): DamageMasteryCategories? {
+        val directStats = scenarioMasteryStats(scenario).distinct()
+        val elementalStats = directStats.filter { it !in SECONDARY_MASTERY_CHARACTERISTICS }
+        val scenarioSecondaryStats = directStats.filter { it in SECONDARY_MASTERY_CHARACTERISTICS }
+        val otherSecondaryStats = SECONDARY_MASTERY_CHARACTERISTICS.filter { it !in directStats && it != Characteristic.MASTERY_CRITICAL }
+        if ((elementalStats + scenarioSecondaryStats + otherSecondaryStats).any { skillTerms.percent[it].orEmpty().isNotEmpty() }) return null
+
+        fun collect(stats: List<Characteristic>): Pair<MutableList<Term>, Long> {
+            val terms = mutableListOf<Term>()
+            var constant = 0L
+            for (stat in stats) {
+                val (statTerms, statBase) = prePercentTermsFor(stat)
+                terms.addAll(statTerms)
+                constant += statBase
+            }
+            return terms to constant
+        }
+        val (elemental, elementalBase) = collect(elementalStats)
+        // The random-element lines are elemental (mirrors computeDamagePreMasteryTerms).
+        for (equip in allEquips) {
+            val equipVar = equipVars.getValue(equip)
+            for ((randomCharacteristic, count) in MASTERY_RANDOM_BY_COUNT) {
+                if (min(count, 1) == 0) continue
+                val value = equip.characteristics[randomCharacteristic] ?: 0
+                if (value != 0) elemental.add(Term(equipVar, value.toLong()))
+            }
+        }
+        val (scenarioSecondary, scenarioSecondaryBase) = collect(scenarioSecondaryStats)
+        val (otherSecondary, otherSecondaryBase) = collect(otherSecondaryStats)
+        return DamageMasteryCategories(elemental, 100L + elementalBase, scenarioSecondary, scenarioSecondaryBase, otherSecondary, otherSecondaryBase)
+    }
+
+    /**
+     * The certifier's AUX-world floors (CERTIFIER_VERSION 44 / 47, see `certifierAuxFloor`), keyed by (scenario, cell
+     * count): the per-cell fast-tier bound of the worlds the normal certifier worlds deliberately drop. A null value
+     * records "no aux world for this shape". Guarded by its own monitor (computed once, read from worker threads).
+     */
+    internal val certifierAuxFloorCache = HashMap<Pair<DamageScenario, Int>, AuxFloor?>()
+
     private fun computeDamagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? {
         val directStats = scenarioMasteryStats(scenario).distinct()
 
@@ -1834,13 +2012,57 @@ internal class StatBuilder(
      * and the Major aptitudes (which carry [Characteristic.MASTERY_ELEMENTARY] /
      * [Characteristic.RESISTANCE_ELEMENTARY]); without it those contributions were invisible and
      * the matching items/aptitudes were never selected.
+     *
+     * The value is read from the ONE fold of its family ([familyFoldElements]): when the request wants more than one
+     * element of the family, every row reads the same joint fold, in which each random-element roll lands on
+     * `min(k, wanted)` of the wanted elements. Folding each row on its own credited every roll in full to every row — a
+     * "+X on 1 random element" resistance counted on all four elements, so four per-element rows of 640 read 649–669
+     * where the scorer (which places each roll once) read 538–586.
      */
     private fun foldedElementalStat(characteristic: Characteristic): IntVar =
         when (characteristic) {
-            in ELEMENTARY_MASTERIES -> elementMasteryVars(listOf(characteristic)).getValue(characteristic)
-            in ELEMENTARY_RESISTANCES -> elementResistanceVars(listOf(characteristic)).getValue(characteristic)
+            in ELEMENTARY_MASTERIES ->
+                elementMasteryVars(familyFoldElements(ElementFamily.MASTERY, characteristic))
+                    .also { elementRowReads.putAll(it) }
+                    .getValue(characteristic)
+
+            in ELEMENTARY_RESISTANCES ->
+                elementResistanceVars(familyFoldElements(ElementFamily.RESISTANCE, characteristic))
+                    .also { elementRowReads.putAll(it) }
+                    .getValue(characteristic)
+
             else -> actualStat(characteristic)
         }
+
+    /**
+     * The elements of the ONE fold [characteristic]'s rows read: in a family with a FLOOR ([floorElements]), its wanted and
+     * floored elements together ([foldElements]) — every row and every floor reads that fold, each roll landing on as many of
+     * them as the game lets it ([rollCover]); otherwise every wanted element of its [family], in canonical order, when the
+     * family is read jointly — per-element rows with a target over several elements ([readsJointPerElementRows]), or beside the
+     * aggregate row, which wants all four and reads this very fold. Otherwise just [characteristic], whose single-element fold
+     * credits every positive roll in full and, for a resistance, a negative roll nowhere (the three other elements take it,
+     * [rollCover]): exact for one wanted element, as the game places the rolls. (The penalty and overshoot sums leave a row of
+     * target 0 out, and precision reads a mastery's on its element's fold — jointly once its family is read jointly.)
+     */
+    private fun familyFoldElements(
+        family: ElementFamily,
+        characteristic: Characteristic,
+    ): List<Characteristic> {
+        val targetStats = params.targetStats
+        if (!relaxFloors && targetStats.floorElements(family).isNotEmpty()) {
+            val fold = targetStats.foldElements(family)
+            if (characteristic in fold) return fold
+        }
+        val wanted = family.wanted(targetStats).keys
+        val joint =
+            wanted.size > 1 &&
+                characteristic in wanted &&
+                (
+                    targetStats.any { it.characteristic == family.aggregate } ||
+                        targetStats.readsJointPerElementRows(family, params.scoreComputationMode, withFloors = !relaxFloors)
+                )
+        return if (joint) family.elements.filter { it in wanted } else listOf(characteristic)
+    }
 
     /**
      * Actual value of a *required* (most-masteries) target. Same as [foldedElementalStat], except
@@ -1850,13 +2072,80 @@ internal class StatBuilder(
      */
     private fun requiredActualStat(characteristic: Characteristic): IntVar =
         if (characteristic == Characteristic.RESISTANCE_ELEMENTARY) {
-            val elementResistances = elementResistanceVars(ELEMENTARY_RESISTANCES)
+            // The family's joint fold (the aggregate wants all four), shared with any per-element resistance row.
+            val elementResistances = elementResistanceVars(ELEMENTARY_RESISTANCES).also { elementRowReads.putAll(it) }
             val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementResistance")
             model.addMinEquality(minVar, elementResistances.values.toTypedArray())
             minVar
         } else {
             foldedElementalStat(characteristic)
         }
+
+    // Test seam ([floorReadsForTest]): whether [floorReads] was built by the model — read back without minting it afterwards.
+    private var floorReadsBuilt = false
+
+    /**
+     * The FLOORS of the request ([TargetStats.floorCharacteristics], [TargetStats.resistanceFloorElements]) — what each of its
+     * rows of target 0 on a required stat keeps at 0 or more, by name: a stat's own value ([actualStat]), an elemental
+     * resistance's value on its family's joint fold ([foldedElementalStat] over [foldElements]: its own lines, the "+all
+     * elements" ones and the random-element rolls the solver places there — the game lets the player put a roll on any element,
+     * and the scorers' exact placement does the same). "All resistances 0" is a floor on each element no other row wants. Read
+     * by the hard leg ([addRequiredTargetHardConstraints]: each `≥ 0`), the soft legs ([floorViolation]: a halving) and
+     * precision's halving ([negativeTargetPenalty]). The resistance reads are also test row reads ([elementRowReads]). A floor no
+     * build of the pool can break — its tracked reach, a sound over-estimate of every build's value, never goes below 0 (no
+     * negative line nor roll on it) — is left out: it would constrain nothing.
+     */
+    internal val floorReads: List<Pair<Characteristic, IntVar>> by lazy {
+        (
+            if (relaxFloors) {
+                emptyList()
+            } else {
+                params.targetStats.floorCharacteristics.map { it to actualStat(it) } +
+                    params.targetStats.resistanceFloorElements.map { element -> element to foldedElementalStat(element) }
+            }
+        ).filter { (_, read) -> tracker.of(read).first < 0L }
+            .also { floorReadsBuilt = true }
+    }
+
+    /** Test seam (read through `BuiltModel.floorReads`): the floors the model reads, or none when it never read them. */
+    internal fun floorReadsForTest(): List<Pair<Characteristic, IntVar>> = if (floorReadsBuilt) floorReads else emptyList()
+
+    /**
+     * Test seam (read through `BuiltModel.halvingFlag`): the boolean that halves this model's objective — precision's
+     * ([negativeTargetPenalty]) or a soft leg's [floorViolation] — when the model built one.
+     */
+    internal var halvingFlagForTest: BoolVar? = null
+        private set
+
+    /**
+     * A boolean that holds iff one of [reads] is below 0 (each reified both ways, so it is EXACT, not a one-sided bound), or null
+     * when there is nothing to read.
+     */
+    private fun anyBelowZero(
+        reads: List<Pair<Characteristic, IntVar>>,
+        flagPrefix: String,
+        name: String,
+    ): BoolVar? {
+        if (reads.isEmpty()) return null
+        val flagsSum = LinearExpr.newBuilder()
+        for ((characteristic, actual) in reads) {
+            val isNegative = model.newBoolVar("${flagPrefix}_${characteristic.name}")
+            model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
+            model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())
+            flagsSum.addTerm(isNegative, 1)
+        }
+        val anyNegative = model.newBoolVar(name)
+        val flags = flagsSum.build()
+        model.addGreaterOrEqual(flags, 1L).onlyEnforceIf(anyNegative)
+        model.addLessOrEqual(flags, 0L).onlyEnforceIf(anyNegative.not())
+        return anyNegative
+    }
+
+    /**
+     * The soft legs' floor penalty (most-masteries fallback, max-damage soft leg — `WakfuBuildSolver.applyConstraintPenalty`):
+     * true iff some floor ([floorReads]) is below 0, which HALVES the penalized objective. Null without a floor. Memoized.
+     */
+    internal val floorViolation: BoolVar? by lazy { anyBelowZero(floorReads, "floorNeg", "floorBroken").also { halvingFlagForTest = it } }
 
     /**
      * HARD-constraint form of the required-target rule: forbid any build that misses an AP/MP/range/
@@ -1866,7 +2155,7 @@ internal class StatBuilder(
      * damage objective — the shape CP-SAT can actually prove — instead of the penalty product, whose foggy LP
      * relaxation traps the search at a sub-optimal build. It generalises to EVERY required stat (resistance
      * included, via [requiredActualStat]'s min-of-four for the aggregate) — where the damage certificate cannot.
-     * A non-positive target is trivially met and skipped.
+     * A negative target is trivially met and skipped; a row of target 0 is a FLOOR, `actual ≥ 0` on its [floorReads].
      *
      * Returns `staticallyInfeasible` (C2): true iff some required target exceeds its var's tracked reachable
      * ceiling (`tracker.of(actual).last`, a sound over-estimate) — i.e. NO build can meet it, so the hard model is
@@ -1882,6 +2171,10 @@ internal class StatBuilder(
             val actual = requiredActualStat(targetStat.characteristic)
             if (targetStat.target > tracker.of(actual).last) staticallyInfeasible = true
             model.addGreaterOrEqual(actual, targetStat.target.toLong())
+        }
+        for ((_, floor) in floorReads) {
+            if (tracker.of(floor).last < 0L) staticallyInfeasible = true
+            model.addGreaterOrEqual(floor, 0L)
         }
         return staticallyInfeasible
     }
@@ -1904,6 +2197,15 @@ internal class StatBuilder(
             model.addGreaterOrEqual(actual, targetStat.target.toLong()).onlyEnforceIf(literal)
             model.addAssumption(literal)
             literals[targetStat.characteristic] = literal
+        }
+        // The floors, like the production hard leg: each `≥ 0` behind its own literal (keyed by the floored stat — no row
+        // with a target shares it, or it would be no floor).
+        for ((characteristic, floor) in floorReads) {
+            if (tracker.of(floor).last < 0L) staticallyInfeasible = true
+            val literal = model.newBoolVar("assume_floor_${characteristic.name}")
+            model.addGreaterOrEqual(floor, 0L).onlyEnforceIf(literal)
+            model.addAssumption(literal)
+            literals[characteristic] = literal
         }
         return literals to staticallyInfeasible
     }
@@ -1944,7 +2246,20 @@ internal class StatBuilder(
         targets: Map<Characteristic, Int>,
         randomByCount: List<Pair<Characteristic, Int>>,
     ): Map<Characteristic, IntVar> {
-        val key = genericCharacteristic to wantedElements.toList()
+        // Keyed by the element SET: one fold per (family, wanted elements) whatever order a caller lists them in, so two
+        // reads of the same elements can never place the same roll twice (the order only matters to the greedy fold's
+        // tie-breaking, built once from the aggregate's canonical list).
+        val key = genericCharacteristic to wantedElements.toSet()
+        // A resistance fold places its rolls as the game does ([rollCover]): the elements outside it absorb what a roll cannot put
+        // there — a negative roll only lands on a read element when it must. A mastery fold keeps the historical rule.
+        val resistance = genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY
+        val freeSinks = if (resistance) resistanceFreeSinks(key.second.size) else null
+        // The ONE fold of a family with a floor ([foldElements]), placed freely: the floors are kept or not on the whole build.
+        val flooredFold =
+            !relaxFloors &&
+                resistance &&
+                params.targetStats.floorElements(ElementFamily.RESISTANCE).isNotEmpty() &&
+                key.second == params.targetStats.foldElements(ElementFamily.RESISTANCE).toSet()
         return elementCache.getOrPut(key) {
             val genericBase = prePercentStat(genericCharacteristic)
             val baseElements =
@@ -1964,25 +2279,39 @@ internal class StatBuilder(
             // provably-suboptimal heuristic, so we let CP-SAT pick the random assignment FREELY (only the
             // cardinality constraint) — the objective drives it to the true optimum — which also removes the
             // O(elements²) ordering that exploded the multi-element pool. The scorer mirrors this exactly.
-            //  - most-masteries: the objective is a MIN (mastery always; aggregate resistance when
-            //    RESISTANCE_ELEMENTARY is requested) ⇒ exact max-min scorer ([assignMaxMinMasteryRandomValues]).
+            //  - most-masteries: the mastery objective is a MIN ⇒ exact max-min scorer
+            //    ([assignMaxMinMasteryRandomValues]); the aggregate RESISTANCE_ELEMENTARY alone is a min too
+            //    ([assignMaxMinResistanceRandomValues]); per-element resistance rows ⇒ [ElementRowObjective].
             //  - precision: the objective is the capped sum (both mastery and resistance) ⇒ exact max-capped
-            //    scorer ([assignMaxCappedMasteryRandomValues]).
-            // max-damage stays greedy (the objective plays a single element ⇒ assignment is degenerate anyway).
+            //    scorer ([assignMaxCappedMasteryRandomValues]), or [ElementRowObjective] for per-element rows.
+            //  - max-damage: per-element resistance rows with a target ⇒ [ElementRowObjective]. The aggregate-only
+            //    resistance fold stays greedy (mirrored by the scorer's deficit-greedy), and the scenario mastery is
+            //    a single-element fold (its assignment is degenerate).
+            //  - the fold of a family with a floor, every mode ⇒ [ElementRowObjective] (floors kept or not, decided on the build).
             val freeAssignment =
-                when (params.scoreComputationMode) {
-                    ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                        genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
-                            (
-                                genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
-                                    params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
-                            )
+                flooredFold ||
+                    when (params.scoreComputationMode) {
+                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                            genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
+                                (
+                                    genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
+                                        (
+                                            params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ||
+                                                params.targetStats.readsJointPerElementRows(
+                                                    ElementFamily.RESISTANCE,
+                                                    params.scoreComputationMode,
+                                                    withFloors = !relaxFloors
+                                                )
+                                        )
+                                )
 
-                    ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
-                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> false
-                }
+                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
+                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                            genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
+                                params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode, withFloors = !relaxFloors)
+                    }
             val prePercentElements =
-                applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment)
+                applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment, freeSinks, flooredFold)
 
             prePercentElements.mapValues { (element, preElement) ->
                 val percentTerms = skillTerms.percent[element].orEmpty()
@@ -2006,16 +2335,21 @@ internal class StatBuilder(
         // CP-SAT to the optimal assignment. This drops the O(elements²) reified ordering that forces the
         // suboptimal deficit-greedy and explodes the multi-element pool. When false: the original greedy.
         freeAssignment: Boolean,
+        // [rollCover]'s free sinks: for a resistance fold, the elements outside [wantedElements] a roll may land on instead (so a
+        // negative roll only lands here when it must). Null: the historical rule (every roll on `min(count, wanted)`), masteries.
+        freeSinks: Int? = null,
+        // The fold of a family with a floor: it places its rolls even with no wanted element (only floors) — a floor reads them.
+        flooredFold: Boolean = false,
     ): Map<Characteristic, IntVar> {
         if (wantedElements.isEmpty()) return baseElements
-        if (targets.isEmpty()) return baseElements
+        if (targets.isEmpty() && !flooredFold) return baseElements
         if (randomEntries.isEmpty()) return baseElements
 
         if (wantedElements.size == 1) {
             val element = wantedElements.single()
             val terms = mutableListOf(Term(baseElements.getValue(element), 1L))
             randomEntries
-                .filter { min(it.count, 1) > 0 }
+                .filter { rollCover(it.value, it.count, 1, freeSinks) > 0 }
                 .groupingBy { it.equipVar }
                 .fold(0L) { acc, entry -> acc + entry.value.toLong() }
                 .forEach { (equipVar, value) ->
@@ -2039,7 +2373,7 @@ internal class StatBuilder(
 
         var current = baseElements
         randomEntries.forEachIndexed { index, entry ->
-            val effectiveCount = min(entry.count, elementCount)
+            val effectiveCount = rollCover(entry.value, entry.count, elementCount, freeSinks)
             if (effectiveCount == 0) return@forEachIndexed
 
             if (effectiveCount == elementCount) {
