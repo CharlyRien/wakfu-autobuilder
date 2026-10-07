@@ -1469,6 +1469,8 @@ private fun SublimationsResult(ui: UiState) {
                         me.chosante.ui.components
                             .SublimationStackBadge(sub)
                     }
+                    me.chosante.ui.components
+                        .SublimationCombatBadge(sub)
                     sublimationEffectText(sub, ui.lang).takeIf { it.isNotBlank() }?.let {
                         Text(text = it, style = WTypography.labelSmall.copy(color = WColor.muted))
                     }

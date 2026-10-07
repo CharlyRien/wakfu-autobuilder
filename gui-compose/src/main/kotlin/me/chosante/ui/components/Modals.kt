@@ -1023,6 +1023,7 @@ private fun SublimationResultRow(
             )
             SublimationStackBadge(sub)
         }
+        SublimationCombatBadge(sub)
         sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let { effect ->
             Text(
                 text = effect,

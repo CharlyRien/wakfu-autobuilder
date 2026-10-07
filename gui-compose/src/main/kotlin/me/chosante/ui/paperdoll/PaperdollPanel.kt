@@ -818,6 +818,8 @@ private fun ItemTooltip(
                         // A normal sub's required 3-socket colour pattern (epic/relic carry none).
                         sub.colors.forEach { color -> RuneShape(color = color, size = 13.dp) }
                     }
+                    me.chosante.ui.components
+                        .SublimationCombatBadge(sub)
                     sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let {
                         Text(
                             text = it,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1377,7 +1378,7 @@ private fun ItemChipsCard(
 }
 
 @Composable
-private fun SublimationsRunesCard(
+internal fun SublimationsRunesCard(
     useSublimations: Boolean,
     maxSublimationTier: Int?,
     forcedSublimations: List<String>,
@@ -1390,6 +1391,10 @@ private fun SublimationsRunesCard(
     onRemoveExcludedSublimation: (String) -> Unit,
     onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit,
 ) {
+    val sublimationsByName =
+        remember {
+            WakfuBestBuildFinderAlgorithm.sublimations.associateBy { it.name.fr }
+        }
     val forcedSublimationColors =
         remember {
             WakfuBestBuildFinderAlgorithm.sublimations
@@ -1449,7 +1454,13 @@ private fun SublimationsRunesCard(
                 accent = WColor.success,
                 accentForName = { name -> forcedSublimationColors[name] ?: WColor.success },
                 onAdd = onOpenSublimationPicker,
-                onRemove = onRemoveForcedSublimation
+                onRemove = onRemoveForcedSublimation,
+                noteForName = { name ->
+                    sublimationsByName[name]?.let {
+                        me.chosante.ui.components
+                            .SublimationCombatBadge(it)
+                    }
+                }
             )
             ForcedNameChips(
                 label = tr(Tr.EXCLUDED_SUBLIMATIONS),
@@ -1642,6 +1653,7 @@ private fun ForcedNameChips(
     accentForName: (String) -> Color = { accent },
     onAdd: () -> Unit,
     onRemove: (String) -> Unit,
+    noteForName: @Composable (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(text = label, style = WTypography.labelMedium.copy(color = WColor.muted))
@@ -1655,14 +1667,17 @@ private fun ForcedNameChips(
                 Row(
                     modifier =
                         Modifier
-                            .height(30.dp)
+                            .heightIn(min = 30.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(WColor.raised)
                             .border(1.dp, chipAccent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 9.dp),
+                            .padding(horizontal = 9.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = name, style = WTypography.labelMedium.copy(color = WColor.text))
+                    Column(modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(text = name, style = WTypography.labelMedium.copy(color = WColor.text))
+                        noteForName(name)
+                    }
                     Spacer(modifier = Modifier.width(7.dp))
                     Text(
                         text = "×",
