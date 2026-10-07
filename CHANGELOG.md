@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.16.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.15.0...wakfu-autobuilder-1.16.0) (2026-10-07)
+
+
+### Features
+
+* **data:** boss portraits come from Ankama's static host ([14366e5](https://github.com/CharlyRien/wakfu-autobuilder/commit/14366e505c3cf3addebebe97a716627020acaeaf))
+* **data:** spell and passive names come from the game client in every language ([2927824](https://github.com/CharlyRien/wakfu-autobuilder/commit/292782430daaab458805de9fda780888af08b337))
+* **gui:** the app is available in Spanish and Portuguese ([#257](https://github.com/CharlyRien/wakfu-autobuilder/issues/257)) ([751d1b7](https://github.com/CharlyRien/wakfu-autobuilder/commit/751d1b7cdf10fb8421b50f290bb2843f095d695a))
+
 ## [1.15.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.2...wakfu-autobuilder-1.15.0) (2026-10-07)
 
 
