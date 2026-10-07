@@ -206,6 +206,18 @@ class BuildSearchModel(
      * and the request is applied when the read lands (if the user has not edited meanwhile). Injectable for tests.
      */
     private val workspaceReadWait: kotlin.time.Duration = 2.seconds,
+    /** Result detail shared by completed and stopped searches; injectable for cancellation races in tests. */
+    private val damageBreakdown: (BuildCombination, WakfuBestBuildParams, Map<Characteristic, Int>, SpellRotation?) -> List<ScenarioDamage> =
+        { build, params, achieved, rotation ->
+            SpellRotationOptimizer.scenarioBreakdown(
+                build,
+                params.character,
+                params.character.clazz,
+                params.damageScenario,
+                includeBerserk = (achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                configuredRotationTotal = rotation?.totalExpectedDamage
+            )
+        },
 ) {
     private val uiState = androidx.compose.runtime.mutableStateOf(UiState())
 
@@ -311,6 +323,8 @@ class BuildSearchModel(
         private set
 
     private var job: Job? = null
+    private var activeSearchParams: WakfuBestBuildParams? = null
+    private var damageDetailsJob: Job? = null
 
     // The post-search optimality proof runs independently of [job] (it can take minutes after the search
     // already finished), so it has its own handle — cancelled when a new search starts, or when the user stops it
@@ -1108,6 +1122,8 @@ class BuildSearchModel(
             return
         }
         job?.cancel()
+        damageDetailsJob?.cancel()
+        activeSearchParams = params
         cancelProof()
 
         ui =
@@ -1222,14 +1238,7 @@ class BuildSearchModel(
                     val finalBuildSnapshot = finalBuild
                     val scenarioDamages =
                         if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && finalBuildSnapshot != null) {
-                            SpellRotationOptimizer.scenarioBreakdown(
-                                finalBuildSnapshot,
-                                character,
-                                character.clazz,
-                                damageScenario,
-                                includeBerserk = (finalAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
-                                configuredRotationTotal = finalRotation?.totalExpectedDamage
-                            )
+                            damageBreakdown(finalBuildSnapshot, params, finalAchieved, finalRotation)
                         } else {
                             emptyList()
                         }
@@ -1631,10 +1640,44 @@ class BuildSearchModel(
      */
     fun cancel() {
         val searching = ui.phase == Phase.Searching
+        val params = activeSearchParams
         job?.cancel()
         job = null
         cancelProof()
         ui = if (searching) ui.searchEndedEarly() else ui.copy(proofState = ProofState.Idle)
+        if (searching && params != null) completeStoppedDamageDetails(ui, params)
+    }
+
+    private fun completeStoppedDamageDetails(
+        snapshot: UiState,
+        params: WakfuBestBuildParams,
+    ) {
+        val build = snapshot.build ?: return
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return
+        damageDetailsJob?.cancel()
+        damageDetailsJob =
+            scope.launch(backgroundDispatcher) {
+                val breakdown = damageBreakdown(build, params, snapshot.achieved, snapshot.spellRotation)
+                withContext(mainDispatcher) {
+                    // The kept build must still be the result on screen. A new search also cancels this job,
+                    // so even a blocking rotation that returns late cannot land on a newer result of the same build.
+                    if (ui.build === build && ui.mode == snapshot.mode && ui.phase == Phase.Done && ui.searchStopped) {
+                        ui = ui.copy(scenarioDamages = breakdown)
+                    } else if (ui.mode != snapshot.mode) {
+                        // A mode switch stops and parks the search. Keep the detail with that parked result,
+                        // so returning to this mode restores the complete kept build too.
+                        val parked = ui.modeWorkspaces[snapshot.mode]
+                        if (parked != null && parked.result.build === build && parked.result.searchStopped) {
+                            ui =
+                                ui.copy(
+                                    modeWorkspaces =
+                                        ui.modeWorkspaces +
+                                            (snapshot.mode to parked.copy(result = parked.result.copy(scenarioDamages = breakdown)))
+                                )
+                        }
+                    }
+                }
+            }
     }
 
     /**
@@ -1713,6 +1756,7 @@ class BuildSearchModel(
         val snapshot = ui
         val build = snapshot.build ?: return
         job?.cancel()
+        damageDetailsJob?.cancel()
         cancelProof()
         // The build moves to the max-damage view WITH its rows, but the mode it came from keeps its work: going back there
         // restores the original result and rows, so this view can always be undone.
