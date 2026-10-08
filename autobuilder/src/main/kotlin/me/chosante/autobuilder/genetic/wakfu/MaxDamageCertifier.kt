@@ -2972,16 +2972,15 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     val keptSubs =
         subEntries
             .filter { (sub, _) ->
-                // Exclude FORCED subs (P5.3): their SINGLE base copy is already applied via the constants +
-                // slot charge, so leaving it in the OPTIONAL pools (budgets / transitions) would double-count it.
+                // Every forced shard is already credited at the exact chosen level in constants/condition
+                // credits and charged a slot. Keeping it optional would credit beyond that chosen level.
                 sub !in forcedSubs &&
                     !structurallyDropped(sub) &&
                     sub.stateId !in ablatedIds &&
                     (weaponsRestricted || weaponsRelaxed || sub.condition?.type != SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
             }
-    // Copies are registered to separate marginal units by StatBuilder. A forced family's base stays
-    // in constants; its registered extras are distinct optional units. Independent selection relaxes
-    // the ordered prefix (k largest units >= any real k-shard prefix), never under-counting.
+    // StatBuilder registers separate marginal units. Forced units all stay in constants/condition credits;
+    // optional units relax the ordered prefix (k largest units >= any real k-shard prefix), never under-counting.
 
     // Pure-crit / pure-AP subs (a crit%-only or AP-only effect) form free BUDGETS that fill the gap
     // between the build's PRE-sub crit/AP (the tracked DP dimensions) and the pinned total; every other

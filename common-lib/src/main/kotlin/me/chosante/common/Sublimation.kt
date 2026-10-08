@@ -137,7 +137,7 @@ data class ScenarioGate(
 )
 
 /**
- * One effect of a sublimation, at its max level (best-achievable model). A sealed hierarchy so each way Ankama
+ * One effect of a sublimation, with its legacy max-tier value and per-family-level stat table. A sealed hierarchy so each way Ankama
  * can grant a bonus is its own shape (no nullable-field soup). The cross-cutting fields ([scenarioGate],
  * [appliesBeforeCombat]) live on the base interface; the **stat-granting** shapes additionally share
  * [StatEffect] ([characteristic] + [magnitudeAtLevel]) so the solver/re-scorer hot paths can iterate them
@@ -317,8 +317,8 @@ data class Sublimation(
     val slotColorPattern: List<Int> = emptyList(),
     /**
      * The sublimation family's **stack cap** — the max total socketed level (State table `max_level`, usually
-     * 6, sometimes 4/2). Each socketed shard adds its [maxTier] levels; `floor(maxStackLevel / maxTier)` full
-     * copies fit (see [maxCopies]). NOT the item tier a user buys/sockets. Serialized as `maxLevel` for
+     * 6, sometimes 4/2). Shard tiers add within ONE stateId family and clamp at this cap; a final partial
+     * shard counts (see [maxCopies]). NOT the item tier a user buys/sockets. Serialized as `maxLevel` for
      * back-compat with the baked `sublimations.json` + saved builds.
      */
     @SerialName("maxLevel")
@@ -335,7 +335,8 @@ data class Sublimation(
     val socketTier: Int? = null,
     /**
      * Whether socketing this sublimation multiple times ACCUMULATES (Wakfu's `is_cumulable`). A cumulable normal
-     * sub can be stacked up to [maxCopies] copies, each on its own ≥3-socket carrier, its effects scaling k×.
+     * sub can use up to [maxCopies] shards, each on its own ≥3-socket carrier. Its effect is evaluated at
+     * the capped FAMILY level, never multiplied by the number of shards.
      * Decoded by `bdata-extractor` into `sublimation-stacking.json` and joined onto the runtime sub at load
      * (see `WakfuBestBuildFinderAlgorithm.sublimations`). Default false ⇒ an un-joined sub is single-copy.
      */
@@ -366,7 +367,15 @@ data class Sublimation(
     val colors: List<RuneColor>
         get() = slotColorPattern.mapNotNull { code -> runCatching { RuneColor.fromCode(code) }.getOrNull() }
 
-    /** Shards needed to reach the family cap, including a partial final shard. Structured effects stay single-copy. */
+    /**
+     * Shards needed to reach the family cap: `ceil(maxStackLevel / maxTier)` for cumulable normal
+     * flat/percent families, including CONDITIONAL ones. Copy j contributes the marginal between
+     * `min(j * maxTier, cap)` and `min((j - 1) * maxTier, cap)`; level zero contributes nothing.
+     * All conditional shards share one family gate. Each shard consumes one normal slot/carrier.
+     * Structured conversion/ramp/best-element (and elemental-zeroing), non-cumulable and epic/relic
+     * shapes remain single-shard. [maxTier] can be capped to an actually available request tier.
+     * Forced levels instead use [shardPlan] and pin exactly the fewest shards, with no optional extras.
+     */
     val maxCopies: Int
         get() = if (stacksByLevel) (maxStackLevel + maxTier.coerceAtLeast(1) - 1) / maxTier.coerceAtLeast(1) else 1
 
@@ -541,8 +550,9 @@ data class Sublimation(
      * the number Ankama shows players and what a user means by "Mesure III is tier 3". A base name with no
      * numeral (e.g. `Mesure`, `Furie`) or an explicit ` I` is tier 1; ` II` → 2; ` III` → 3. This is the
      * ONLY place the generation lives in the game data — the CDN item carries no numeric field for it
-     * (item `level` and `rarity` are constant across a family; the I/II/III entries are distinct items with
-     * distinct state ids). Distinct from [maxTier], which is the shard's upgrade level driving the effect
+     * (item `level` and `rarity` are constant across a family). Normal I/II/III shards are distinct items
+     * applying the SAME stateId; epic/relic generations can instead have distinct states. Distinct from
+     * [maxTier], which is the shard's upgrade level driving the effect
      * VALUE (`floor(base + inc·maxTier)`) — every epic is [maxTier] 1 regardless of its generation.
      */
     val nameTier: Int
