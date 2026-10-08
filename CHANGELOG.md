@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.17.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.16.0...wakfu-autobuilder-1.17.0) (2026-10-08)
+
+
+### Features
+
+* **gui:** a Settings screen for processor use, the optimality proof, the interface and the app version ([bfe8d5c](https://github.com/CharlyRien/wakfu-autobuilder/commit/bfe8d5cb1b141af2df3147ff1648eddbe173f8e3))
+* **gui:** pickers show what you chose, and the boss picker scrolls to your current boss ([#260](https://github.com/CharlyRien/wakfu-autobuilder/issues/260)) ([d9f69a0](https://github.com/CharlyRien/wakfu-autobuilder/commit/d9f69a0c1eac18b2338e485fa838b1f7f2778f78))
+* one CPU budget caps the threads of the search and the proofs ([72bf150](https://github.com/CharlyRien/wakfu-autobuilder/commit/72bf150399e357ffed52ae335131afc4aaf605ad))
+
+
+### Bug Fixes
+
+* **gui:** combat sublimations say their effect is not counted by the search ([c5352f2](https://github.com/CharlyRien/wakfu-autobuilder/commit/c5352f29ef991aa147cbec831a86eea2e457e43a))
+* **gui:** show level-scaled Light spell damage ([9a668f2](https://github.com/CharlyRien/wakfu-autobuilder/commit/9a668f258d89e4092b26b7006e38235042cfe965))
+* **spells:** use client costs ranges and localized names ([77f9a39](https://github.com/CharlyRien/wakfu-autobuilder/commit/77f9a393053796bbd37c85ca2d920dd6699718e0))
+
+
+### Performance Improvements
+
+* domination ignores stat gates that can never fail and gates of dominated items ([b2295ec](https://github.com/CharlyRien/wakfu-autobuilder/commit/b2295eca3b8db439f927a34483c6ce60508fc4a0))
+
 ## [1.16.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.15.0...wakfu-autobuilder-1.16.0) (2026-10-07)
 
 
