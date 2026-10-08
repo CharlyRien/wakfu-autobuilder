@@ -655,6 +655,9 @@ internal object MaxDamageSoftCertificate {
         // independent per-world upper, avoiding a second accumulator in every DP state.
         anchorConstTransport: Boolean = false,
     ): Result? {
+        // One slot consumer per family marginal. Dropping the prefix order is a relaxation; conditions
+        // keep exactly the same shared read/threshold as their family. Recursion sees maxCopies == 1 units.
+        val sublimations = sublimations.flatMap { it.certificateUnits(params.character.level) }
         val t0 = System.nanoTime()
         val wantSrc = provenance
         require(ccSupportLambda >= 0L)

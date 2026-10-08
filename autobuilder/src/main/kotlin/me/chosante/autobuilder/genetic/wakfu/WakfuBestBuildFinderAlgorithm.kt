@@ -603,8 +603,12 @@ object WakfuBestBuildFinderAlgorithm {
                 val isForced = sub.name.fr.lowercase() in forced || sub.name.en.lowercase() in forced
                 // Cap on the GENERATION tier (the name's I/II/III), not the shard upgrade level [maxTier] —
                 // "≤ 2" then excludes Mesure III (tier 3) as a user expects, since every epic's maxTier is 1.
-                isForced || params.maxSublimationTier?.let { sub.nameTier <= it } != false
-            }
+                if (sub.rarity == me.chosante.common.SublimationRarity.NORMAL && sub.stackModelled && sub.shardsByTier.isNotEmpty()) {
+                    sub.atTierLimit(params.maxSublimationTier) != null
+                } else {
+                    isForced || params.maxSublimationTier?.let { sub.nameTier <= it } != false
+                }
+            }.mapNotNull { it.atTierLimit(params.maxSublimationTier) }
     }
 
     /**
@@ -785,6 +789,7 @@ object WakfuBestBuildFinderAlgorithm {
         fun inCombatHeadroom(characteristic: Characteristic): Int? {
             if (subsInPlay.any { it.conversion?.to?.foldedToUsableStat() == characteristic }) return null
             return subsInPlay
+                .flatMap { it.certificateUnits(character.level) }
                 .filter { it.kind != SublimationKind.COMBAT_CONDITIONAL }
                 .flatMap { it.effects.filterIsInstance<SublimationEffect.StatEffect>() }
                 .filter { !it.appliesBeforeCombat && it.characteristic.foldedToUsableStat() == characteristic }

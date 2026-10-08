@@ -17,5 +17,6 @@ package me.chosante.autobuilder.domain
  * and among equally good builds the one returned can differ.
  * 4: CERTIFIER_VERSION 59 — spell AP costs/ranges now come from the client; 0-AP damage spells remain excluded
  * from the AP-only rotations and certificate throughput tables. Saved searches need a re-run.
+ * 5: CERTIFIER_VERSION 60 — sublimation families reach their level cap with partial shards and shared conditional gates.
  */
-const val ENGINE_RESULTS_VERSION: Int = 4
+const val ENGINE_RESULTS_VERSION: Int = 5

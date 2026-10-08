@@ -246,8 +246,9 @@ class SecondaryMasteriesEachTest {
             val build = requireNotNull(last).individual
             val chosenSubs = build.sublimations.values.flatten()
             assertThat(build.equipments.map { it.equipmentId }).containsExactlyInAnyOrder(901, 903)
-            assertThat(chosenSubs).containsExactly(neutraliteIII)
-            // The re-scorer agrees: distance nets to 0 within its own stat, the cap holds, the +24 % DI is credited.
+            assertThat(chosenSubs.map { it.stateId }).containsExactly(neutraliteIII.stateId, neutraliteIII.stateId)
+            assertThat(chosenSubs.map { it.stackLevel }).containsOnly(4)
+            // The re-scorer agrees: distance nets to 0 within its own stat, the cap holds, the level-4 +32 % DI is credited.
             val stats =
                 computeCharacteristicsValues(
                     build,
@@ -258,7 +259,7 @@ class SecondaryMasteriesEachTest {
                     damageScenario = scenario
                 )
             assertThat(stats[Characteristic.MASTERY_DISTANCE] ?: 0).isLessThanOrEqualTo(0)
-            assertThat(stats[Characteristic.DAMAGE_INFLICTED] ?: 0).isGreaterThanOrEqualTo(24)
+            assertThat(stats[Characteristic.DAMAGE_INFLICTED] ?: 0).isGreaterThanOrEqualTo(32)
 
             // The rear cape's cross-stat "offset" is no offset: with it forced, Neutralité cannot be carried.
             var rearLast: me.chosante.autobuilder.genetic.SolverResult<BuildCombination>? = null
@@ -266,6 +267,10 @@ class SecondaryMasteriesEachTest {
             WakfuBuildSolver.optimize(params, rearOnly, emptyList(), listOf(neutraliteIII), tuning, hardConstraints = false).collect { rearLast = it }
             val rearBuild = requireNotNull(rearLast).individual
             assertThat(rearBuild.equipments.map { it.equipmentId }).containsExactlyInAnyOrder(901, 902)
-            assertThat(rearBuild.sublimations.values.flatten()).doesNotContain(neutraliteIII)
+            assertThat(
+                rearBuild.sublimations.values
+                    .flatten()
+                    .map { it.stateId }
+            ).doesNotContain(neutraliteIII.stateId)
         }
 }

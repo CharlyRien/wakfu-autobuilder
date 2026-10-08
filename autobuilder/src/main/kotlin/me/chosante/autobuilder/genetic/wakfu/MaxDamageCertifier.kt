@@ -1831,21 +1831,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // compose with the conversion residual (the two worlds never coexist — both consume the epic slot).
     fun cmWorld(x: Long): Long = if (critSecret != null) 0L else convResidual(x)
 
-    // Vars the certifier must EXCLUDE from every term list — else their max contribution leaks into the passive
-    // constants at their (untracked) domain max. Two kinds:
-    //  • [conversionMovedVars]: a CONVERSION's ±moved value, accounted analytically per-Raw instead.
-    //  • Cumulable-sub COPY vars (b1..b_{k-1}): the SOLVER models a k-copy sub as its base subVar PLUS these
-    //    extra booleans (SublimationModelBuilder). The certifier re-derives stacking by DUPLICATING the sub's
-    //    single-copy Raw [Sublimation.maxCopies] times in [keptSubs], so it must drop the model's copy vars —
-    //    their VALUE rides the kept base subVar term (perSubValue attributes it; the duplication scales it k×).
-    //    Left in, [passivePart] would fold each copy into [diConst]/[mConst] as an ALWAYS-ON constant, double-
-    //    counting what the duplication already prices (and, before the copy vars were seeded `0..1`, doing so at
-    //    their ±1e7 fallback domain — a phantom hundreds-of-millions constant that exploded the bound ~2.9e6×).
-    val certifierDroppedVars: Set<IntVar> =
-        subModel.copyVars.values
-            .flatten()
-            .toSet()
-            .let { copies -> if (copies.isEmpty()) conversionMovedVars else conversionMovedVars + copies }
+    // Conversion moved terms are priced analytically and must be dropped. Every copy leaf and conditional
+    // conjunction is seeded 0..1 and registered to its own marginal unit in subByVar/subDerivedVars.
+    // Keep those terms: sub maps already contain one exact marginal per socket. An unregistered copy must
+    // never leak into passive constants (the historical untracked-domain bug inflated bounds ~2.9e6 times).
+    val certifierDroppedVars: Set<IntVar> = conversionMovedVars
 
     fun dropMoved(terms: List<Term>): List<Term> = if (certifierDroppedVars.isEmpty()) terms else terms.filter { it.variable !in certifierDroppedVars }
 
@@ -2163,9 +2153,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     val permCritByVar = permanentSubTermsByStat[Characteristic.CRITICAL_HIT].orEmpty().associate { it.variable to it.coefficient }
     val permApByVar = permanentSubTermsByStat[Characteristic.ACTION_POINT].orEmpty().associate { it.variable to it.coefficient }
 
-    fun permCritOf(sub: Sublimation) = subModel.subVars[sub]?.let { permCritByVar[it] } ?: 0L
+    fun permCritOf(sub: Sublimation) = subByVar.entries.filter { it.value == sub }.sumOf { permCritByVar[it.key] ?: 0L }
 
-    fun permApOf(sub: Sublimation) = subModel.subVars[sub]?.let { permApByVar[it] } ?: 0L
+    fun permApOf(sub: Sublimation) = subByVar.entries.filter { it.value == sub }.sumOf { permApByVar[it.key] ?: 0L }
 
     var forcedDiConst = 0L
     var forcedMConst = 0L
@@ -2369,7 +2359,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             val mpOnlySubFree =
                 mpS.entries
                     .filter { (s, v) -> v > 0L && s.rarity == SublimationRarity.NORMAL && s !in damageSubs && s !in forcedSubs }
-                    .map { (s, v) -> v * s.maxCopies }
+                    .map { (_, v) -> v }
                     .sortedDescending()
                     .take(MAX_NORMAL_SUBLIMATIONS.toInt())
                     .sum()
@@ -2446,7 +2436,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 // build gets nothing either. Furie II (+1 range under `range ≥ 4`) is the only such sub; against the GUI's
                 // RANGE 4 its exclusion is what makes the row bind.
                 .filterNot { (s, _) -> s.condition?.type == SublimationConditionType.RANGE_AT_LEAST && (s.condition?.value ?: 0) >= rangeRowTarget }
-                .map { (s, v) -> v * s.maxCopies }
+                .map { (_, v) -> v }
                 .sortedDescending()
                 .take(MAX_SUBLIMATIONS_TOTAL.toInt())
                 .sum()
@@ -2985,28 +2975,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     sub.stateId !in ablatedIds &&
                     (weaponsRestricted || weaponsRelaxed || sub.condition?.type != SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
             }
-            // STACKING: a cumulable NORMAL sub can be socketed up to [Sublimation.maxCopies] times, its value scaling
-            // exactly k× (the FLOOR maxCopies keeps every copy full — constant marginal). Model each copy as an
-            // INDEPENDENT normal-slot unit by duplicating the entry: the pools (budget / transition) then treat the
-            // copies identically, the DP's `n ≤ subCap` (10 normal) + the carrier bound cap the total, and picking
-            // more copies only raises a sound upper bound. maxCopies == 1 (non-cumulable, epic/relic) ⇒ no change.
-            // (The DP passes do NOT run one stage per duplicate — see [normalTransitionStages].)
-            .flatMap { entry -> List(entry.first.maxCopies) { entry } } +
-            // FORCED cumulable subs stack too (the model gives their pinned base var free copy vars). The BASE copy
-            // rides the constants above; its `maxCopies − 1` EXTRA copies are OPTIONAL — the solver takes one only
-            // when the normal slot it charges is worth its value — so they belong in the optional pools, exactly
-            // like a choosable sub's copies. Adding fewer would UNDER-count a stacked forced build (a wrong badge);
-            // adding the base again would double-count it. A cumulable sub is unconditional by construction
-            // ([Sublimation.maxCopies] demands no condition / conversion / ramp / best-element), so it can never be
-            // the world's `convTaken` / `critSecret` special, and epic/relic are never cumulable.
-            subEntries
-                .filter { (sub, _) ->
-                    sub in forcedSubs &&
-                        sub.rarity == SublimationRarity.NORMAL &&
-                        sub.maxCopies > 1 &&
-                        !structurallyDropped(sub) &&
-                        sub.stateId !in ablatedIds
-                }.flatMap { entry -> List(entry.first.maxCopies - 1) { entry } }
+    // Copies are registered to separate marginal units by StatBuilder. A forced family's base stays
+    // in constants; its registered extras are distinct optional units. Independent selection relaxes
+    // the ordered prefix (k largest units >= any real k-shard prefix), never under-counting.
 
     // Pure-crit / pure-AP subs (a crit%-only or AP-only effect) form free BUDGETS that fill the gap
     // between the build's PRE-sub crit/AP (the tracked DP dimensions) and the pinned total; every other
@@ -3034,19 +3005,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     fun isTransition(r: Raw) = !isPureCrit(r) && !isPureAp(r)
     val normalTransitionSubs =
         keptSubs.filter { isTransition(it.second) && it.first.rarity == SublimationRarity.NORMAL }
-    // MULTIPLICITY ENCODING for the DP passes: [keptSubs] duplicates a cumulable sub so every
-    // slot-COUNTING consumer (budgets, segment edges, minSubsToCover) sees one unit per copy — but the
-    // DP must NOT run one stage per copy. k identical stages double the stage count AND make stage k
-    // sweep a frontier already inflated by the sub's own earlier copies (measured 3.4× on the lvl-110
-    // badge proof, ≥7.8× on a lvl-245 back+berserk request). Collapse the duplicates into ONE stage per
-    // sub carrying its multiplicity: taking j ∈ 1..mult copies in that stage adds exactly j× the
-    // single-copy contribution — constant per copy, because a mult > 1 sub is unconditional and never a
-    // ramp/conversion (all guaranteed by [Sublimation.maxCopies]) — so the reachable state set, and
-    // therefore every certified value, is IDENTICAL to the per-copy encoding; only the stage count drops.
+    // Merge only identical marginals of the SAME family and condition into a multiplicity stage.
+    // Different marginals remain separate optional stages: taking the k largest relaxes the real ordered
+    // prefix and never under-counts. Every stage uses the family's existing shared condition gate.
     val normalTransitionStages =
         normalTransitionSubs
-            .groupBy { it.first }
-            .map { (sub, entries) -> Triple(sub, entries.first().second, entries.size) }
+            .groupBy { Triple(it.first.stateId, it.first.condition, it.second) }
+            .map { (_, entries) -> Triple(entries.first().first, entries.first().second, entries.size) }
     // A forced plain EPIC/RELIC sub occupies THE ≤1 slot of its rarity ⇒ no choosable sub of that
     // rarity can also be socketed — empty its stage (used by BOTH passes).
     val epicSubs =

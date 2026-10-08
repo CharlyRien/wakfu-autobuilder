@@ -113,8 +113,8 @@ internal class SublimationModel(
     /**
      * Extra copy booleans for cumulable normal subs ([Sublimation.maxCopies] > 1): `copyVars[sub] = [b1..b_{k-1}]`,
      * the socketed copies BEYOND the base [subVars] boolean, ordered `b_i ≤ b_{i-1}`. The build hosts
-     * `subVars[sub] + Σ copyVars[sub]` copies of `sub` (each on its own carrier), and every copy adds one more
-     * single-copy value to the objective. Empty for single-copy subs (the common non-stacking case).
+     * `subVars[sub] + Σ copyVars[sub]` copies of `sub` (each on its own carrier), and each shard adds its
+     * family-level marginal value to the objective. Empty for single-copy subs (the common non-stacking case).
      */
     val copyVars: Map<Sublimation, List<IntVar>> = emptyMap(),
 ) {

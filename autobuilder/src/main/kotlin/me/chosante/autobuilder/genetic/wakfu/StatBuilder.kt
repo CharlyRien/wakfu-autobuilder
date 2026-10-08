@@ -243,7 +243,11 @@ internal class StatBuilder(
                 perStat.values.forEach { put(it, equip) }
             }
         }
-    internal val subByVar: Map<IntVar, Sublimation> = subModel.subVars.entries.associate { (sub, v) -> v to sub }
+    internal val subByVar: Map<IntVar, Sublimation> =
+        buildMap {
+            subModel.subVars.forEach { (sub, variable) -> put(variable, sub) }
+            subModel.copyVars.forEach { (sub, variables) -> variables.forEachIndexed { index, variable -> put(variable, sub.marginalUnit(index + 2, subModel.characterLevel)) } }
+        }
 
     init {
         // Seed every leaf variable's exact domain so the interval arithmetic can propagate from them.
@@ -299,6 +303,7 @@ internal class StatBuilder(
                 val d = tracker.of(term.variable)
                 val scaled = term.scaledRange(d)
                 if (sub != null) {
+                    lo += scaled.first
                     val current = rangesBySub[sub] ?: (0L..0L)
                     rangesBySub[sub] = current.first + scaled.first..current.last + scaled.last
                 } else {
@@ -337,12 +342,8 @@ internal class StatBuilder(
             }
 
         var dp = mapOf(State(0, 0, 0) to 0L)
-        // NOTE on stacking: a cumulable sub's EXTRA copies enter the domain via their own copy vars, which are not
-        // in `subByVar`, so their terms fold into `nonCarrierHi` (an unconditional add) at the caller — a sound
-        // over-estimate of the extra copies, since it ignores the ≤10-normal cap. It is only sound because those
-        // copy vars are SEEDED `0..1` (see [tracker]); untracked they defaulted to ±STAT_ABS_MAX and this ceiling
-        // exploded by ~1e7×. Here we bound only the BASE sub var per sub (one slot each), cap-aware; summed with
-        // nonCarrierHi the ceiling stays ≥ the stacked-achievable value.
+        // Base and extra shard variables are registered separately, with their family-level marginal.
+        // Each consumes one normal slot; the ordered prefix can be relaxed here for an upper bound.
         for ((sub, range) in rangesBySub) {
             val value = range.last
             if (value <= 0L) continue
@@ -927,6 +928,7 @@ internal class StatBuilder(
     // this map the certifier's passive fold would credit them UNCONDITIONALLY at their cap — a free +24 DI
     // that costs no sub slot and competes with nothing. Mapping them lets [perSubValue] attribute them to
     // their sub, which turns them into normal DP transitions (slot + rarity + per-state choice).
+    internal val copyAppliesVarCache = mutableMapOf<IntVar, IntVar>()
     internal val subDerivedVars = mutableMapOf<IntVar, Sublimation>()
 
     // Sublimation stat contributions folded into the term loop, grouped by the (AP/MP/WP-folded)
