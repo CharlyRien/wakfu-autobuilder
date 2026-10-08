@@ -310,7 +310,6 @@ internal class StatBuilder(
                 val d = tracker.of(term.variable)
                 val scaled = term.scaledRange(d)
                 if (sub != null) {
-                    lo += scaled.first
                     val current = rangesBySub[sub] ?: (0L..0L)
                     rangesBySub[sub] = current.first + scaled.first..current.last + scaled.last
                 } else {
@@ -1664,10 +1663,9 @@ internal class StatBuilder(
     }
 
     /**
-     * Per sublimation, the EXACT contribution of [terms] when the sub is SELECTED (its 0/1 var = 1) — i.e.
-     * the raw coefficient sum, which (unlike [perSubContribution]) keeps NEGATIVE effects such as Carapace's
-     * MAX_ACTION_POINT −2. The certifier always either takes a sub whole or not at all, so this is the value
-     * to fold in; the max-form would silently zero a negative AP/stat and hide that lever.
+     * Per sublimation, signed coefficients for direct selected-sub variables and optimistic interval maxima
+     * for derived terms. Direct coefficients keep permanent NEGATIVE effects such as Carapace's MAX_AP −2;
+     * a derived condition gate can instead contribute zero when its condition fails, even on a forced sub.
      */
     internal fun perSubValue(terms: List<Term>): LinkedHashMap<Sublimation, Long> {
         val bySub = LinkedHashMap<Sublimation, Long>()
@@ -1683,9 +1681,9 @@ internal class StatBuilder(
             // tracked reach ceiling (already ≤ the ramp cap) — an upper bound since the source stat is
             // not tracked by the certifier.
             val d = tracker.of(term.variable)
-            // Conditional flat-effect gates are booleans: keep signed coefficients exactly, just as
-            // for direct shard booleans. Only a structured numeric derived term uses its optimistic reach.
-            val v = if (term.variable is com.google.ortools.sat.BoolVar) term.coefficient else term.maxContribution(d)
+            // A derived boolean may be false even for a forced sub (its condition can fail).
+            // Keep its optimistic interval maximum: a negative conditional effect can contribute zero.
+            val v = term.maxContribution(d)
             bySub[derived] = (bySub[derived] ?: 0L) + v
         }
         return bySub

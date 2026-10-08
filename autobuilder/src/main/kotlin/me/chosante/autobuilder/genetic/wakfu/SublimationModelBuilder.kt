@@ -156,7 +156,7 @@ internal fun CpModel.createSublimationModel(
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.EPIC, Rarity.EPIC)
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.RELIC, Rarity.RELIC)
 
-    // Ordered prefix: shard j adds value(min(j*t, cap)) - value(min((j-1)*t, cap)).
+    // Ordered prefix: shard j adds value(L_j) - value(L_(j-1)) for the best exact j-shard tier sum ≤ cap.
     // Conditional copies share the family's one applies gate (SublimationTerms); each consumes one slot/carrier.
     val copyVars = LinkedHashMap<Sublimation, List<IntVar>>()
     for (sub in subVars.keys) {

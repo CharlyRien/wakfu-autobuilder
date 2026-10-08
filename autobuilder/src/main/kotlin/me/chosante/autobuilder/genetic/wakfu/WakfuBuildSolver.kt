@@ -431,8 +431,9 @@ object WakfuBuildSolver {
      * 59: official client spell AP costs replace encyclopedia guesses; AP-cell throughput and cached bounds change.
      * Bounds can only fall with the pool: a bound cached before stays an upper bound — bumped as the pool every certificate reads changed.
      * 60: family-level marginals, partial final shards, and conditional family stacking; copy variables registered individually.
+     * 61: exact legal shard-tier sums, optimistic derived-condition debits, and singly counted sublimation domain lows.
      */
-    const val CERTIFIER_VERSION: Int = 60
+    const val CERTIFIER_VERSION: Int = 61
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

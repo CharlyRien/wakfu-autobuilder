@@ -2135,7 +2135,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // subs), start-of-combat AP, negative start-of-combat crit, and a supported-conditional sub
     // carrying crit/AP (a state axis cannot be gated per condition).
     // NOTE: a forced conditional sub's terms ride its GATED var, attributed back to the sub through
-    // [subDerivedVars] (tracked [0,1]) — [perSubValue]'s derived path returns the raw coefficient.
+    // [subDerivedVars] (tracked [0,1]) — [perSubValue] keeps their optimistic interval maximum.
     // v44 world M: the assumed block sub rides the forced machinery (slot + rarity occupancy, constants).
     // Every forced shard is pinned at the chosen level: put all of its exact marginals into the
     // constants/condition credits and charge every carrier. No optional copies can raise that level.
@@ -2160,6 +2160,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     fun permCritOf(sub: Sublimation) = subByVar.entries.filter { it.value == sub }.sumOf { permCritByVar[it.key] ?: 0L }
 
     fun permApOf(sub: Sublimation) = subByVar.entries.filter { it.value == sub }.sumOf { permApByVar[it.key] ?: 0L }
+
+    // Valuing a derived negative gate optimistically can yield zero. Its AP/crit axis still requires
+    // condition-aware state machinery, so detect the term itself before deciding whether to bail.
+    fun hasConditionalStateAxis(sub: Sublimation) =
+        (apTerms + critTerms).any { term ->
+            term.coefficient != 0L && (subByVar[term.variable] == sub || subDerivedVars[term.variable] == sub)
+        }
 
     var forcedDiConst = 0L
     var forcedMConst = 0L
@@ -2208,7 +2215,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 forcedPermApTotal += ap
             }
             cond.type == SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> {
-                if (cr != 0L || ap != 0L) return Long.MAX_VALUE
+                if (hasConditionalStateAxis(sub)) return Long.MAX_VALUE
                 if (weaponsRestricted || weaponsRelaxed) {
                     forcedDiConst += di
                     forcedMConst += m
@@ -2216,7 +2223,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 }
             }
             else -> {
-                if (cr != 0L || ap != 0L) return Long.MAX_VALUE
+                if (hasConditionalStateAxis(sub)) return Long.MAX_VALUE
                 forcedCondCredits += sub to Raw(di.coerceAtLeast(0L), m.coerceAtLeast(0L), cm.coerceAtLeast(0L), 0, 0, 0, 0)
             }
         }

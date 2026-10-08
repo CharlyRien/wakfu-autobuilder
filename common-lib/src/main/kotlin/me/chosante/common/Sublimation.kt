@@ -317,8 +317,8 @@ data class Sublimation(
     val slotColorPattern: List<Int> = emptyList(),
     /**
      * The sublimation family's **stack cap** — the max total socketed level (State table `max_level`, usually
-     * 6, sometimes 4/2). Shard tiers add within ONE stateId family and clamp at this cap; a final partial
-     * shard counts (see [maxCopies]). NOT the item tier a user buys/sockets. Serialized as `maxLevel` for
+     * 6, sometimes 4/2). Shard tiers add within ONE stateId family and must never exceed this cap; exact lower-tier
+     * completion counts (see [maxCopies]). NOT the item tier a user buys/sockets. Serialized as `maxLevel` for
      * back-compat with the baked `sublimations.json` + saved builds.
      */
     @SerialName("maxLevel")
@@ -368,16 +368,52 @@ data class Sublimation(
         get() = slotColorPattern.mapNotNull { code -> runCatching { RuneColor.fromCode(code) }.getOrNull() }
 
     /**
-     * Shards needed to reach the family cap: `ceil(maxStackLevel / maxTier)` for cumulable normal
-     * flat/percent families, including CONDITIONAL ones. Copy j contributes the marginal between
-     * `min(j * maxTier, cap)` and `min((j - 1) * maxTier, cap)`; level zero contributes nothing.
-     * All conditional shards share one family gate. Each shard consumes one normal slot/carrier.
-     * Structured conversion/ramp/best-element (and elemental-zeroing), non-cumulable and epic/relic
-     * shapes remain single-shard. [maxTier] can be capped to an actually available request tier.
-     * Forced levels instead use [shardPlan] and pin exactly the fewest shards, with no optional extras.
+     * Number of strictly improving exact-shard-count levels for cumulable normal flat/percent families.
+     * L_k is the highest sum of exactly k available shard tiers that does not exceed the cap; copy k
+     * contributes V(L_k) - V(L_(k-1)), with V(0)=0. No shard plan may overshoot the cap.
+     * Conditional shards share one family gate and each consumes one carrier. Structured effects,
+     * non-cumulable and epic/relic shapes stay single-shard. Forced levels use [shardPlan] instead.
      */
     val maxCopies: Int
-        get() = if (stacksByLevel) (maxStackLevel + maxTier.coerceAtLeast(1) - 1) / maxTier.coerceAtLeast(1) else 1
+        get() = if (stacksByLevel) automaticShardPlans().size else 1
+
+    /** Highest exact level at each useful shard count, in ordered-copy order. */
+    val automaticStackLevels: List<Int>
+        get() = automaticShardPlans().map { it.sum() }
+
+    private fun automaticShardPlans(): List<List<Int>> {
+        val tiers = availableTiers()
+        if (tiers.isEmpty()) return emptyList()
+        var previous = arrayOfNulls<List<Int>>(maxStackLevel + 1)
+        previous[0] = emptyList()
+        var previousLevel = 0
+        val plans = mutableListOf<List<Int>>()
+        repeat(maxStackLevel / tiers.min()) {
+            val next = arrayOfNulls<List<Int>>(maxStackLevel + 1)
+            for (at in previous.indices) {
+                val plan = previous[at] ?: continue
+                for (tier in tiers) {
+                    val level = at + tier
+                    if (level <= maxStackLevel && next[level] == null) next[level] = (plan + tier).sortedDescending()
+                }
+            }
+            val level = next.indexOfLast { it != null }
+            if (level <= previousLevel) return plans
+            plans += requireNotNull(next[level])
+            previous = next
+            previousLevel = level
+        }
+        return plans
+    }
+
+    private fun levelAfterShard(
+        shard: Int,
+        chosenLevel: Int?,
+    ): Int {
+        if (shard == 0) return 0
+        if (chosenLevel != null) return shardPlan(chosenLevel, maxTier).take(shard).sum()
+        return if (stacksByLevel) automaticStackLevels[shard - 1] else maxTier
+    }
 
     val stacksByLevel: Boolean
         get() =
@@ -391,7 +427,7 @@ data class Sublimation(
 
     /** Cap normal shard tiers by actual availability; epic/relic generation filters remain name-based. */
     fun atTierLimit(limit: Int?): Sublimation? {
-        if (limit == null || rarity != SublimationRarity.NORMAL || !stackModelled || shardsByTier.isEmpty()) return this
+        if (rarity != SublimationRarity.NORMAL || !stackModelled || shardsByTier.isEmpty()) return this
         val tier = availableTiers(limit).maxOrNull() ?: return null
         return if (tier == maxTier) this else copy(maxTier = tier)
     }
@@ -418,9 +454,8 @@ data class Sublimation(
         chosenLevel: Int? = null,
     ): Int {
         if (!stacksByLevel && chosenLevel == null) return effect.magnitudeAtLevel(characterLevel)
-        val cap = chosenLevel ?: maxStackLevel
-        val from = ((shard - 1) * maxTier).coerceAtMost(cap)
-        val to = (shard * maxTier).coerceAtMost(cap)
+        val from = levelAfterShard(shard - 1, chosenLevel)
+        val to = levelAfterShard(shard, chosenLevel)
         return magnitudeAtStackLevel(effect, to, characterLevel) - magnitudeAtStackLevel(effect, from, characterLevel)
     }
 
@@ -433,7 +468,7 @@ data class Sublimation(
         copy(
             cumulable = false,
             stackModelled = false,
-            stackLevel = (shard * maxTier).coerceAtMost(chosenLevel ?: maxStackLevel),
+            stackLevel = levelAfterShard(shard, chosenLevel),
             effects =
                 effects.map { effect ->
                     if (effect is SublimationEffect.StatEffect) {
@@ -449,51 +484,45 @@ data class Sublimation(
                 }
         )
 
-    fun certificateUnits(characterLevel: Int): List<Sublimation> = if (maxCopies == 1) listOf(this) else (1..maxCopies).map { marginalUnit(it, characterLevel) }
+    fun certificateUnits(characterLevel: Int): List<Sublimation> = if (!stacksByLevel) listOf(this) else (1..maxCopies).map { marginalUnit(it, characterLevel) }
 
-    /** The actual CDN tiers allowed by the request; synthetic fixtures fall back to 1..maxTier. */
+    /** Actual CDN tiers allowed by the request and family cap; synthetic fixtures use 1..maxTier. */
     fun availableTiers(tierLimit: Int? = null): List<Int> =
         (if (shardsByTier.isEmpty()) (1..maxTier).toList() else shardsByTier.keys.toList())
-            .filter {
-                it <=
-                    (tierLimit ?: maxTier)
-            }.sortedDescending()
+            .filter { it > 0 && it <= minOf(tierLimit ?: maxTier, maxTier, maxStackLevel) }
+            .sortedDescending()
 
-    /** Sums of available shards, with over-cap sums represented by the cap. */
+    /** Exact sums of available shards, never exceeding the family cap. */
     fun reachableLevels(tierLimit: Int? = null): List<Int> {
-        if (!stackModelled) return listOf(maxTier.coerceAtMost(maxStackLevel))
-        if (!stacksByLevel) return availableTiers(tierLimit).map { it.coerceAtMost(maxStackLevel) }.distinct().sorted()
+        if (!stackModelled) return listOf(maxTier).filter { it in availableTiers(tierLimit) }
+        if (!stacksByLevel) return availableTiers(tierLimit).sorted()
         val tiers = availableTiers(tierLimit)
         val reachable = BooleanArray(maxStackLevel + 1)
         reachable[0] = true
-        for (level in 0 until maxStackLevel) if (reachable[level]) for (tier in tiers) reachable[(level + tier).coerceAtMost(maxStackLevel)] = true
+        for (level in 0 until maxStackLevel) {
+            if (!reachable[level]) continue
+            for (tier in tiers) if (level + tier <= maxStackLevel) reachable[level + tier] = true
+        }
         return (1..maxStackLevel).filter { reachable[it] }
     }
 
-    /** Fewest actual shards for an exact level (the cap also permits overshoot), stable highest-tier-first ties. */
+    /** Fewest actual shards for an exact level, with stable highest-tier-first ties. */
     fun shardPlan(
         level: Int,
         tierLimit: Int? = null,
     ): List<Int> {
-        if (!stackModelled) {
-            require(level == maxTier.coerceAtMost(maxStackLevel))
-            return listOf(maxTier)
-        }
         val tiers = availableTiers(tierLimit)
         require(level in reachableLevels(tierLimit)) { "${name.fr}: level $level is unavailable; choose ${reachableLevels(tierLimit).joinToString()}" }
-        if (!stacksByLevel) return listOf(tiers.last { it.coerceAtMost(maxStackLevel) == level })
+        if (!stackModelled || !stacksByLevel) return listOf(level)
         val plans = arrayOfNulls<List<Int>>(maxStackLevel + 1)
         plans[0] = emptyList()
         for (at in 0 until maxStackLevel) {
             val plan = plans[at] ?: continue
             for (tier in tiers) {
-                val next = (at + tier).coerceAtMost(maxStackLevel)
+                val next = at + tier
+                if (next > maxStackLevel) continue
                 val candidate = (plan + tier).sortedDescending()
-                if (plans[next] == null ||
-                    (candidate.size < plans[next]!!.size || candidate.size == plans[next]!!.size && candidate.sum() < plans[next]!!.sum())
-                ) {
-                    plans[next] = candidate
-                }
+                if (plans[next] == null || candidate.size < plans[next]!!.size) plans[next] = candidate
             }
         }
         return requireNotNull(plans[level])
@@ -507,6 +536,7 @@ data class Sublimation(
     ): List<Sublimation> {
         if (copies == 0) return emptyList()
         if (!stackModelled || !stacksByLevel && chosenLevel == null) return List(copies) { this }
+        if (chosenLevel == null) require(copies in 1..maxCopies) { "${name.fr}: unavailable shard count $copies" }
         // Keep legacy full-shard fixtures stable, but resolve partial and per-level synthetic families too.
         if (chosenLevel == null &&
             shardsByTier.isEmpty() &&
@@ -515,17 +545,12 @@ data class Sublimation(
         ) {
             return List(copies) { this }
         }
-        val level = chosenLevel ?: (copies * maxTier).coerceAtMost(maxStackLevel)
-        val tiers =
-            if (chosenLevel != null) {
-                shardPlan(level, maxTier)
-            } else {
-                val remainder = level - (copies - 1) * maxTier
-                List(copies - 1) { maxTier } + (availableTiers().firstOrNull { it == remainder } ?: maxTier)
-            }
+        val tiers = if (chosenLevel != null) shardPlan(chosenLevel, maxTier) else automaticShardPlans()[copies - 1]
+        require(tiers.size == copies) { "${name.fr}: $copies shards cannot represent level $chosenLevel" }
+        val level = tiers.sum()
         var from = 0
         return tiers.map { tier ->
-            val to = (from + tier).coerceAtMost(level)
+            val to = from + tier
             val shard = if (shardsByTier.isEmpty()) SublimationShard(zenithId, name) else requireNotNull(shardsByTier[tier]) { "Missing CDN shard id: ${name.fr} tier $tier" }
             val resolved =
                 effects.map { effect ->

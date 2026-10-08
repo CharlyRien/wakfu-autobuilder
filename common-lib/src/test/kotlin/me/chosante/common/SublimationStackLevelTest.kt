@@ -1,6 +1,7 @@
 package me.chosante.common
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 
 class SublimationStackLevelTest {
@@ -40,13 +41,28 @@ class SublimationStackLevelTest {
     }
 
     @Test
-    fun `reachable sums use the fewest actual shards and allow clamping only at the cap`() {
+    fun `reachable sums use the fewest actual shards without overshoot`() {
         val onlyTwo = sub(setOf(2), 6)
         assertEquals(listOf(2, 4, 6), onlyTwo.reachableLevels())
         assertEquals(listOf(2, 2), onlyTwo.shardPlan(4))
         assertEquals(listOf(2, 2), sub(setOf(2, 3)).shardPlan(4))
         assertEquals(listOf(3, 1), sub().shardPlan(4))
-        assertEquals(listOf(3, 3), sub(setOf(3)).socketedShards(2, 65).map { it.socketTier })
+        val onlyThree = sub(setOf(3))
+        assertEquals(listOf(3), onlyThree.reachableLevels())
+        assertEquals(listOf(3), onlyThree.automaticStackLevels)
+        assertEquals(1, onlyThree.maxCopies)
+        assertThrows(IllegalArgumentException::class.java) { onlyThree.shardPlan(4) }
+        assertEquals(listOf(3), onlyThree.socketedShards(1, 65).map { it.socketTier })
+        val twoOrThree = sub(setOf(2, 3))
+        assertEquals(listOf(2, 3, 4), twoOrThree.reachableLevels())
+        assertEquals(listOf(3, 4), twoOrThree.automaticStackLevels)
+        assertEquals(listOf(2, 2), twoOrThree.socketedShards(2, 65).map { it.socketTier })
+        assertEquals(listOf(24, 8), twoOrThree.certificateUnits(65).map { (it.effects.single() as SublimationEffect.Flat).value })
+        assertEquals(32, twoOrThree.socketedShards(2, 65).sumOf { (it.effects.single() as SublimationEffect.Flat).value })
+        val forcedFive = sub(setOf(1, 3), 5)
+        assertEquals(listOf(3, 1, 1), forcedFive.shardPlan(5))
+        val effect = forcedFive.effects.single() as SublimationEffect.StatEffect
+        assertEquals(listOf(24, 8, 8), (1..3).map { forcedFive.marginalMagnitude(effect, it, 65, 5) })
         assertEquals(2, sub().atTierLimit(2)!!.maxCopies)
         assertEquals(4, sub().atTierLimit(1)!!.maxCopies)
     }
