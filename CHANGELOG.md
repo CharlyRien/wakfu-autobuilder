@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.17.0...wakfu-autobuilder-1.18.0) (2026-10-08)
+
+
+### Features
+
+* sublimations stack to their level cap, and forced sublimations take a level ([#269](https://github.com/CharlyRien/wakfu-autobuilder/issues/269)) ([6f0c6d2](https://github.com/CharlyRien/wakfu-autobuilder/commit/6f0c6d2bba7098804a174dfffbc71935132cfc80))
+
 ## [1.17.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.16.0...wakfu-autobuilder-1.17.0) (2026-10-08)
 
 
