@@ -60,6 +60,17 @@ class SublimationReproductionTest {
                 File(findRepositoryRoot(), "autobuilder/src/main/resources/sublimations.json").readText()
             )
         val oracleById = oracle.associateBy { it.stateId }
+        for (sub in built) {
+            val expected = oracle.single { it.stateId == sub.stateId }
+            assertEquals(expected.shardsByTier, sub.shardsByTier, "CDN shard identity drift: ${sub.name.fr}")
+            assertEquals(expected.stackModelled, sub.stackModelled, "stack shape drift: ${sub.name.fr}")
+            assertEquals(
+                expected.effects.filterIsInstance<SublimationEffect.StatEffect>().map { it.valuesByLevel },
+                sub.effects.filterIsInstance<SublimationEffect.StatEffect>().map { it.valuesByLevel },
+                "family-level formula drift: ${sub.name.fr}"
+            )
+        }
+
         val oracleChoosable = oracle.filter { it.solverChoosable }.map { it.stateId }.toSortedSet()
         val builtChoosable = built.filter { it.solverChoosable }.map { it.stateId }.toSortedSet()
 

@@ -7,6 +7,7 @@ import me.chosante.common.RuneCatalogData
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.SublimationRarity
+import me.chosante.common.SublimationShard
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -36,6 +37,7 @@ data class SublimationMeta(
      * formula scales to: `buildSublimations` evaluates `floor(base + inc·maxTier)`. Always ≥ 1.
      */
     val maxTier: Int,
+    val shardsByTier: Map<Int, SublimationShard> = emptyMap(),
 )
 
 /**
@@ -133,12 +135,17 @@ object ItemsCatalog {
         // MAX of those grants (≈ 2 or 3, never the State table's theoretical `max_level` of ~6). Several rows
         // share a stateId, so we must scan them all here before the first-row-wins identity pass below.
         val maxTierByState = HashMap<Int, Int>()
+        val shardsByState = HashMap<Int, MutableMap<Int, SublimationShard>>()
         for (it in items) {
             if (it.definition.item.baseParameters.itemTypeId != SUBLIMATION_ITEM_TYPE) continue
             val def = it.applyStateEffect() ?: continue
             val stateId = def.params.firstOrNull()?.toInt() ?: continue
             val tier = def.params.getOrNull(2)?.toInt() ?: 1
             maxTierByState[stateId] = maxOf(maxTierByState[stateId] ?: 1, tier)
+            it.title?.let { title ->
+                val name = I18nText(title.fr ?: title.en ?: "", title.en ?: title.fr ?: "", title.es ?: title.en ?: "", title.pt ?: title.en ?: "")
+                shardsByState.getOrPut(stateId) { linkedMapOf() }.putIfAbsent(tier, SublimationShard(it.definition.item.id, name))
+            }
         }
 
         // Pass 2: pick the IDENTITY row per stateId — the tier the record is VALUED at. The record's
@@ -209,7 +216,8 @@ object ItemsCatalog {
                             else -> SublimationRarity.NORMAL
                         },
                     slotColorPattern = sp.slotColorPattern,
-                    maxTier = (maxTierByState[stateId] ?: 1).coerceAtLeast(1)
+                    maxTier = (maxTierByState[stateId] ?: 1).coerceAtLeast(1),
+                    shardsByTier = shardsByState[stateId].orEmpty().toSortedMap()
                 )
             )
         }

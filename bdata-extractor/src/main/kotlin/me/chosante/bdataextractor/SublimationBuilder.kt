@@ -525,7 +525,7 @@ fun buildSublimations(
                             g
                         }
                     }
-                resolved.add(SublimationEffect.Flat(charac, value, gate, permanentHere))
+                resolved.add(SublimationEffect.Flat(charac, value, gate, permanentHere, (1..maxStackLevel).map { floor((base() + inc() * it) * sign).toInt() }))
             }
 
             when {
@@ -554,7 +554,16 @@ fun buildSublimations(
                                 dirty = true
                             } else if (scaledPct * stat.second != 0) {
                                 resolved.add(
-                                    SublimationEffect.PercentOfLevel(stat.first, scaledPct * stat.second, gatesFor(childId), permanentHere)
+                                    SublimationEffect.PercentOfLevel(
+                                        stat.first,
+                                        scaledPct * stat.second,
+                                        gatesFor(childId),
+                                        permanentHere,
+                                        (1..maxStackLevel).map {
+                                            pct * it *
+                                                stat.second
+                                        }
+                                    )
                                 )
                             }
                         }
@@ -604,8 +613,22 @@ fun buildSublimations(
                 .flatMap { (key, list) ->
                     list
                         .groupBy { isPermanent(it) }
-                        .map { (perm, part) -> SublimationEffect.Flat(key.first, part.sumOf { it.value }, key.second, perm) }
-                        .filter { it.value != 0 }
+                        .map { (perm, part) ->
+                            SublimationEffect.Flat(
+                                key.first,
+                                part.sumOf { it.value },
+                                key.second,
+                                perm,
+                                (1..maxStackLevel).map { l ->
+                                    part.sumOf {
+                                        it.valuesByLevel[
+                                            l -
+                                                1
+                                        ]
+                                    }
+                                }
+                            )
+                        }.filter { it.value != 0 }
                 }
         val percentMerged =
             resolved
@@ -615,8 +638,22 @@ fun buildSublimations(
                 .flatMap { (key, list) ->
                     list
                         .groupBy { isPermanent(it) }
-                        .map { (perm, part) -> SublimationEffect.PercentOfLevel(key.first, part.sumOf { it.percentOfLevel }, key.second, perm) }
-                        .filter { it.percentOfLevel != 0 }
+                        .map { (perm, part) ->
+                            SublimationEffect.PercentOfLevel(
+                                key.first,
+                                part.sumOf { it.percentOfLevel },
+                                key.second,
+                                perm,
+                                (1..maxStackLevel).map { l ->
+                                    part.sumOf {
+                                        it.valuesByLevel[
+                                            l -
+                                                1
+                                        ]
+                                    }
+                                }
+                            )
+                        }.filter { it.percentOfLevel != 0 }
                 }
         val merged: List<SublimationEffect> =
             (flatMerged + percentMerged).sortedWith(
@@ -667,6 +704,9 @@ fun buildSublimations(
             slotColorPattern = m.slotColorPattern,
             maxStackLevel = maxStackLevel,
             maxTier = maxTier,
+            shardsByTier = m.shardsByTier,
+            stackModelled = perStatStep == null && conversion == null && bestElementConcentration == null && !zeroesElementalMastery,
+            cumulable = state?.get("is_cumulable") as? Boolean ?: false,
             kind = kind,
             solverChoosable = solverChoosable,
             condition = condition,

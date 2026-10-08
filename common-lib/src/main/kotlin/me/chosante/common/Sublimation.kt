@@ -8,6 +8,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
 
+@Serializable
+data class SublimationShard(
+    val itemId: Int,
+    val name: I18nText,
+)
+
 /** Where a sublimation goes: an epic/relic dedicated character slot, or a normal 3-colour socket set. */
 @Serializable
 enum class SublimationRarity { EPIC, RELIC, NORMAL }
@@ -167,6 +173,9 @@ sealed interface SublimationEffect {
     sealed interface StatEffect : SublimationEffect {
         val characteristic: Characteristic
 
+        /** Raw flat amounts or percentages, indexed by family level minus one; empty in legacy saves. */
+        val valuesByLevel: List<Int>
+
         /** The modeled flat magnitude for a character of [level]: [Flat.value], or `floor(percent · level / 100)`. */
         fun magnitudeAtLevel(level: Int): Int
     }
@@ -179,6 +188,7 @@ sealed interface SublimationEffect {
         val value: Int,
         override val scenarioGate: ScenarioGate? = null,
         override val appliesBeforeCombat: Boolean = false,
+        override val valuesByLevel: List<Int> = emptyList(),
     ) : StatEffect {
         override fun magnitudeAtLevel(level: Int): Int = value
     }
@@ -195,6 +205,7 @@ sealed interface SublimationEffect {
         val percentOfLevel: Int,
         override val scenarioGate: ScenarioGate? = null,
         override val appliesBeforeCombat: Boolean = false,
+        override val valuesByLevel: List<Int> = emptyList(),
     ) : StatEffect {
         override fun magnitudeAtLevel(level: Int): Int = percentOfLevelMagnitude(percentOfLevel, level)
     }
@@ -314,6 +325,10 @@ data class Sublimation(
     val maxStackLevel: Int = 1,
     /** The real best-achievable item tier (I/II/III), sourced from the sublimation item apply-state level grant. */
     val maxTier: Int = 1,
+    /** Exact CDN shard identities for each socketable tier. */
+    val shardsByTier: Map<Int, SublimationShard> = emptyMap(),
+    /** Structured effects deliberately stay single-shard at maxTier. */
+    val stackModelled: Boolean = true,
     /**
      * Whether socketing this sublimation multiple times ACCUMULATES (Wakfu's `is_cumulable`). A cumulable normal
      * sub can be stacked up to [maxCopies] copies, each on its own ≥3-socket carrier, its effects scaling k×.

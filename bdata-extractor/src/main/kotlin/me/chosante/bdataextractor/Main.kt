@@ -77,6 +77,31 @@ fun main(args: Array<String>) {
         writeSpellMetadata(install, File(findRepositoryRoot(), "autobuilder/src/main/resources"), System.getenv("BDATA_FORCE_WRITE") == "1")
         return
     }
+    if (args.firstOrNull() == "--sublimations-only") {
+        val install = File(args.getOrNull(1) ?: DEFAULT_INSTALL)
+        val built =
+            buildSublimations(
+                loadTable(install, Tables.STATE, Tables.STATE_SCHEMA),
+                loadTable(install, Tables.STATIC_EFFECT, Tables.STATIC_EFFECT_SCHEMA),
+                ActionCatalog.fetch(WakfuData.VERSION),
+                ItemsCatalog.fetchSublimationMeta(WakfuData.VERSION),
+                CharacIdCatalog.load(install)
+            )
+        val json =
+            Json {
+                prettyPrint = true
+                prettyPrintIndent = "  "
+                encodeDefaults = false
+            }
+        verifyAndWrite(
+            File(findRepositoryRoot(), "autobuilder/src/main/resources/sublimations.json"),
+            json.encodeToString(ListSerializer(Sublimation.serializer()), built),
+            "sublimations",
+            built.size,
+            System.getenv("BDATA_FORCE_WRITE") == "1"
+        )
+        return
+    }
     val runeValuesOnly = args.firstOrNull() == "--rune-values-only"
     val positionsOnly = args.firstOrNull() == "--equipment-positions-only"
     val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
