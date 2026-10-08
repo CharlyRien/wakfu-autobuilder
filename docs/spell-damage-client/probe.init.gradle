@@ -1,0 +1,4 @@
+gradle.projectsEvaluated {
+    def project = gradle.rootProject.project(':bdata-extractor')
+    project.kotlin.sourceSets.getByName('test').kotlin.srcDir(new File(gradle.rootProject.projectDir, 'docs/spell-damage-client'))
+}

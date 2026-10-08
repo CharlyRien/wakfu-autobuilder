@@ -1,0 +1,6 @@
+7dd7003aeb0bfb0dc7ee94b6c1a579c5d8fc93e35dd4ba416a0275925f15bef5  /Applications/Ankama/Wakfu/lib/wakfu-client.jar
+1a40731645620caa2d6376ac83f12e88f79319ae96fdd5fb056a3f061897fb8d  /Applications/Ankama/Wakfu/contents/bdata/66.jar
+df5c3f9f0f995837596a52d07a04651f71bbb97639a689e3caec15e0c7ace2a3  /Applications/Ankama/Wakfu/contents/bdata/67.jar
+f84b4e2722f08186d5ad86801ee31ae4dc3b8c496fee7b8f0748a175b2b72bd1  /Applications/Ankama/Wakfu/contents/bdata/68.jar
+d7a06cc785e1e215dad2ac1b1d8a840eb968f0c2053460174506ab0ab83e60bf  /Users/charly/workspace/wakfu-codex/spell-damage-client/autobuilder/src/main/resources/spells.json
+a5c1d96344ee23056e2880aefff11c3d4d092d92f92295aa3dca2c838d7ee1ce  /Users/charly/workspace/wakfu-codex/spell-damage-client/autobuilder/src/main/resources/spell-damage.json

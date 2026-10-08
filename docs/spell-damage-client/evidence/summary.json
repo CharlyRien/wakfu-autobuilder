@@ -1,0 +1,67 @@
+{
+  "anchoredRegenerationExact": 285,
+  "clientPresent": 285,
+  "damageCandidates": 1381,
+  "light": {
+    "firstNormalExact": 11,
+    "matched": 11,
+    "spells": 21
+  },
+  "normalOracleFormulaPresent": 262,
+  "oracleFallback": 23,
+  "oracleMatched": 263,
+  "referencedFallbackStates": 33,
+  "rules": {
+    "branch-first": {
+      "bothExact": 210,
+      "eitherMismatched": 53,
+      "normalExact": 240,
+      "normalMismatched": 23
+    },
+    "displayed": {
+      "bothExact": 210,
+      "eitherMismatched": 53,
+      "normalExact": 240,
+      "normalMismatched": 23
+    },
+    "displayed-no-criterion": {
+      "bothExact": 132,
+      "eitherMismatched": 131,
+      "normalExact": 151,
+      "normalMismatched": 112
+    },
+    "first": {
+      "bothExact": 209,
+      "eitherMismatched": 54,
+      "normalExact": 239,
+      "normalMismatched": 24
+    },
+    "maximum-hit": {
+      "bothExact": 174,
+      "eitherMismatched": 89,
+      "normalExact": 198,
+      "normalMismatched": 65
+    },
+    "minimum-depth": {
+      "bothExact": 202,
+      "eitherMismatched": 61,
+      "normalExact": 229,
+      "normalMismatched": 34
+    },
+    "minimum-hit": {
+      "bothExact": 192,
+      "eitherMismatched": 71,
+      "normalExact": 220,
+      "normalMismatched": 43
+    },
+    "no-criterion": {
+      "bothExact": 132,
+      "eitherMismatched": 131,
+      "normalExact": 152,
+      "normalMismatched": 111
+    }
+  },
+  "spells": 286,
+  "staticEffectFields": 57,
+  "uniqueReachableEffects": 8943
+}

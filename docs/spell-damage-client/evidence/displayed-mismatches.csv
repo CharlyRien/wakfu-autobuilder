@@ -1,0 +1,77 @@
+spellId,name,hit,oraclePair,selectedEffectId,selectedPair,oracleEffectIds,reason
+766,Cog,critical,"[0.0,0.08163265306122448]",,null,[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+779,Healing Word,critical,"[0.0,0.46530612244897956]",166942,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+921,Vaporize,critical,"[2.5,0.32499998807907104]",373511,"[117.5,0.0]",[377769],Several displayed variants have different formulas; table traversal order selects a different variant.
+922,Drain,critical,"[0.0,0.9306122448979591]",90080,"[7.5,0.8999999761581421]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+925,Bramble,normal,"[3.0,0.36000001430511475]",176257,"[0.0,0.3700000047683716]",[5602],Several displayed variants have different formulas; table traversal order selects a different variant.
+925,Bramble,critical,"[0.0,0.46530612244897956]",5664,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+932,Woodland Stench,critical,"[0.0,0.46530612244897956]",161461,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+934,K'mir,critical,"[0.0,0.46530612244897956]",90144,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+935,Earthquake,normal,"[2.0,0.23999999463558197]",378025,"[0.0,1.0]",[379415],The oracle formula exists only on hidden effects; the display flag selects a different formula.
+935,Earthquake,critical,"[2.5,0.30000001192092896]",378027,"[0.0,1.0]",[379428],The oracle formula exists only on hidden effects; the display flag selects a different formula.
+937,Manifold Bramble,critical,"[7.5,0.824999988079071]",293307,"[250.0,0.0]",[91091],Several displayed variants have different formulas; table traversal order selects a different variant.
+1534,Purifying Flame,critical,"[0.0,0.46530612244897956]",367468,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+2010,Killer Spade,critical,"[0.0,0.46530612244897956]",242378,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+2017,Refinement,normal,"[7.0,0.8399999737739563]",385330,"[8.75,1.0499999523162842]",[241864],Several displayed variants have different formulas; table traversal order selects a different variant.
+2017,Refinement,critical,"[0.0,1.0857142857142856]",385328,"[9.6875,1.3125]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+2041,Heads or Tails,critical,"[0.0,0.46530612244897956]",367232,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+2044,Three Cards,critical,"[7.5,0.824999988079071]",160826,"[0.0,1.0]",[412883],"The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4594,Forceful Blow,normal,"[4.0,0.5600000023841858]",409940,"[2.0,0.2800000011920929]",[120601],Several displayed variants have different formulas; table traversal order selects a different variant.
+4594,Forceful Blow,critical,"[5.0,0.699999988079071]",409946,"[2.5,0.3499999940395355]",[121242],Several displayed variants have different formulas; table traversal order selects a different variant.
+4596,Fright,critical,"[0.0,0.46530612244897956]",409900,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4669,Deafening Targe,critical,"[0.0,0.46530612244897956]",351024,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4685,Incandescence,critical,"[0.0,0.46530612244897956]",179827,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4692,Pulsation,normal,"[3.0,0.36000001430511475]",145248,"[2.0,0.23999999463558197]",[350977],Several displayed variants have different formulas; table traversal order selects a different variant.
+4692,Pulsation,critical,"[0.0,0.46530612244897956]",350981,"[2.5,0.30000001192092896]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4701,Unleashed Blade,normal,"[5.0,0.699999988079071]",145328,"[7.0,0.9800000190734863]",[145321],Several displayed variants have different formulas; table traversal order selects a different variant.
+4701,Unleashed Blade,critical,"[6.25,0.875]",351662,"[8.75,1.225000023841858]",[351661],Several displayed variants have different formulas; table traversal order selects a different variant.
+4703,Light My Fire,normal,"[3.0,0.33000001311302185]",147351,"[3.0,0.30000001192092896]",[417104],Several displayed variants have different formulas; table traversal order selects a different variant.
+4703,Light My Fire,critical,"[3.75,0.41749998927116394]",159996,"[3.75,0.375]",[417116],Several displayed variants have different formulas; table traversal order selects a different variant.
+4710,Milk Wave,normal,"[7.0,0.9800000190734863]",417288,"[10.5,1.4700000286102295]",[417294],Several displayed variants have different formulas; table traversal order selects a different variant.
+4710,Milk Wave,critical,"[8.75,1.225000023841858]",417298,"[13.125,1.837499976158142]",[417304],Several displayed variants have different formulas; table traversal order selects a different variant.
+4777,Super Iop Punch,normal,"[4.0,0.5600000023841858]",151824,"[0.0,1.0]","[397902,398199]","The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4777,Super Iop Punch,critical,"[5.0,0.699999988079071]",397907,"[0.0,1.0]","[397905,398202]","The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4778,Celestial Sword,normal,"[2.0,0.25999999046325684]",151573,"[2.5,0.32499998807907104]","[397241,398194]",Several displayed variants have different formulas; table traversal order selects a different variant.
+4778,Celestial Sword,critical,"[2.5,0.32499998807907104]",151634,"[3.125,0.4000000059604645]","[397242,398196]",Several displayed variants have different formulas; table traversal order selects a different variant.
+4779,Iop's Wrath,critical,"[0.0,0.9306122448979591]",151815,"[7.5,0.8999999761581421]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4781,Rocknoceros,normal,"[4.0,0.47999998927116394]",397930,"[0.0,1.0]","[149474,398209]","The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4781,Rocknoceros,critical,"[5.0,0.6000000238418579]",397932,"[0.0,1.0]","[151655,398210]","The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4788,Pounding,normal,"[6.0,0.7799999713897705]",397942,"[0.0,1.0]","[149508,398231]","The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4788,Pounding,critical,"[8.0,0.9750000238418579]",397944,"[0.0,1.0]","[151726,398232]","The first displayed effect has identity params [0,1]; a later effect carries the oracle formula."
+4809,Storm Arrow,normal,"[3.0,0.36000001430511475]",150341,"[4.0,0.47999998927116394]","[350129,350135]",Several displayed variants have different formulas; table traversal order selects a different variant.
+4809,Storm Arrow,critical,"[0.0,0.46530612244897956]",351318,"[5.0,0.6000000238418579]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4812,Static Arrow,critical,"[0.0,0.9306122448979591]",351359,"[7.5,0.8999999761581421]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+4814,Destructive Arrow,normal,"[9.0,1.1699999570846558]",347294,"[10.0,1.399999976158142]","[350068,350093]",Several displayed variants have different formulas; table traversal order selects a different variant.
+4814,Destructive Arrow,critical,"[11.25,1.462499976158142]",351264,"[12.5,1.75]","[351266,351275]",Several displayed variants have different formulas; table traversal order selects a different variant.
+4819,Explosive Arrow,normal,"[5.0,0.550000011920929]",349940,"[7.0,0.7699999809265137]",[150094],Several displayed variants have different formulas; table traversal order selects a different variant.
+4819,Explosive Arrow,critical,"[6.25,0.6875]",351168,"[8.75,0.9624999761581421]",[351172],Several displayed variants have different formulas; table traversal order selects a different variant.
+4822,Burning Arrow,normal,"[2.0,0.23999999463558197]",347176,"[3.0,0.38999998569488525]","[352307,411578]",Several displayed variants have different formulas; table traversal order selects a different variant.
+4822,Burning Arrow,critical,"[2.5,0.30000001192092896]",351575,"[3.75,0.48750001192092896]",[352313],Several displayed variants have different formulas; table traversal order selects a different variant.
+5033,Rocky Foot,critical,"[0.0,0.46530612244897956]",197049,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+5036,Smashes,normal,"[5.0,0.699999988079071]",157296,"[4.0,0.47999998927116394]",[416771],Several displayed variants have different formulas; table traversal order selects a different variant.
+5036,Smashes,critical,"[6.25,0.875]",197067,"[5.0,0.6000000238418579]",[416782],Several displayed variants have different formulas; table traversal order selects a different variant.
+5042,Light Speed,critical,"[0.0,0.46530612244897956]",417159,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+5562,Energy Flux,critical,"[2.0,0.32499998807907104]",350267,"[2.5,0.32499998807907104]",[350271],Several displayed variants have different formulas; table traversal order selects a different variant.
+5594,Light Arrow,critical,"[11.25,1.5625]",348637,"[11.25,1.5750000476837158]",[348640],Several displayed variants have different formulas; table traversal order selects a different variant.
+6258,Rupture,normal,"[2.0,0.2800000011920929]",339467,"[4.0,0.5600000023841858]","[339464,341148]",Several displayed variants have different formulas; table traversal order selects a different variant.
+6258,Rupture,critical,"[2.5,0.3499999940395355]",340453,"[5.0,0.699999988079071]","[340456,341159]",Several displayed variants have different formulas; table traversal order selects a different variant.
+6267,Contusion,critical,"[0.0,0.46530612244897956]",340510,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6463,Barbed Fire,normal,"[4.0,0.47999998927116394]",261805,"[2.0,0.23999999463558197]",[417844],Several displayed variants have different formulas; table traversal order selects a different variant.
+6463,Barbed Fire,critical,"[5.0,0.6000000238418579]",265000,"[2.5,0.30000001192092896]",[417853],Several displayed variants have different formulas; table traversal order selects a different variant.
+6469,Blunderbuss,critical,"[0.0,0.46530612244897956]",370631,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6471,Boomerang Dagger,critical,"[0.0,0.46530612244897956]",371275,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6472,Pulsar,critical,"[0.0,0.46530612244897956]",357549,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6476,Obliteration,normal,"[4.0,0.4399999976158142]",316806,"[4.0,0.5199999809265137]",[],The exact oracle damage formula is absent in the installed client; selecting another effect changes it.
+6476,Obliteration,critical,"[5.0,0.550000011920929]",416105,"[5.0,0.6499999761581421]",[],The exact oracle damage formula is absent in the installed client; selecting another effect changes it.
+6491,Evanescence,critical,"[0.0,0.46530612244897956]",416573,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6905,Flambé,critical,"[0.0,0.46530612244897956]",344899,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6968,Meteorite,critical,"[0.0,0.46530612244897956]",298925,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+6980,Rampart,critical,"[0.0,0.46530612244897956]",299476,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+7067,Fracture,normal,"[3.0,0.36000001430511475]",,null,[307478],All candidates were removed by the display flag; the oracle formula is present on a hidden effect.
+7067,Fracture,critical,"[0.0,0.46530612244897956]",,null,[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+7315,Gambol,critical,"[0.0,0.46530612244897956]",326682,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+7317,Whip,normal,"[4.0,0.5400000214576721]",326123,"[8.0,1.0800000429153442]","[326117,326124,326128]",Several displayed variants have different formulas; table traversal order selects a different variant.
+7317,Whip,critical,"[5.0,0.675000011920929]",326697,"[10.0,1.350000023841858]","[326696,326700,326703]",Several displayed variants have different formulas; table traversal order selects a different variant.
+7318,Plucking,critical,"[0.0,0.46530612244897956]",326707,"[3.75,0.44999998807907104]",[],"The oracle critical formula is an anchored linear approximation, not an available damage effect."
+7321,Feather Tornado,normal,"[3.0,0.33000001311302185]",326465,"[3.0,0.36000001430511475]",[326184],Several displayed variants have different formulas; table traversal order selects a different variant.
+7321,Feather Tornado,critical,"[3.75,0.4124999940395355]",327773,"[3.75,0.44999998807907104]",[327771],Several displayed variants have different formulas; table traversal order selects a different variant.
