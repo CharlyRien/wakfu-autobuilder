@@ -91,6 +91,16 @@ build stats. There remain 264 fully readable standard-element damage records and
 flags now mainly cover 21 LIGHT tokens, 10 absent base hits and 10 unconfirmed debuff targets, plus one
 missing-id AP/range pair (overlapping markers, not additional records).
 
+## Damage-anchor research (2026-10-08)
+
+The [client damage investigation](spell-damage-client/README.md) retains the encyclopedia anchor as a
+measured exception. The immutable scaling oracle contains 263 matched normal formulas and 23 fallbacks.
+First displayed effect reproduces 240/263 normal formulas, only 210/263 including critical; the old
+Obliteration formula is absent from the current client. Even anchored regeneration would change its
+low-level slope while passing the existing max-level check. No resource, builder, damage value or
+engine/certificate version was changed. The report records every mismatch, fallback evidence, Light
+coverage and a reproducible diagnostic with full effect metadata.
+
 ## Local migration validation (2026-10-08)
 
 After `git fetch origin && git rebase origin/main`, the shared Gradle wrapper ran `ktlintFormat`,

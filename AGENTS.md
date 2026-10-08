@@ -484,8 +484,14 @@ as **fixed-name** JSON files (no version in the filename):
    piece the encyclopedia lacks: **`spell-damage.json`**, the per-level damage formula `floor(base + inc·level)`
    from Spell (66) → StaticEffect (68), *anchored* on the encyclopedia value (the bdata effect whose value at
    max level equals it). `SpellCatalog` joins it so `SpellDamage` scales each hit to the **caster's level**
-   instead of always showing max-level damage (`SpellDamageScalingBuilder`; ~86% get the exact bdata slope, the
+   instead of always showing max-level damage (`SpellDamageScalingBuilder`; ~92% of the committed oracle has the exact bdata slope, the
    rest a linear approximation through the known max-level value — never a regression at max level).
+   **Damage-anchor investigation (2026-10-08):** the committed oracle has 263 matched normal formulas and 23
+   fallbacks. No universal base-hit selector was found: first displayed effect reproduces only 240/263 normal
+   formulas (210/263 including critical), and Obliteration 6476's old formula is absent from the current client.
+   The encyclopedia selection/fallback dependency is therefore a **kept, investigated exception**; no damage
+   resource was regenerated. Max-level-only parity hides slope drift — compare base/inc AND critBase/critInc.
+   Evidence, all mismatches and the opt-in diagnostic: `docs/spell-damage-client/README.md`.
    **Sublimations** are now fully first-party too: identity/name/rarity/slot-colours from the CDN `items.json`
    (`itemTypeId` 812, `actionId` 304 → `params[0]` = `stateId`); effects, build-static condition, scenario
    gates and max level decoded from the State (67) → StaticEffect (68) tables via a small sublimation-local

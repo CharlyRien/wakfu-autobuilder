@@ -1,0 +1,287 @@
+spellId,name,oracleMatched,clientPresent,normalFormulaPresent,criticalFormulaPresent,capExact,anchoredRegenerationExact,firstNormalExact,firstBothExact,displayedNormalExact,displayedBothExact,no-criterionNormalExact,no-criterionBothExact,displayed-no-criterionNormalExact,displayed-no-criterionBothExact,minimum-depthNormalExact,minimum-depthBothExact,minimum-hitNormalExact,minimum-hitBothExact,maximum-hitNormalExact,maximum-hitBothExact,branch-firstNormalExact,branch-firstBothExact
+623,Cross-Airs,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+625,Regeneration,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+630,Anatomy,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,True,True,True,True
+636,Corrosive Heal,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+645,Heal-splosion,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+749,Hammhour,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+750,Disruption,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+751,Suspension,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+752,Dark Bolt,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True
+753,Dust,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+754,Hand,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+763,Clock,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+765,Tempus Fugit,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+766,Cog,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,True,False,True,False
+767,Underhand,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+771,Spontaneous Return,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+772,Symmetry,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+775,Slow Down,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+779,Healing Word,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+780,Revitalization,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+783,Sandglass,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+918,Sadida's Tear,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+919,Poisoned Wind,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+921,Vaporize,True,True,True,True,True,True,True,False,True,False,True,False,True,False,True,True,True,True,False,False,True,True
+922,Drain,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+925,Bramble,True,True,True,False,True,True,False,False,False,False,False,False,False,False,True,False,False,False,True,False,True,False
+927,Wild Grass,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+928,Sudden Chill,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+929,Compost,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+930,Mudoll,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True
+931,Rust,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+932,Woodland Stench,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+933,Explodoll,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+934,K'mir,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+935,Earthquake,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+937,Manifold Bramble,True,True,True,True,True,True,True,False,True,False,True,False,True,False,True,True,True,True,False,False,True,False
+938,Gust,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+1417,Desynchronization,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+1418,Paradox,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+1532,Infusion,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+1533,Invigoration,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+1534,Purifying Flame,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+1540,Psychosis,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+1541,Lethargy,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,False,False,True,True
+1542,Infected Flask,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2008,Shovel of Judgment,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2010,Killer Spade,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+2011,Shovel Kiss,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2012,Shady Shovel,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2013,Shovel Shaker,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,True,True,True,True
+2014,Cutting,True,True,True,True,True,True,False,False,True,True,True,True,True,True,False,False,True,True,False,False,False,False
+2015,Rascalry,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2016,Tax,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2017,Refinement,True,True,True,False,True,True,False,False,False,False,True,False,True,False,False,False,True,False,False,False,False,False
+2018,Fusion,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2019,Meteor,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+2021,Ember,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+2022,Hot Magma,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,True,True,True,True
+2032,Purge,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2037,Firedamp Explosion,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+2041,Heads or Tails,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,True,False,True,False
+2042,D-Six,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2043,All or Nothing,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2044,Three Cards,True,True,True,True,True,True,False,False,True,False,False,False,False,False,False,False,True,True,False,False,False,False
+2045,Craps,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2046,Yowling,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2047,All In,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+2048,Dice Roulette,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2049,Battle,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2050,Loaded Dice,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True
+2061,Felintuition,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+2065,Rough Tongue,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+2066,Up to Scratch,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+2067,Fleahopper,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+2072,Paws Off,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+2073,Fleeflee,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4579,Scam,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True
+4581,Deadly Attack,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True
+4583,Lethal Attack,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4584,Kleptosram,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4585,Perfidious Attack,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4586,Execution,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True
+4587,Bled Dry,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4588,First Blood,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,True,True,True,True
+4589,Punishment,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,False,False,True,True
+4590,Cold Blood,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4592,Trauma,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True
+4593,Tricky Blow,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4594,Forceful Blow,True,True,True,True,True,True,False,False,False,False,False,False,False,False,True,True,False,False,True,True,False,False
+4595,Wily,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4596,Fright,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,False,False,False,False,True,False
+4668,Ardent Aegis,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4669,Deafening Targe,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+4670,Earthquake,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4671,Hiding,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True
+4680,Whirlwind,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4685,Incandescence,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,False,False,True,False
+4691,Wakmeha,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True
+4692,Pulsation,True,True,True,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,True,False,False,False
+4693,Flood,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4694,Cataclysm,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,True,True,False,False,True,True
+4695,Clash,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4697,Torrential Flux,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True
+4698,Siphon,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4699,Ethereal Burst,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4700,Tempest,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4701,Unleashed Blade,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+4702,Flaming Burp,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4703,Light My Fire,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+4704,Dairy Springer,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4705,Explosive Flask,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4706,Milking It,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+4707,Milky Breath,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4708,Splash of Milk,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4709,Bubble Trouble,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4710,Milk Wave,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+4711,Milk Fountain,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4712,Triple Whammy,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4713,Six Roses,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+4714,Barrel Blow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4715,Lactic Acid,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+4716,Blisskrieg,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4769,Blazing Arrow,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+4775,Thunderbolt,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4776,Judgment,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4777,Super Iop Punch,True,True,True,True,True,True,False,False,False,False,False,False,False,False,True,True,True,True,False,False,False,False
+4778,Celestial Sword,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+4779,Iop's Wrath,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,True,False,True,False
+4780,Shaker,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4781,Rocknoceros,True,True,True,True,True,True,False,False,False,False,False,False,False,False,True,True,True,True,False,False,False,False
+4782,Cleaver,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4783,Charge,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+4784,Devastate,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4785,Jabs,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,True,True,True,True
+4786,Flurry,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4787,Wallop,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4788,Pounding,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+4789,Sword of Iop,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,False,True,True,True,True
+4792,Stance,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+4809,Storm Arrow,True,True,True,False,True,True,False,False,False,False,False,False,False,False,False,False,True,False,False,False,False,False
+4810,Retreat Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4811,Plaguing Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,False,True,False,False,False,True,True
+4812,Static Arrow,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,False,False,True,False,True,False
+4813,Homing Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4814,Destructive Arrow,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+4815,Piercing Arrow,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+4816,Lashing Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4817,Raining Arrows,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4818,Riddling Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4819,Explosive Arrow,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+4820,Fulminating Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+4821,Flaming Arrow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+4822,Burning Arrow,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+5028,Blood Rush,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5029,Cage of Blood,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5030,Attraction,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+5031,Burning Blood,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5032,Punition,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,False,False,True,True
+5033,Rocky Foot,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,False,False,True,False
+5034,Spiritual Tempest,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5035,Insanity,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5036,Smashes,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,False,False,False,False,False,False
+5037,Colonnades,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5038,Aversion,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+5039,Sacrier's Fist,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+5040,Assault,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+5041,Motion Sickness,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+5042,Light Speed,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+5122,Ambush,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+5123,Bloody Blade,False,False,False,False,False,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+5561,Resonance,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5562,Energy Flux,True,True,True,True,True,True,True,False,True,False,True,False,True,False,True,False,True,True,True,False,True,False
+5563,Light of Dawn,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5564,Downpour,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5565,Walloping,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5566,Vestige,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5567,Rock Slide,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5568,Backband,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5569,Rift,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5570,Diurnal Butterflies,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5571,Luminescent Disc,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5572,Dancing Shadows,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5590,Shiny Orbs,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5591,Twilight Beam,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+5592,Glistening Halo,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+5593,Glistening Tears,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5594,Light Arrow,True,True,True,True,True,True,True,False,True,False,True,False,True,False,True,False,False,False,True,False,True,False
+5595,Light Sword,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True
+5596,Mirage,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+5597,Moonbeam,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6256,Weigh Down,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+6257,Flail,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True,True
+6258,Rupture,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
+6259,Gash,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6260,Ruckus,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6261,Fang in the Works,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6262,Crosshatch,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6263,Brawl,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,True,True,False,False,True,True
+6264,Fits and Starts,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,False,False,True,True
+6265,Watchdog,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6266,Sweeping,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+6267,Contusion,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+6268,Big Dog,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6269,Bone-Breaker,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6270,Pugnacity,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6279,Sniff,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6282,Wise Strength,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6463,Barbed Fire,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6464,Sticky Bomb,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6465,Execution,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,True,True
+6466,Crosswise,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,False,False,True,True
+6467,Perforation,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,False,False,True,True
+6468,Machine Gun,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,False,False,True,True
+6469,Blunderbuss,True,True,True,False,True,True,True,False,True,False,False,False,False,False,False,False,False,False,False,False,True,False
+6470,Encumbering Shot,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,False,False,True,True
+6471,Boomerang Dagger,True,True,True,False,True,True,True,False,True,False,False,False,False,False,False,False,True,False,False,False,True,False
+6472,Pulsar,True,True,True,False,True,True,True,False,True,False,False,False,False,False,False,False,False,False,False,False,True,False
+6473,Slap Shot,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True
+6474,Cheating,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,True,True
+6475,Carbine,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True
+6476,Obliteration,True,True,False,False,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6478,Longsword,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,True,True
+6491,Evanescence,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,True,False,True,False
+6902,Blazing Fire,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6903,Fire Thrower,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6904,Charring,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6905,Flambé,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,True,False,True,False
+6906,Scuttle,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6907,Current,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6908,Evaporation,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6909,Froth,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6910,Pilfer,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6911,Dissolution,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6912,Pummel,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6913,Trampling,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6914,Bombardment,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,False,False,True,True,True,True
+6915,Hammer Claw,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6916,Shebang,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6918,Hypertension,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+6937,Activation,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6940,Hot Wheels,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+6967,Fecastopheles,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6968,Meteorite,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+6969,Natural Attack,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6970,Magma,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6971,Volcano,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6972,Drip,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6974,Avalanche,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6975,Storm,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6976,Crashing Wave,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6977,Telluric Whack,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6978,Defensive Orb,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6979,Bastion,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+6980,Rampart,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+6981,Staff,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7066,Whipkick,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7067,Fracture,True,True,True,False,True,True,True,False,False,False,True,False,False,False,True,False,True,False,True,False,True,False
+7068,Unhinging,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7069,Neurosis,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7070,Capering,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7071,Sign,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7073,Deliverance,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7074,Manhunt,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7075,Sarabande,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7076,Fugue,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7077,Pursuit,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7078,Somersault,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+7079,Cavalcade,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7080,Dislocation,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+7187,Violent Omens,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+7195,Shriveling,False,True,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+7307,Incendiary Crow,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True
+7308,Flaming Whip,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+7309,Flame Tornado,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+7310,Fanning,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7311,Dragon's Breath,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True
+7312,Sandstorm,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,False,True,True,True,True
+7313,Gravity,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7314,Impalement,True,True,True,True,True,True,True,True,True,True,False,False,False,False,True,True,True,True,True,True,True,True
+7315,Gambol,True,True,True,False,True,True,True,False,True,False,False,False,False,False,True,False,True,False,True,False,True,False
+7316,Crackler Punch,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7317,Whip,True,True,True,True,True,True,False,False,False,False,True,True,True,True,False,False,True,True,False,False,False,False
+7318,Plucking,True,True,True,False,True,True,True,False,True,False,True,False,True,False,True,False,True,False,True,False,True,False
+7319,Transfer,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7320,Repulsive Breath,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True
+7321,Feather Tornado,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,True,True,False,False,False,False
