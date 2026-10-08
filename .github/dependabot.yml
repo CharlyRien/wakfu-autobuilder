@@ -9,10 +9,6 @@ updates:
         directory: "/"
         schedule:
             interval: "weekly"
-        ignore:
-            # Conveyor 22.2's Foojay-based linker JDK lookup breaks our deploys (see deploy.yml); stay on v22.1 until fixed.
-            -   dependency-name: "hydraulic-software/conveyor"
-                versions: ["22.2", "22.3"]
         groups:
             github-actions-dependencies:
                 patterns:
