@@ -969,15 +969,30 @@ class BuildSearchModel(
     }
 
     fun setMaxSublimationTier(tier: Int?) {
-        ui = ui.copy(maxSublimationTier = tier)
+        val levels =
+            ui.forcedSublimationLevels.filter { (name, level) ->
+                WakfuBestBuildFinderAlgorithm.sublimations
+                    .firstOrNull { it.name.fr == name }
+                    ?.reachableLevels(tier)
+                    ?.contains(level) == true
+            }
+        ui = ui.copy(maxSublimationTier = tier, forcedSublimationLevels = levels)
     }
 
     fun addForcedSublimation(name: String) {
         if (name.isNotBlank() && name !in ui.forcedSublimations) ui = ui.copy(forcedSublimations = ui.forcedSublimations + name)
     }
 
+    fun setForcedSublimationLevel(
+        name: String,
+        level: Int,
+    ) {
+        val sub = WakfuBestBuildFinderAlgorithm.sublimations.firstOrNull { it.name.fr == name } ?: return
+        if (level in sub.reachableLevels(ui.maxSublimationTier)) ui = ui.copy(forcedSublimationLevels = ui.forcedSublimationLevels + (name to level))
+    }
+
     fun removeForcedSublimation(name: String) {
-        ui = ui.copy(forcedSublimations = ui.forcedSublimations - name)
+        ui = ui.copy(forcedSublimations = ui.forcedSublimations - name, forcedSublimationLevels = ui.forcedSublimationLevels - name)
     }
 
     fun addExcludedSublimation(name: String) {
@@ -1016,7 +1031,12 @@ class BuildSearchModel(
      */
     fun pickSublimation(sub: me.chosante.common.Sublimation) {
         val exclude = (ui.modal as? Modal.SublimationPicker)?.exclude == true
-        if (exclude) addExcludedSublimation(sub.name.fr) else addForcedSublimation(sub.name.fr)
+        if (exclude) {
+            addExcludedSublimation(sub.name.fr)
+        } else {
+            addForcedSublimation(sub.name.fr)
+            setForcedSublimationLevel(sub.name.fr, sub.stackLevel ?: sub.reachableLevels(ui.maxSublimationTier).last())
+        }
     }
 
     fun removeForcedPassive(name: String) {
@@ -2062,6 +2082,7 @@ class BuildSearchModel(
             useSublimations = useSublimations,
             maxSublimationTier = maxSublimationTier,
             forcedSublimations = forcedSublimations,
+            forcedSublimationLevels = forcedSublimationLevels,
             excludedSublimations = excludedSublimations,
             forcedPassives = forcedPassives,
             forcedRunesByItem = forcedRunesByItem,
@@ -2440,6 +2461,7 @@ class BuildSearchModel(
                 entry.request.forcedSublimations
                     .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
                     .distinct(),
+            forcedSublimationLevels = entry.request.forcedSublimationLevels.mapKeys { WakfuBestBuildFinderAlgorithm.canonicalSublimationName(it.key) },
             excludedSublimations =
                 entry.request.excludedSublimations
                     .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)

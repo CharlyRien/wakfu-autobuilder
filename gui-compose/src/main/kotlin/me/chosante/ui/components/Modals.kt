@@ -111,6 +111,9 @@ fun ModalHost(
     maxRarity: Rarity = Rarity.EPIC,
     excludedRarities: Set<Rarity> = emptySet(),
     forcedSublimations: List<String> = emptyList(),
+    forcedSublimationLevels: Map<String, Int> = emptyMap(),
+    maxSublimationTier: Int? = null,
+    onForcedSublimationLevelChange: (String, Int) -> Unit = { _, _ -> },
     excludedSublimations: List<String> = emptyList(),
     forcedPassives: List<String> = emptyList(),
     onSelectStat: (Characteristic) -> Unit,
@@ -191,6 +194,9 @@ fun ModalHost(
                 SublimationPickerModal(
                     exclude = modal.exclude,
                     selectedNames = if (modal.exclude) excludedSublimations else forcedSublimations,
+                    selectedLevels = forcedSublimationLevels,
+                    tierLimit = maxSublimationTier,
+                    onLevelChange = onForcedSublimationLevelChange,
                     hideChosen = hideChosen,
                     onHideChosenChange = onHideChosenChange,
                     onRemove = if (modal.exclude) onRemoveExcludedSublimation else onRemoveForcedSublimation,
@@ -920,6 +926,9 @@ private fun ItemResultRow(
 
 @Composable
 private fun SublimationPickerModal(
+    selectedLevels: Map<String, Int>,
+    tierLimit: Int?,
+    onLevelChange: (String, Int) -> Unit,
     exclude: Boolean = false,
     selectedNames: List<String>,
     hideChosen: Boolean,
@@ -935,12 +944,18 @@ private fun SublimationPickerModal(
         }
     var query by remember { mutableStateOf("") }
     var rarityFilter by remember { mutableStateOf<SublimationRarity?>(null) }
+    var drafts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+
+    fun chosenLevel(sub: Sublimation): Int =
+        (drafts[sub.name.fr] ?: selectedLevels[sub.name.fr])
+            ?.takeIf { it in sub.reachableLevels(tierLimit) } ?: sub.reachableLevels(tierLimit).last()
     val filtered =
-        remember(query, results, selectedNames, rarityFilter, lang) {
+        remember(query, results, selectedNames, rarityFilter, lang, tierLimit, exclude) {
             val q = query.trim()
             results
                 .asSequence()
                 .filter { rarityFilter == null || it.rarity == rarityFilter }
+                .filter { exclude || it.reachableLevels(tierLimit).isNotEmpty() }
                 .filter { sub ->
                     q.isBlank() ||
                         sub.name.fr.contains(q, ignoreCase = true) ||
@@ -973,7 +988,7 @@ private fun SublimationPickerModal(
                 onHideChosenChange,
                 onRemove
             ),
-        onPick = onPick,
+        onPick = { entry -> onPick(if (exclude) entry else entry.copy(stackLevel = chosenLevel(entry))) },
         rowKey = { it.stateId },
         showMatchCount = true,
         onDone = onDone,
@@ -981,7 +996,41 @@ private fun SublimationPickerModal(
             SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
             Spacer(modifier = Modifier.height(WDimens.gap))
         },
-        row = { entry -> SublimationResultRow(sub = entry, lang = lang) }
+        row = { entry ->
+            SublimationResultRow(
+                sub =
+                    if (exclude) {
+                        entry
+                    } else {
+                        entry.copy(
+                            stackLevel = chosenLevel(entry),
+                            effects =
+                                entry.effects.map { effect ->
+                                    val raw = (effect as? me.chosante.common.SublimationEffect.StatEffect)?.valuesByLevel?.getOrNull(chosenLevel(entry) - 1)
+                                    if (!entry.stackModelled || raw == null) {
+                                        effect
+                                    } else {
+                                        when (effect) {
+                                            is me.chosante.common.SublimationEffect.Flat -> effect.copy(value = raw)
+                                            is me.chosante.common.SublimationEffect.PercentOfLevel -> effect.copy(percentOfLevel = raw)
+                                            else -> effect
+                                        }
+                                    }
+                                }
+                        )
+                    },
+                lang = lang
+            ) {
+                if (!exclude) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        SublimationLevelSelector(entry, chosenLevel(entry), tierLimit, { level ->
+                            drafts = drafts + (entry.name.fr to level)
+                            if (entry.name.fr in selectedNames) onLevelChange(entry.name.fr, level)
+                        }, "picker")
+                    }
+                }
+            }
+        }
     )
 }
 
@@ -989,6 +1038,7 @@ private fun SublimationPickerModal(
 private fun SublimationResultRow(
     sub: Sublimation,
     lang: Lang,
+    levelControl: @Composable () -> Unit = {},
 ) {
     Column(
         modifier =
@@ -1023,6 +1073,7 @@ private fun SublimationResultRow(
             )
             SublimationStackBadge(sub)
         }
+        levelControl()
         SublimationCombatBadge(sub)
         sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let { effect ->
             Text(

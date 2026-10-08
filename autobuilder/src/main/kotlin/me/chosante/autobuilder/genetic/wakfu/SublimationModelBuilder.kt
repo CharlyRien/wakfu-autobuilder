@@ -93,6 +93,7 @@ internal fun modelledSublimations(
     params: WakfuBestBuildParams,
     sublimations: List<Sublimation>,
 ): Pair<List<Sublimation>, List<Sublimation>> {
+    val sublimations = sublimations.mapNotNull { it.atTierLimit(params.maxSublimationTier) }
     val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
     val forcedSubs =
         sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
@@ -132,6 +133,7 @@ internal fun CpModel.createSublimationModel(
     val (forcedSubs, choosableSubs) = modelledSublimations(params, sublimations)
     if (forcedSubs.isEmpty() && choosableSubs.isEmpty()) return SublimationModel.EMPTY
 
+    val chosenLevels = forcedSubs.filter { it.stackModelled }.associateWith { params.forcedLevel(it) }
     val subVars = LinkedHashMap<Sublimation, IntVar>()
     for (sub in forcedSubs) {
         val v = newBoolVar("subForced_${sub.stateId}")
@@ -154,26 +156,18 @@ internal fun CpModel.createSublimationModel(
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.EPIC, Rarity.EPIC)
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.RELIC, Rarity.RELIC)
 
-    // Cumulable NORMAL subs can be socketed MULTIPLE times (each on its own carrier). Model the extra copies as
-    // ordered booleans b[1..maxCopies-1] with b[i] ≤ b[i-1] ≤ the base subVar ("fill copies in order"). Each copy
-    // consumes a normal slot AND a carrier (both sums below) and adds one more single-copy value to the objective
-    // (buildSublimationTerms). The FLOOR maxCopies keeps every copy at full value ⇒ a k-copy sub scores exactly k×.
-    // Epic/relic are never cumulable (maxCopies == 1).
-    //
-    // FORCED subs stack too. Their base var is pinned to 1, so `b[1] ≤ base` leaves every copy free: the solver
-    // adds a copy exactly when the slot/carrier it costs is worth its value. Without this, forcing a cumulable
-    // sub was strictly WORSE than leaving it choosable (1 copy instead of 2) — a trap, since forcing means "I
-    // want this sub", not "I want less of it". Only subs whose effects are actually MODELED get copies: a forced
-    // COMBAT_CONDITIONAL sub contributes nothing to the objective, so its copies would be valueless dead vars
-    // the solver would zero anyway (in-game it can still be stacked by hand; the model just cannot price it).
+    // Ordered prefix: shard j adds value(L_j) - value(L_(j-1)) for the best exact j-shard tier sum ≤ cap.
+    // Conditional copies share the family's one applies gate (SublimationTerms); each consumes one slot/carrier.
     val copyVars = LinkedHashMap<Sublimation, List<IntVar>>()
     for (sub in subVars.keys) {
-        if (sub.rarity != SublimationRarity.NORMAL || sub.maxCopies <= 1) continue
-        if (!isModelableSublimation(sub, params)) continue
+        val count = chosenLevels[sub]?.let { sub.shardPlan(it, params.maxSublimationTier).size } ?: sub.maxCopies
+        if (sub.rarity != SublimationRarity.NORMAL || count <= 1) continue
+        if (sub !in forcedSubs && !isModelableSubShape(sub)) continue
         var prev = subVars.getValue(sub)
-        val copies = ArrayList<IntVar>(sub.maxCopies - 1)
-        for (i in 1 until sub.maxCopies) {
+        val copies = ArrayList<IntVar>(count - 1)
+        for (i in 1 until count) {
             val c = newBoolVar("subCopy_${sub.stateId}_$i")
+            if (sub in forcedSubs) addEquality(c, 1L)
             addLessOrEqual(
                 LinearExpr
                     .newBuilder()
@@ -207,7 +201,7 @@ internal fun CpModel.createSublimationModel(
         addLessOrEqual(capacity.build(), 0L)
     }
 
-    return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, copyVars)
+    return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, copyVars, chosenLevels)
 }
 
 /** Σ(subs of [subRarity]) ≤ Σ(equipped items of [itemRarity]): an epic/relic sub's slot comes from its carrier item. */
@@ -225,3 +219,8 @@ private fun CpModel.gateSublimationsOnCarrierItems(
     allEquips.filter { it.rarity == itemRarity }.forEach { gate.addTerm(equipVars.getValue(it), -1L) }
     addLessOrEqual(gate.build(), 0L)
 }
+
+/** Missing fields in older requests mean the highest reachable level, not the old single-shard tier. */
+internal fun WakfuBestBuildParams.forcedLevel(sub: Sublimation): Int =
+    forcedSublimationLevels.entries.firstOrNull { (name, _) -> name.equals(sub.name.fr, true) || name.equals(sub.name.en, true) }?.value
+        ?: sub.reachableLevels(maxSublimationTier).last()

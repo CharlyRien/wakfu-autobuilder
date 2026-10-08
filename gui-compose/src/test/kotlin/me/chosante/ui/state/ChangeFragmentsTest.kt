@@ -161,7 +161,7 @@ class ChangeFragmentsTest {
 
     private companion object {
         val TYPES = listOf("feat", "fix", "perf")
-        val SCOPES = listOf("cli", "gui")
+        val SCOPES = listOf("cli", "gui", "engine")
         val REQUIRED_LANGUAGES = listOf("en", "fr")
         val LANGUAGES = REQUIRED_LANGUAGES + "es"
         val KNOWN_KEYS = setOf("type", "scope") + LANGUAGES

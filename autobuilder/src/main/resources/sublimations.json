@@ -9,6 +9,17 @@
       "pt": "Inflexibilidade"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24130,
+        "name": {
+          "fr": "Inflexibilité",
+          "en": "Inflexibility",
+          "es": "Inflexibilidad",
+          "pt": "Inflexibilidade"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -19,7 +30,10 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       },
       {
         "type": "flat",
@@ -27,7 +41,10 @@
         "value": 10,
         "scenarioGate": {
           "minCharacterLevel": 100
-        }
+        },
+        "valuesByLevel": [
+          10
+        ]
       }
     ],
     "rawText": "If AP ≤ 10 | +15% Damage Inflicted | +10 Force of Will (lvl 100+)"
@@ -42,6 +59,17 @@
       "pt": "Constância"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24131,
+        "name": {
+          "fr": "Constance",
+          "en": "Steadfast",
+          "es": "Constancia",
+          "pt": "Constância"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -52,12 +80,18 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_CRITICAL",
-        "value": 50
+        "value": 50,
+        "valuesByLevel": [
+          50
+        ]
       }
     ],
     "rawText": "If Critical Hit ≤ 10% | +20% Damage Inflicted | +50 Critical Resistance"
@@ -72,6 +106,17 @@
       "pt": "Medida"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24134,
+        "name": {
+          "fr": "Mesure",
+          "en": "Measure",
+          "es": "Medida",
+          "pt": "Medida"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -82,12 +127,18 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10
+        ]
       },
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10
+        ]
       }
     ],
     "rawText": "If Block ≥ 40% | +10% Damage Inflicted | +10% Critical Hit"
@@ -102,6 +153,17 @@
       "pt": "Precisão Cirúrgica"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24133,
+        "name": {
+          "fr": "Précision chirurgicale",
+          "en": "Surgical Precision",
+          "es": "Precisión quirúrgica",
+          "pt": "Precisão Cirúrgica"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_AT_MOST",
@@ -119,6 +181,18 @@
       "pt": "Desenlace"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24132,
+        "name": {
+          "fr": "Dénouement",
+          "en": "Unraveling",
+          "es": "Desenlace",
+          "pt": "Desenlace"
+        }
+      }
+    },
+    "stackModelled": false,
     "kind": "CONVERSION",
     "solverChoosable": true,
     "condition": {
@@ -145,6 +219,17 @@
       "pt": "Despedaça-Carapaça"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24135,
+        "name": {
+          "fr": "Fracass'carapace",
+          "en": "Smashell",
+          "es": "Rompecaparazón",
+          "pt": "Despedaça-Carapaça"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -157,6 +242,17 @@
       "pt": "Alternância"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24136,
+        "name": {
+          "fr": "Alternance",
+          "en": "Alternation",
+          "es": "Alternancia",
+          "pt": "Alternância"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -169,12 +265,26 @@
       "pt": "Confiança"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24137,
+        "name": {
+          "fr": "Confiance",
+          "en": "Trust",
+          "es": "Confianza",
+          "pt": "Confiança"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 30
+        "value": 30,
+        "valuesByLevel": [
+          30
+        ]
       }
     ],
     "rawText": "+30% Block"
@@ -189,12 +299,26 @@
       "pt": "Braseiro"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 24138,
+        "name": {
+          "fr": "Brasero",
+          "en": "Brazier",
+          "es": "Brasero",
+          "pt": "Braseiro"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10
+        ]
       }
     ],
     "rawText": "+10% Damage Inflicted"
@@ -209,6 +333,17 @@
       "pt": "Robusto"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 14186,
+        "name": {
+          "fr": "Robuste",
+          "en": "Robust",
+          "es": "Robusto",
+          "pt": "Robusto"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -221,6 +356,17 @@
       "pt": "Manejo: Duas mãos"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27186,
+        "name": {
+          "fr": "Maniement : Deux mains",
+          "en": "Wield type: Two-handed",
+          "es": "Manejo: Dos manos",
+          "pt": "Manejo: Duas mãos"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "AP_AT_MOST",
@@ -230,12 +376,18 @@
       {
         "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 2
+        "value": 2,
+        "valuesByLevel": [
+          2
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MAX_MOVEMENT_POINT",
-        "value": -2
+        "value": -2,
+        "valuesByLevel": [
+          -2
+        ]
       }
     ],
     "rawText": "If AP ≤ 12 | +2 AP | -2 max MP"
@@ -250,6 +402,17 @@
       "pt": "Runa Relíquia de Alternância II"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25798,
+        "name": {
+          "fr": "Alternance II",
+          "en": "Alternation II",
+          "es": "Alternancia II",
+          "pt": "Runa Relíquia de Alternância II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -262,12 +425,26 @@
       "pt": "Brisa"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27191,
+        "name": {
+          "fr": "Brise",
+          "en": "Breeze",
+          "es": "Brisa",
+          "pt": "Brisa"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -25
+        "value": -25,
+        "valuesByLevel": [
+          -25
+        ]
       }
     ],
     "rawText": "-25% Damage Inflicted"
@@ -282,12 +459,26 @@
       "pt": "Diretivas"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27192,
+        "name": {
+          "fr": "Directives",
+          "en": "Directives",
+          "es": "Directivas",
+          "pt": "Diretivas"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       }
     ],
     "rawText": "+15% Damage Inflicted"
@@ -302,17 +493,34 @@
       "pt": "Manejo: Escudo"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27188,
+        "name": {
+          "fr": "Maniement : Bouclier",
+          "en": "Wield type: Shield",
+          "es": "Manejo: Escudo",
+          "pt": "Manejo: Escudo"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RANGE",
-        "value": -1
+        "value": -1,
+        "valuesByLevel": [
+          -1
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       }
     ],
     "rawText": "-1 Range | +1 MP"
@@ -327,6 +535,17 @@
       "pt": "Manejo: Adaga"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27187,
+        "name": {
+          "fr": "Maniement : Dague",
+          "en": "Wield type: Dagger",
+          "es": "Manejo: Daga",
+          "pt": "Manejo: Adaga"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
@@ -335,12 +554,18 @@
         "value": -30,
         "scenarioGate": {
           "orientation": "BACK"
-        }
+        },
+        "valuesByLevel": [
+          -30
+        ]
       },
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 40
+        "value": 40,
+        "valuesByLevel": [
+          40
+        ]
       }
     ],
     "rawText": "-30% Damage Inflicted (rear) | +40% Damage Inflicted"
@@ -355,12 +580,26 @@
       "pt": "Runa Relíquia de Excesso"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25799,
+        "name": {
+          "fr": "Excès",
+          "en": "Excess",
+          "es": "Exceso",
+          "pt": "Runa Relíquia de Excesso"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -10
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted"
@@ -375,12 +614,26 @@
       "pt": "Runa Relíquia de Sangue do Talho"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25800,
+        "name": {
+          "fr": "Sang de la Déchirure",
+          "en": "Heartbreaking Blood",
+          "es": "Sangre del Martirio",
+          "pt": "Runa Relíquia de Sangue do Talho"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 25
+        "value": 25,
+        "valuesByLevel": [
+          25
+        ]
       }
     ],
     "rawText": "+25% Damage Inflicted"
@@ -395,6 +648,17 @@
       "pt": "Nhé"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27193,
+        "name": {
+          "fr": "Wé",
+          "en": "Yeah",
+          "es": "Seh",
+          "pt": "Nhé"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -407,17 +671,34 @@
       "pt": "Pacto Wakfu"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27189,
+        "name": {
+          "fr": "Pacte Wakfu",
+          "en": "Wakfu Pact",
+          "es": "Pacto Wakfu",
+          "pt": "Pacto Wakfu"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10
+        ]
       },
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       }
     ],
     "rawText": "+10 Force of Will | +15% Block"
@@ -432,12 +713,26 @@
       "pt": "Runa Épica de Saúde de Ferro"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25793,
+        "name": {
+          "fr": "Santé de fer",
+          "en": "Robust Health",
+          "es": "Salud de hierro",
+          "pt": "Runa Épica de Saúde de Ferro"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 30
+        "value": 30,
+        "valuesByLevel": [
+          30
+        ]
       }
     ],
     "rawText": "+30% Damage Inflicted"
@@ -452,18 +747,35 @@
       "pt": "Runa Épica de Arte do Posicionamento"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25794,
+        "name": {
+          "fr": "Science du placement",
+          "en": "Positioning Knowledge",
+          "es": "Ciencia del Posicionamiento",
+          "pt": "Runa Épica de Arte do Posicionamento"
+        }
+      }
+    },
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_BACK",
-        "value": -200
+        "value": -200,
+        "valuesByLevel": [
+          -200
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 50
+        "value": 50,
+        "valuesByLevel": [
+          50
+        ]
       }
     ],
     "rawText": "-200 Rear Resistance | +50 Elemental Resistance"
@@ -478,13 +790,27 @@
       "pt": "Runa Épica de Anatomia"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25795,
+        "name": {
+          "fr": "Anatomie",
+          "en": "Anatomy",
+          "es": "Anatomía",
+          "pt": "Runa Épica de Anatomia"
+        }
+      }
+    },
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -20
+        "value": -20,
+        "valuesByLevel": [
+          -20
+        ]
       },
       {
         "type": "flat",
@@ -492,7 +818,10 @@
         "value": 40,
         "scenarioGate": {
           "orientation": "BACK"
-        }
+        },
+        "valuesByLevel": [
+          40
+        ]
       }
     ],
     "rawText": "-20% Damage Inflicted | +40% Damage Inflicted (rear)"
@@ -507,6 +836,17 @@
       "pt": "Runa Épica de Brutalidade"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25796,
+        "name": {
+          "fr": "Brutalité",
+          "en": "Brutality",
+          "es": "Brutalidad",
+          "pt": "Runa Épica de Brutalidade"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_EXACT",
@@ -516,7 +856,10 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "rawText": "If Range = 0 | +20% Damage Inflicted"
@@ -531,6 +874,17 @@
       "pt": "Runa Épica de Força Hercúlea"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25797,
+        "name": {
+          "fr": "Force Herculéenne",
+          "en": "Herculean Strength",
+          "es": "Fuerza Hercúlea",
+          "pt": "Runa Épica de Força Hercúlea"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -540,12 +894,18 @@
       {
         "type": "percentOfLevel",
         "characteristic": "DODGE",
-        "percentOfLevel": 250
+        "percentOfLevel": 250,
+        "valuesByLevel": [
+          250
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "percentOfLevel": 250
+        "percentOfLevel": 250,
+        "valuesByLevel": [
+          250
+        ]
       }
     ],
     "rawText": "If odd AP | +250% of level as Dodge | +250% of level as Lock"
@@ -560,6 +920,18 @@
       "pt": "Concentração Elementar"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27190,
+        "name": {
+          "fr": "Concentration Elémentaire",
+          "en": "Elemental Concentration",
+          "es": "Concentración Elemental",
+          "pt": "Concentração Elementar"
+        }
+      }
+    },
+    "stackModelled": false,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -581,12 +953,26 @@
       "pt": "Estasificação"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27194,
+        "name": {
+          "fr": "Stasification",
+          "en": "Stasification",
+          "es": "Stasificación",
+          "pt": "Estasificação"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 2
+        "value": 2,
+        "valuesByLevel": [
+          2
+        ]
       }
     ],
     "rawText": "+2% Damage Inflicted"
@@ -601,6 +987,17 @@
       "pt": "Runa Relíquia de Aura de Chamas"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25802,
+        "name": {
+          "fr": "Aura de Flammes",
+          "en": "Flame Aura",
+          "es": "Aura de Llamas",
+          "pt": "Runa Relíquia de Aura de Chamas"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -613,6 +1010,17 @@
       "pt": "Runa Relíquia de Guarda Baixada"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 25801,
+        "name": {
+          "fr": "Garde levée",
+          "en": "Guard Up",
+          "es": "Guardia Levantada",
+          "pt": "Runa Relíquia de Guarda Baixada"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -625,12 +1033,26 @@
       "pt": "Arma de Luz"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 27195,
+        "name": {
+          "fr": "Arme de Lumière",
+          "en": "Light Weapon",
+          "es": "Arma de Luz",
+          "pt": "Arma de Luz"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -20
+        "value": -20,
+        "valuesByLevel": [
+          -20
+        ]
       }
     ],
     "rawText": "-20% Damage Inflicted"
@@ -652,6 +1074,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28822,
+        "name": {
+          "fr": "Ruine I",
+          "en": "Ruin I",
+          "es": "Ruina I",
+          "pt": "Ruína I"
+        }
+      },
+      "2": {
+        "itemId": 27111,
+        "name": {
+          "fr": "Ruine II",
+          "en": "Ruin II",
+          "es": "Ruina II",
+          "pt": "Ruína II"
+        }
+      },
+      "3": {
+        "itemId": 28823,
+        "name": {
+          "fr": "Ruine III",
+          "en": "Ruin III",
+          "es": "Ruina III",
+          "pt": "Ruína III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -671,6 +1123,36 @@
     ],
     "maxLevel": 3,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28824,
+        "name": {
+          "fr": "Dévastation I",
+          "en": "Devastation I",
+          "es": "Devastación I",
+          "pt": "Devastação I"
+        }
+      },
+      "2": {
+        "itemId": 27112,
+        "name": {
+          "fr": "Dévastation II",
+          "en": "Devastation II",
+          "es": "Devastación II",
+          "pt": "Devastação II"
+        }
+      },
+      "3": {
+        "itemId": 28825,
+        "name": {
+          "fr": "Dévastation III",
+          "en": "Devastation III",
+          "es": "Devastación III",
+          "pt": "Devastação III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -678,13 +1160,23 @@
         "type": "flat",
         "characteristic": "WAKFU_POINT",
         "value": 1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          1,
+          1,
+          1
+        ]
       },
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
         "value": -10,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -30,
+          -20,
+          -10
+        ]
       }
     ],
     "rawText": "+1 WP | -10 Force of Will"
@@ -706,58 +1198,148 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28826,
+        "name": {
+          "fr": "Ravage I",
+          "en": "Devastate I",
+          "es": "Estragos I",
+          "pt": "Assolação I"
+        }
+      },
+      "2": {
+        "itemId": 27113,
+        "name": {
+          "fr": "Ravage II",
+          "en": "Devastate II",
+          "es": "Estragos II",
+          "pt": "Assolação II"
+        }
+      },
+      "3": {
+        "itemId": 28827,
+        "name": {
+          "fr": "Ravage III",
+          "en": "Devastate III",
+          "es": "Estragos III",
+          "pt": "Assolação II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_DISTANCE",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_CRITICAL",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_BACK",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_MELEE",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_BERSERK",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_HEALING",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_CRITICAL",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_BACK",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12
+        ]
       }
     ],
     "rawText": "+15% of level as mastery elementary | +15% of level as mastery distance | +15% of level as mastery critical | +15% of level as mastery back | +15% of level as mastery melee | +15% of level as mastery berserk | +15% of level as mastery healing | +9 Critical Resistance | +9 Rear Resistance | +9 Elemental Resistance"
@@ -779,13 +1361,51 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28828,
+        "name": {
+          "fr": "Carnage I",
+          "en": "Carnage I",
+          "es": "Carnicería I",
+          "pt": "Carnificina I"
+        }
+      },
+      "2": {
+        "itemId": 27114,
+        "name": {
+          "fr": "Carnage II",
+          "en": "Carnage II",
+          "es": "Carnicería II",
+          "pt": "Carnificina II"
+        }
+      },
+      "3": {
+        "itemId": 28829,
+        "name": {
+          "fr": "Carnage III",
+          "en": "Carnage III",
+          "es": "Carnicería III",
+          "pt": "Carnificina III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
-        "percentOfLevel": 45
+        "percentOfLevel": 45,
+        "valuesByLevel": [
+          15,
+          30,
+          45,
+          60,
+          75,
+          90
+        ]
       }
     ],
     "rawText": "+45% of level as mastery elementary"
@@ -807,6 +1427,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28830,
+        "name": {
+          "fr": "Cicatrisation I",
+          "en": "Healing I",
+          "es": "Cicatrización I",
+          "pt": "Cicatrização I"
+        }
+      },
+      "2": {
+        "itemId": 27115,
+        "name": {
+          "fr": "Cicatrisation II",
+          "en": "Healing II",
+          "es": "Cicatrización II",
+          "pt": "Cicatrização II"
+        }
+      },
+      "3": {
+        "itemId": 28831,
+        "name": {
+          "fr": "Cicatrisation III",
+          "en": "Healing III",
+          "es": "Cicatrización III",
+          "pt": "Cicatrização III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -826,12 +1476,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28832,
+        "name": {
+          "fr": "Embuscade I",
+          "en": "Ambush I",
+          "es": "Emboscada I",
+          "pt": "Emboscada I"
+        }
+      },
+      "2": {
+        "itemId": 27116,
+        "name": {
+          "fr": "Embuscade II",
+          "en": "Ambush II",
+          "es": "Emboscada II",
+          "pt": "Emboscada II"
+        }
+      },
+      "3": {
+        "itemId": 28833,
+        "name": {
+          "fr": "Embuscade III",
+          "en": "Ambush III",
+          "es": "Emboscada III",
+          "pt": "Emboscada III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -853,12 +1541,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28834,
+        "name": {
+          "fr": "Dérobade I",
+          "en": "Escape I",
+          "es": "Escapatoria I",
+          "pt": "Evasão I"
+        }
+      },
+      "2": {
+        "itemId": 27117,
+        "name": {
+          "fr": "Dérobade II",
+          "en": "Escape II",
+          "es": "Escapatoria II",
+          "pt": "Evasão II"
+        }
+      },
+      "3": {
+        "itemId": 28835,
+        "name": {
+          "fr": "Dérobade III",
+          "en": "Escape III",
+          "es": "Escapatoria III",
+          "pt": "Evasão III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "+15% Block"
@@ -880,12 +1606,30 @@
     ],
     "maxLevel": 4,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27118,
+        "name": {
+          "fr": "Détermination II",
+          "en": "Determination II",
+          "es": "Determinación II",
+          "pt": "Determinação II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -15
+        "value": -15,
+        "valuesByLevel": [
+          -8,
+          -15,
+          -23,
+          -30
+        ]
       }
     ],
     "rawText": "-15% Damage Inflicted"
@@ -907,6 +1651,18 @@
     ],
     "maxLevel": 4,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27119,
+        "name": {
+          "fr": "Ténacité II",
+          "en": "Tenacity II",
+          "es": "Tenacidad II",
+          "pt": "Tenacidade II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "condition": {
       "type": "AP_AT_LEAST",
@@ -916,7 +1672,13 @@
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 25
+        "value": 25,
+        "valuesByLevel": [
+          12,
+          25,
+          37,
+          50
+        ]
       }
     ],
     "rawText": "If AP ≥ 2 | +25 Elemental Resistance"
@@ -938,6 +1700,17 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27120,
+        "name": {
+          "fr": "Solidité II",
+          "en": "Solidity II",
+          "es": "Solidez II",
+          "pt": "Solidez II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -957,12 +1730,47 @@
     ],
     "maxLevel": 3,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28836,
+        "name": {
+          "fr": "Fermeté I",
+          "en": "Resolute I",
+          "es": "Firmeza I",
+          "pt": "Firmeza I"
+        }
+      },
+      "2": {
+        "itemId": 27121,
+        "name": {
+          "fr": "Fermeté II",
+          "en": "Resolute II",
+          "es": "Firmeza II",
+          "pt": "Firmeza II"
+        }
+      },
+      "3": {
+        "itemId": 28837,
+        "name": {
+          "fr": "Fermeté III",
+          "en": "Resolute III",
+          "es": "Firmeza III",
+          "pt": "Firmeza III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 30
+        "value": 30,
+        "valuesByLevel": [
+          10,
+          20,
+          30
+        ]
       }
     ],
     "rawText": "+30 Force of Will"
@@ -984,12 +1792,47 @@
     ],
     "maxLevel": 3,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28838,
+        "name": {
+          "fr": "Légèreté I",
+          "en": "Lightness I",
+          "es": "Ligereza I",
+          "pt": "Leveza I"
+        }
+      },
+      "2": {
+        "itemId": 27122,
+        "name": {
+          "fr": "Légèreté II",
+          "en": "Lightness II",
+          "es": "Ligereza II",
+          "pt": "Leveza II"
+        }
+      },
+      "3": {
+        "itemId": 28839,
+        "name": {
+          "fr": "Légèreté III",
+          "en": "Lightness III",
+          "es": "Ligereza III",
+          "pt": "Leveza III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 30
+        "value": 30,
+        "valuesByLevel": [
+          10,
+          20,
+          30
+        ]
       }
     ],
     "rawText": "+30 Force of Will"
@@ -1011,12 +1854,47 @@
     ],
     "maxLevel": 3,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28840,
+        "name": {
+          "fr": "Topologie I",
+          "en": "Topology I",
+          "es": "Topología I",
+          "pt": "Topologia I"
+        }
+      },
+      "2": {
+        "itemId": 27123,
+        "name": {
+          "fr": "Topologie II",
+          "en": "Topology II",
+          "es": "Topología II",
+          "pt": "Topologia II"
+        }
+      },
+      "3": {
+        "itemId": 28841,
+        "name": {
+          "fr": "Topologie III",
+          "en": "Topology III",
+          "es": "Topología III",
+          "pt": "Topologia III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DODGE",
-        "value": -3
+        "value": -3,
+        "valuesByLevel": [
+          -1,
+          -2,
+          -3
+        ]
       }
     ],
     "rawText": "-3 Dodge"
@@ -1038,12 +1916,32 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27124,
+        "name": {
+          "fr": "Réprobation II",
+          "en": "Condemnation II",
+          "es": "Reprobación II",
+          "pt": "Reprovação II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": -20
+        "value": -20,
+        "valuesByLevel": [
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20
+        ]
       }
     ],
     "rawText": "-20 Force of Will"
@@ -1065,6 +1963,17 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27126,
+        "name": {
+          "fr": "Frénésie II",
+          "en": "Frenzy II",
+          "es": "Frenesí II",
+          "pt": "Frenesi II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1084,12 +1993,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27127,
+        "name": {
+          "fr": "Dimensionnalité II",
+          "en": "Dimensionality II",
+          "es": "Dimensionalidad II",
+          "pt": "Dimensionalidade II"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WAKFU_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1,
+          1
+        ]
       }
     ],
     "rawText": "+1 WP"
@@ -1111,18 +2035,47 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28842,
+        "name": {
+          "fr": "Théorie de la matière I",
+          "en": "Theory of Matter I",
+          "es": "Teoría de la materia I",
+          "pt": "Teoria da Matéria I"
+        }
+      },
+      "2": {
+        "itemId": 27128,
+        "name": {
+          "fr": "Théorie de la matière II",
+          "en": "Theory of Matter II",
+          "es": "Teoría de la materia II",
+          "pt": "Teoria da Matéria II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -50
+        "value": -50,
+        "valuesByLevel": [
+          -50,
+          -50
+        ]
       },
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
         "value": 100,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          50,
+          100
+        ]
       }
     ],
     "rawText": "-50% Damage Inflicted | +100% Critical Hit"
@@ -1144,6 +2097,18 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27129,
+        "name": {
+          "fr": "Retour PA II",
+          "en": "AP Return II",
+          "es": "Devolución de PA II",
+          "pt": "Volta PA II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1163,6 +2128,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28843,
+        "name": {
+          "fr": "Endurance I",
+          "en": "Endurance I",
+          "es": "Aguante I",
+          "pt": "Resistência I"
+        }
+      },
+      "2": {
+        "itemId": 27130,
+        "name": {
+          "fr": "Endurance II",
+          "en": "Endurance II",
+          "es": "Aguante II",
+          "pt": "Resistência II"
+        }
+      },
+      "3": {
+        "itemId": 28844,
+        "name": {
+          "fr": "Endurance III",
+          "en": "Endurance III",
+          "es": "Aguante III",
+          "pt": "Resistência III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1182,6 +2177,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28845,
+        "name": {
+          "fr": "Ecailles de lune I",
+          "en": "Moon Scales I",
+          "es": "Fragmentos de luna I",
+          "pt": "Escamas de Lua I"
+        }
+      },
+      "2": {
+        "itemId": 27131,
+        "name": {
+          "fr": "Ecailles de lune II",
+          "en": "Moon Scales II",
+          "es": "Fragmentos de luna II",
+          "pt": "Escamas de Lua II"
+        }
+      },
+      "3": {
+        "itemId": 28846,
+        "name": {
+          "fr": "Ecailles de lune III",
+          "en": "Moon Scales III",
+          "es": "Fragmentos de luna III",
+          "pt": "Escamas de Lua III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1201,6 +2226,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28847,
+        "name": {
+          "fr": "Vélocité I",
+          "en": "Swiftness I",
+          "es": "Velocidad I",
+          "pt": "Presteza I"
+        }
+      },
+      "2": {
+        "itemId": 27132,
+        "name": {
+          "fr": "Vélocité II",
+          "en": "Swiftness II",
+          "es": "Velocidad II",
+          "pt": "Presteza II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1208,13 +2254,21 @@
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -10,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -20,
+          -10
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          1,
+          1
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted | +1 MP"
@@ -1236,12 +2290,32 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27133,
+        "name": {
+          "fr": "Sauvegarde II",
+          "en": "Save II",
+          "es": "Guardado II",
+          "pt": "Salvaguarda II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ]
       }
     ],
     "rawText": "+6 AP"
@@ -1261,6 +2335,17 @@
       3,
       3
     ],
+    "shardsByTier": {
+      "1": {
+        "itemId": 27134,
+        "name": {
+          "fr": "Bonne action",
+          "en": "Good Deed",
+          "es": "Buena acción",
+          "pt": "Boa Ação"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1280,6 +2365,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28848,
+        "name": {
+          "fr": "Vivacité I",
+          "en": "Vivacity I",
+          "es": "Vivacidad I",
+          "pt": "Vivacidade I"
+        }
+      },
+      "2": {
+        "itemId": 27135,
+        "name": {
+          "fr": "Vivacité II",
+          "en": "Vivacity II",
+          "es": "Vivacidad II",
+          "pt": "Vivacidade II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1287,13 +2393,21 @@
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": -75,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -150,
+          -75
+        ]
       },
       {
         "type": "flat",
         "characteristic": "ACTION_POINT",
         "value": 1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          1,
+          1
+        ]
       }
     ],
     "rawText": "-75 Elemental Resistance | +1 AP"
@@ -1315,6 +2429,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28849,
+        "name": {
+          "fr": "Critique Berserk I",
+          "en": "Berserk Critical I",
+          "es": "Crítico berserker I",
+          "pt": "Crítico Berserk I"
+        }
+      },
+      "2": {
+        "itemId": 27136,
+        "name": {
+          "fr": "Critique Berserk II",
+          "en": "Berserk Critical II",
+          "es": "Crítico berserker II",
+          "pt": "Crítico Berserk II"
+        }
+      },
+      "3": {
+        "itemId": 28850,
+        "name": {
+          "fr": "Critique Berserk III",
+          "en": "Berserk Critical III",
+          "es": "Crítico berserker III",
+          "pt": "Crítico Berserk III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1324,7 +2468,15 @@
         "value": 15,
         "scenarioGate": {
           "berserk": true
-        }
+        },
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "+15% Critical Hit (berserk)"
@@ -1346,6 +2498,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28851,
+        "name": {
+          "fr": "Visibilité I",
+          "en": "Visibility I",
+          "es": "Visibilidad I",
+          "pt": "Visibilidade I"
+        }
+      },
+      "2": {
+        "itemId": 27137,
+        "name": {
+          "fr": "Visibilité II",
+          "en": "Visibility II",
+          "es": "Visibilidad II",
+          "pt": "Visibilidade II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1353,19 +2526,31 @@
         "type": "flat",
         "characteristic": "RANGE",
         "value": 1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          1,
+          1
+        ]
       },
       {
         "type": "flat",
         "characteristic": "DODGE",
         "value": -150,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -300,
+          -150
+        ]
       },
       {
         "type": "flat",
         "characteristic": "LOCK",
         "value": -150,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -300,
+          -150
+        ]
       }
     ],
     "rawText": "+1 Range | -150 Dodge | -150 Lock"
@@ -1387,6 +2572,18 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27138,
+        "name": {
+          "fr": "Ruine cyclique II",
+          "en": "Cyclical Ruin II",
+          "es": "Ruina cíclica II",
+          "pt": "Ruína Cíclica II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1406,6 +2603,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28852,
+        "name": {
+          "fr": "Tacle Berserk I",
+          "en": "Berserk Lock I",
+          "es": "Placaje berserker I",
+          "pt": "Bloqueio Berserk I"
+        }
+      },
+      "2": {
+        "itemId": 27139,
+        "name": {
+          "fr": "Tacle Berserk II",
+          "en": "Berserk Lock II",
+          "es": "Placaje berserker II",
+          "pt": "Bloqueio Berserk II"
+        }
+      },
+      "3": {
+        "itemId": 28853,
+        "name": {
+          "fr": "Tacle Berserk III",
+          "en": "Berserk Lock III",
+          "es": "Placaje berserker III",
+          "pt": "Bloqueio Berserk III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1415,7 +2642,15 @@
         "percentOfLevel": 150,
         "scenarioGate": {
           "berserk": true
-        }
+        },
+        "valuesByLevel": [
+          50,
+          100,
+          150,
+          200,
+          250,
+          300
+        ]
       }
     ],
     "rawText": "+150% of level as Lock (berserk)"
@@ -1437,23 +2672,59 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27140,
+        "name": {
+          "fr": "Ravage secondaire II",
+          "en": "Secondary Devastation II",
+          "es": "Estragos secundarios II",
+          "pt": "Assolação Secundária II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 3
+        "value": 3,
+        "valuesByLevel": [
+          1,
+          3,
+          4,
+          6,
+          7,
+          9
+        ]
       },
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 3
+        "value": 3,
+        "valuesByLevel": [
+          1,
+          3,
+          4,
+          6,
+          7,
+          9
+        ]
       },
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 3
+        "value": 3,
+        "valuesByLevel": [
+          1,
+          3,
+          4,
+          6,
+          7,
+          9
+        ]
       }
     ],
     "rawText": "+3% Critical Hit | +3 Force of Will | +3% Block"
@@ -1475,6 +2746,18 @@
     ],
     "maxLevel": 4,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27141,
+        "name": {
+          "fr": "Dérobade lente II",
+          "en": "Slow Escape II",
+          "es": "Escapatoria lenta II",
+          "pt": "Evasão Lenta II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1494,12 +2777,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28854,
+        "name": {
+          "fr": "Embuscade écartée I",
+          "en": "Distant Ambush I",
+          "es": "Emboscada alejada I",
+          "pt": "Emboscada Afastada I"
+        }
+      },
+      "2": {
+        "itemId": 27142,
+        "name": {
+          "fr": "Embuscade écartée II",
+          "en": "Distant Ambush II",
+          "es": "Emboscada alejada II",
+          "pt": "Emboscada Afastada II"
+        }
+      },
+      "3": {
+        "itemId": 28855,
+        "name": {
+          "fr": "Embuscade écartée III",
+          "en": "Distant Ambush III",
+          "es": "Emboscada alejada III",
+          "pt": "Emboscada Afastada III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 12
+        "value": 12,
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted"
@@ -1521,6 +2842,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28856,
+        "name": {
+          "fr": "Epines I",
+          "en": "Spines I",
+          "es": "Espinas I",
+          "pt": "Espinhos I"
+        }
+      },
+      "2": {
+        "itemId": 27143,
+        "name": {
+          "fr": "Epines II",
+          "en": "Spines II",
+          "es": "Espinas II",
+          "pt": "Espinhos II"
+        }
+      },
+      "3": {
+        "itemId": 28857,
+        "name": {
+          "fr": "Epines III",
+          "en": "Spines III",
+          "es": "Espinas III",
+          "pt": "Espinhos III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1540,6 +2891,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28858,
+        "name": {
+          "fr": "Esquive Berserk I",
+          "en": "Berserk Dodge I",
+          "es": "Esquiva berserker I",
+          "pt": "Esquiva Berserk I"
+        }
+      },
+      "2": {
+        "itemId": 27144,
+        "name": {
+          "fr": "Esquive Berserk II",
+          "en": "Berserk Dodge II",
+          "es": "Esquiva berserker II",
+          "pt": "Esquiva Berserk II"
+        }
+      },
+      "3": {
+        "itemId": 28859,
+        "name": {
+          "fr": "Esquive Berserk III",
+          "en": "Berserk Dodge III",
+          "es": "Esquiva berserker III",
+          "pt": "Esquiva Berserk III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1549,7 +2930,15 @@
         "percentOfLevel": 150,
         "scenarioGate": {
           "berserk": true
-        }
+        },
+        "valuesByLevel": [
+          50,
+          100,
+          150,
+          200,
+          250,
+          300
+        ]
       }
     ],
     "rawText": "+150% of level as Dodge (berserk)"
@@ -1571,6 +2960,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28860,
+        "name": {
+          "fr": "Barrière Distance I",
+          "en": "Distance Barrier I",
+          "es": "Barrera a distancia I",
+          "pt": "Barreira a Distância I"
+        }
+      },
+      "2": {
+        "itemId": 27145,
+        "name": {
+          "fr": "Barrière Distance II",
+          "en": "Distance Barrier II",
+          "es": "Barrera a distancia II",
+          "pt": "Barreira a Distância II"
+        }
+      },
+      "3": {
+        "itemId": 28861,
+        "name": {
+          "fr": "Barrière Distance III",
+          "en": "Distance Barrier III",
+          "es": "Barrera a distancia III",
+          "pt": "Barreira a Distância III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1590,6 +3009,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28862,
+        "name": {
+          "fr": "Barrière Mêlée I",
+          "en": "Melee Barrier I",
+          "es": "Barrera en melé I",
+          "pt": "Barreira Curta Distância I"
+        }
+      },
+      "2": {
+        "itemId": 27146,
+        "name": {
+          "fr": "Barrière Mêlée II",
+          "en": "Melee Barrier II",
+          "es": "Barrera en melé II",
+          "pt": "Barreira Curta Distância II"
+        }
+      },
+      "3": {
+        "itemId": 28863,
+        "name": {
+          "fr": "Barrière Mêlée III",
+          "en": "Melee Barrier III",
+          "es": "Barrera en melé III",
+          "pt": "Barreira Curta Distância III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1609,6 +3058,17 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27147,
+        "name": {
+          "fr": "Persistance II",
+          "en": "Persistence II",
+          "es": "Persistencia II",
+          "pt": "Persistência I"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "condition": {
       "type": "AP_AT_LEAST",
@@ -1618,7 +3078,11 @@
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 60
+        "value": 60,
+        "valuesByLevel": [
+          30,
+          60
+        ]
       }
     ],
     "rawText": "If AP ≥ 6 | +60 Elemental Resistance"
@@ -1640,12 +3104,46 @@
     ],
     "maxLevel": 2,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28864,
+        "name": {
+          "fr": "Opiniâtreté I",
+          "en": "Obstinacy I",
+          "es": "Terquedad I",
+          "pt": "Insistência I"
+        }
+      },
+      "2": {
+        "itemId": 27148,
+        "name": {
+          "fr": "Opiniâtreté II",
+          "en": "Obstinacy II",
+          "es": "Terquedad II",
+          "pt": "Insistência II"
+        }
+      },
+      "3": {
+        "itemId": 28865,
+        "name": {
+          "fr": "Opiniâtreté III",
+          "en": "Resolute II",
+          "es": "Firmeza II",
+          "pt": "Firmeza II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          5,
+          10
+        ]
       }
     ],
     "rawText": "+15 Force of Will"
@@ -1667,12 +3165,37 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28866,
+        "name": {
+          "fr": "Aisance I",
+          "en": "Poise I",
+          "es": "Soltura I",
+          "pt": "Desenvoltura I"
+        }
+      },
+      "2": {
+        "itemId": 27149,
+        "name": {
+          "fr": "Aisance II",
+          "en": "Poise II",
+          "es": "Soltura II",
+          "pt": "Desenvoltura II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          5,
+          10
+        ]
       }
     ],
     "rawText": "+10 Force of Will"
@@ -1694,6 +3217,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28867,
+        "name": {
+          "fr": "Parade Berserk I",
+          "en": "Berserk Block I",
+          "es": "Anticipación berserker I",
+          "pt": "Parada Berserk I"
+        }
+      },
+      "2": {
+        "itemId": 27150,
+        "name": {
+          "fr": "Parade Berserk II",
+          "en": "Berserk Block II",
+          "es": "Anticipación berserker II",
+          "pt": "Parada Berserk II"
+        }
+      },
+      "3": {
+        "itemId": 28868,
+        "name": {
+          "fr": "Parade Berserk III",
+          "en": "Berserk Block III",
+          "es": "Anticipación berserker III",
+          "pt": "Parada Berserk III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1703,7 +3256,15 @@
         "value": 15,
         "scenarioGate": {
           "berserk": true
-        }
+        },
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "+15% Block (berserk)"
@@ -1725,6 +3286,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28869,
+        "name": {
+          "fr": "Puits de Vitalité I",
+          "en": "Vitality Well I",
+          "es": "Pozo de vitalidad I",
+          "pt": "Poço de Vitalidade I"
+        }
+      },
+      "2": {
+        "itemId": 27151,
+        "name": {
+          "fr": "Puits de Vitalité II",
+          "en": "Vitality Well II",
+          "es": "Pozo de vitalidad II",
+          "pt": "Poço de Vitalidade II"
+        }
+      },
+      "3": {
+        "itemId": 28870,
+        "name": {
+          "fr": "Puits de Vitalité III",
+          "en": "Vitality Well III",
+          "es": "Pozo de vitalidad III",
+          "pt": "Poço de Vitalidade III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1744,6 +3335,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28871,
+        "name": {
+          "fr": "Influence I",
+          "en": "Influence I",
+          "es": "Influjo I",
+          "pt": "Influência I"
+        }
+      },
+      "2": {
+        "itemId": 27152,
+        "name": {
+          "fr": "Influence II",
+          "en": "Influence II",
+          "es": "Influjo II",
+          "pt": "Influência II"
+        }
+      },
+      "3": {
+        "itemId": 28872,
+        "name": {
+          "fr": "Influence III",
+          "en": "Influence III",
+          "es": "Influjo III",
+          "pt": "Influência III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -1751,7 +3372,15 @@
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
         "value": 9,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "+9% Critical Hit"
@@ -1773,12 +3402,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27153,
+        "name": {
+          "fr": "Fureur II",
+          "en": "Fury II",
+          "es": "Furor II",
+          "pt": "Furor II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -5
+        "value": -5,
+        "valuesByLevel": [
+          -10,
+          -5
+        ]
       }
     ],
     "rawText": "-5% Damage Inflicted"
@@ -1800,6 +3444,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28873,
+        "name": {
+          "fr": "Muraille I",
+          "en": "Wall I",
+          "es": "Muralla I",
+          "pt": "Muralha I"
+        }
+      },
+      "2": {
+        "itemId": 27154,
+        "name": {
+          "fr": "Muraille II",
+          "en": "Wall II",
+          "es": "Muralla II",
+          "pt": "Muralha II"
+        }
+      },
+      "3": {
+        "itemId": 28874,
+        "name": {
+          "fr": "Muraille III",
+          "en": "Wall III",
+          "es": "Muralla III",
+          "pt": "Muralha III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1819,6 +3493,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28875,
+        "name": {
+          "fr": "Cyclothymie I",
+          "en": "Cyclothymia I",
+          "es": "Ciclotimia I",
+          "pt": "Ciclotimia I"
+        }
+      },
+      "2": {
+        "itemId": 27155,
+        "name": {
+          "fr": "Cyclothymie II",
+          "en": "Cyclothymia II",
+          "es": "Ciclotimia II",
+          "pt": "Ciclotimia II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1838,6 +3533,18 @@
     ],
     "maxLevel": 4,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27156,
+        "name": {
+          "fr": "Retour PM II",
+          "en": "MP Return II",
+          "es": "Devolución de PM II",
+          "pt": "Volta PM II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1857,6 +3564,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28876,
+        "name": {
+          "fr": "Prospérité I",
+          "en": "Prosperity I",
+          "es": "Prosperidad I",
+          "pt": "Prosperidade I"
+        }
+      },
+      "2": {
+        "itemId": 27157,
+        "name": {
+          "fr": "Prospérité II",
+          "en": "Prosperity II",
+          "es": "Prosperidad II",
+          "pt": "Prosperidade II"
+        }
+      },
+      "3": {
+        "itemId": 28877,
+        "name": {
+          "fr": "Prospérité III",
+          "en": "Prosperity III",
+          "es": "Prosperidad III",
+          "pt": "Prosperidade III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1876,12 +3613,32 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27158,
+        "name": {
+          "fr": "Clameur II",
+          "en": "Clamor II",
+          "es": "Clamor II",
+          "pt": "Clamor I"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": -20
+        "value": -20,
+        "valuesByLevel": [
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20
+        ]
       }
     ],
     "rawText": "-20 Force of Will"
@@ -1903,12 +3660,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27159,
+        "name": {
+          "fr": "Focalisation II",
+          "en": "Focalization II",
+          "es": "Focalización II",
+          "pt": "Focalização II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10,
+          10
+        ]
       }
     ],
     "rawText": "+10% Damage Inflicted"
@@ -1930,12 +3702,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28878,
+        "name": {
+          "fr": "Longueur I",
+          "en": "Length I",
+          "es": "Longitud I",
+          "pt": "Extensão I"
+        }
+      },
+      "2": {
+        "itemId": 27160,
+        "name": {
+          "fr": "Longueur II",
+          "en": "Length II",
+          "es": "Longitud II",
+          "pt": "Extensão II"
+        }
+      },
+      "3": {
+        "itemId": 28879,
+        "name": {
+          "fr": "Longueur III",
+          "en": "Length III",
+          "es": "Longitud III",
+          "pt": "Extensão III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -1957,13 +3767,28 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27161,
+        "name": {
+          "fr": "Expert des Parades II",
+          "en": "Blocking Expert II",
+          "es": "Experto en anticipación II",
+          "pt": "Especialista em Paradas II"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": -50,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -50,
+          -50
+        ]
       }
     ],
     "rawText": "-50 Elemental Resistance"
@@ -1985,6 +3810,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28880,
+        "name": {
+          "fr": "Enveloppe rocheuse I",
+          "en": "Rocky Envelope I",
+          "es": "Envoltorio rocoso I",
+          "pt": "Invólucro Rochoso I"
+        }
+      },
+      "2": {
+        "itemId": 27162,
+        "name": {
+          "fr": "Enveloppe rocheuse II",
+          "en": "Rocky Envelope II",
+          "es": "Envoltorio rocoso II",
+          "pt": "Invólucro Rochoso II"
+        }
+      },
+      "3": {
+        "itemId": 28881,
+        "name": {
+          "fr": "Enveloppe rocheuse III",
+          "en": "Rocky Envelope III",
+          "es": "Envoltorio rocoso III",
+          "pt": "Invólucro Rochoso III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2004,6 +3859,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28882,
+        "name": {
+          "fr": "Influence lente I",
+          "en": "Slow Influence I",
+          "es": "Influjo lento I",
+          "pt": "Influência Lenta I"
+        }
+      },
+      "2": {
+        "itemId": 27163,
+        "name": {
+          "fr": "Influence lente II",
+          "en": "Slow Influence II",
+          "es": "Influjo lento II",
+          "pt": "Influência Lenta II"
+        }
+      },
+      "3": {
+        "itemId": 28883,
+        "name": {
+          "fr": "Influence lente III",
+          "en": "Slow Influence III",
+          "es": "Influjo lento III",
+          "pt": "Influência Lenta III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2023,6 +3908,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28884,
+        "name": {
+          "fr": "Expert des Coups critiques I",
+          "en": "Critical Hit Expert I",
+          "es": "Experto en golpes críticos I",
+          "pt": "Especialista em Golpes Críticos I"
+        }
+      },
+      "2": {
+        "itemId": 27164,
+        "name": {
+          "fr": "Expert des Coups critiques II",
+          "en": "Critical Hit Expert II",
+          "es": "Experto en golpes críticos II",
+          "pt": "Especialista em Golpes Críticos II"
+        }
+      },
+      "3": {
+        "itemId": 28885,
+        "name": {
+          "fr": "Expert des Coups critiques III",
+          "en": "Critical Hit Expert III",
+          "es": "Experto en golpes críticos III",
+          "pt": "Especialista em Golpes Críticos III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2042,17 +3957,59 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28886,
+        "name": {
+          "fr": "Stupéfaction I",
+          "en": "Stupefaction I",
+          "es": "Estupefacción I",
+          "pt": "Espanto I"
+        }
+      },
+      "2": {
+        "itemId": 27125,
+        "name": {
+          "fr": "Stupéfaction II",
+          "en": "Stupefaction II",
+          "es": "Estupefacción II",
+          "pt": "Espanto II"
+        }
+      },
+      "3": {
+        "itemId": 28887,
+        "name": {
+          "fr": "Stupéfaction III",
+          "en": "Stupefaction III",
+          "es": "Estupefacción III",
+          "pt": "Espanto III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_CRITICAL",
-        "percentOfLevel": 15
+        "percentOfLevel": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       },
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20
+        ]
       }
     ],
     "rawText": "+15% of level as mastery critical | +15% Critical Hit"
@@ -2072,6 +4029,17 @@
       1,
       3
     ],
+    "shardsByTier": {
+      "1": {
+        "itemId": 27282,
+        "name": {
+          "fr": "Cicatrisation test (cumul 5)",
+          "en": "Healing",
+          "es": "Cicatrización",
+          "pt": "Cicatrização"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2091,6 +4059,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28888,
+        "name": {
+          "fr": "Intégrité I",
+          "en": "Integrity I",
+          "es": "Integridad I",
+          "pt": "Integridade I"
+        }
+      },
+      "2": {
+        "itemId": 27957,
+        "name": {
+          "fr": "Intégrité II",
+          "en": "Integrity II",
+          "es": "Integridad II",
+          "pt": "Integridade II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2110,12 +4099,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28889,
+        "name": {
+          "fr": "Loup solitaire I",
+          "en": "Lone Wolf I",
+          "es": "Lobo solitario I",
+          "pt": "Lobo Solitário I"
+        }
+      },
+      "2": {
+        "itemId": 27958,
+        "name": {
+          "fr": "Loup solitaire II",
+          "en": "Lone Wolf II",
+          "es": "Lobo solitario II",
+          "pt": "Lobo Solitário II"
+        }
+      },
+      "3": {
+        "itemId": 28890,
+        "name": {
+          "fr": "Loup solitaire III",
+          "en": "Lone Wolf III",
+          "es": "Lobo solitario III",
+          "pt": "Lobo Solitário III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -2137,6 +4162,18 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 27959,
+        "name": {
+          "fr": "Secret de la vie II",
+          "en": "Secret of Life II",
+          "es": "Secreto de la vida II",
+          "pt": "Segredo da Vida II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2156,12 +4193,46 @@
     ],
     "maxLevel": 2,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28891,
+        "name": {
+          "fr": "Tolérance I",
+          "en": "Tolerance I",
+          "es": "Tolerancia I",
+          "pt": "Tolerância I"
+        }
+      },
+      "2": {
+        "itemId": 27960,
+        "name": {
+          "fr": "Tolérance II",
+          "en": "Tolerance II",
+          "es": "Tolerancia II",
+          "pt": "Tolerância II"
+        }
+      },
+      "3": {
+        "itemId": 28892,
+        "name": {
+          "fr": "Tolérance III",
+          "en": "Tolerance III",
+          "es": "Tolerancia III",
+          "pt": "Tolerância III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 3
+        "value": 3,
+        "valuesByLevel": [
+          3,
+          3
+        ]
       }
     ],
     "rawText": "+3 MP"
@@ -2176,6 +4247,17 @@
       "pt": "Fúria"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28383,
+        "name": {
+          "fr": "Furie",
+          "en": "Outrage",
+          "es": "Furia",
+          "pt": "Fúria"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -2189,12 +4271,18 @@
         "value": 15,
         "scenarioGate": {
           "berserk": true
-        }
+        },
+        "valuesByLevel": [
+          15
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "percentOfLevel": 100
+        "percentOfLevel": 100,
+        "valuesByLevel": [
+          100
+        ]
       }
     ],
     "rawText": "If Dodge < 100% of level | +15% Damage Inflicted (berserk) | +100% of level as Lock"
@@ -2209,6 +4297,17 @@
       "pt": "Fúria II"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28384,
+        "name": {
+          "fr": "Furie II",
+          "en": "Outrage II",
+          "es": "Furia II",
+          "pt": "Fúria II"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -2223,12 +4322,18 @@
         "scenarioGate": {
           "berserk": true,
           "ranged": true
-        }
+        },
+        "valuesByLevel": [
+          15
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RANGE",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       }
     ],
     "rawText": "If Range ≥ 4 | +15% Damage Inflicted (berserk + ranged) | +1 Range"
@@ -2243,6 +4348,17 @@
       "pt": "Pilar"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28385,
+        "name": {
+          "fr": "Pilier",
+          "en": "Pillar",
+          "es": "Pilar",
+          "pt": "Pilar"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "BLOCK_AT_LEAST",
@@ -2260,6 +4376,17 @@
       "pt": "Controle do Espaço"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28386,
+        "name": {
+          "fr": "Contrôle de l'espace",
+          "en": "Controlling Space",
+          "es": "Control del Espacio",
+          "pt": "Controle do Espaço"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_EXACT",
@@ -2269,7 +4396,10 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       }
     ],
     "rawText": "If Range = 1 | +15% Damage Inflicted"
@@ -2284,6 +4414,17 @@
       "pt": "Longevidade"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28387,
+        "name": {
+          "fr": "Longévité",
+          "en": "Longevity",
+          "es": "Longevidad",
+          "pt": "Longevidade"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2296,6 +4437,17 @@
       "pt": "Energia Ancestral"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28388,
+        "name": {
+          "fr": "Energie ancestrale",
+          "en": "Ancestral Energy",
+          "es": "Energía ancestral",
+          "pt": "Energia Ancestral"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2308,12 +4460,26 @@
       "pt": "Renascimento"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28389,
+        "name": {
+          "fr": "Renaissance",
+          "en": "Rebirth",
+          "es": "Salvación",
+          "pt": "Renascimento"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": -50
+        "value": -50,
+        "valuesByLevel": [
+          -50
+        ]
       }
     ],
     "rawText": "-50 Elemental Resistance"
@@ -2328,6 +4494,17 @@
       "pt": "Pacífico"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 28390,
+        "name": {
+          "fr": "Paisible",
+          "en": "Peaceful",
+          "es": "Apacible",
+          "pt": "Pacífico"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2347,12 +4524,37 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28893,
+        "name": {
+          "fr": "Arme solide I",
+          "en": "Solid Weapon I",
+          "es": "Arma sólida I",
+          "pt": "Arma Sólida I"
+        }
+      },
+      "2": {
+        "itemId": 28798,
+        "name": {
+          "fr": "Arme solide II",
+          "en": "Solid Weapon II",
+          "es": "Arma sólida II",
+          "pt": "Arma Sólida II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -5,
+          -10
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted"
@@ -2374,12 +4576,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28894,
+        "name": {
+          "fr": "Puissance brute I",
+          "en": "Raw Power I",
+          "es": "Potencia bruta I",
+          "pt": "Potência Bruta I"
+        }
+      },
+      "2": {
+        "itemId": 28799,
+        "name": {
+          "fr": "Puissance brute II",
+          "en": "Raw Power II",
+          "es": "Potencia bruta II",
+          "pt": "Potência Bruta II"
+        }
+      },
+      "3": {
+        "itemId": 28895,
+        "name": {
+          "fr": "Puissance brute III",
+          "en": "Raw Power III",
+          "es": "Potencia bruta III",
+          "pt": "Potência Bruta III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WAKFU_POINT",
-        "value": -3
+        "value": -3,
+        "valuesByLevel": [
+          -1,
+          -2,
+          -3,
+          -4
+        ]
       }
     ],
     "rawText": "-3 WP"
@@ -2401,6 +4639,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28896,
+        "name": {
+          "fr": "Retour enflammé I",
+          "en": "Flaming Return I",
+          "es": "Respuesta ardiente I",
+          "pt": "Retorno das Chamas I"
+        }
+      },
+      "2": {
+        "itemId": 28800,
+        "name": {
+          "fr": "Retour enflammé II",
+          "en": "Flaming Return II",
+          "es": "Respuesta ardiente II",
+          "pt": "Retorno das Chamas II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2420,12 +4679,37 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28897,
+        "name": {
+          "fr": "Influence du Wakfu I",
+          "en": "Wakfu Influence I",
+          "es": "Influjo del Wakfu I",
+          "pt": "Influência do Wakfu I"
+        }
+      },
+      "2": {
+        "itemId": 28801,
+        "name": {
+          "fr": "Influence du Wakfu II",
+          "en": "Wakfu Influence II",
+          "es": "Influjo del Wakfu II",
+          "pt": "Influência do Wakfu II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          10,
+          20
+        ]
       }
     ],
     "rawText": "+20% Critical Hit"
@@ -2447,12 +4731,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28898,
+        "name": {
+          "fr": "Wakfu Berserk I",
+          "en": "Berserk Wakfu I",
+          "es": "Wakfu berserker I",
+          "pt": "Wakfu Berserk I"
+        }
+      },
+      "2": {
+        "itemId": 28802,
+        "name": {
+          "fr": "Wakfu Berserk II",
+          "en": "Berserk Wakfu II",
+          "es": "Wakfu berserker II",
+          "pt": "Wakfu Berserk II"
+        }
+      },
+      "3": {
+        "itemId": 28899,
+        "name": {
+          "fr": "Wakfu Berserk III",
+          "en": "Berserk Wakfu III",
+          "es": "Wakfu berserker III",
+          "pt": "Wakfu Berserk III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12
+        ]
       }
     ],
     "rawText": "+9% Damage Inflicted"
@@ -2474,12 +4794,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28900,
+        "name": {
+          "fr": "Arme empoisonnée I",
+          "en": "Poisoned Weapon I",
+          "es": "Arma envenenada I",
+          "pt": "Arma Envenenada I"
+        }
+      },
+      "2": {
+        "itemId": 28803,
+        "name": {
+          "fr": "Arme empoisonnée II",
+          "en": "Poisoned Weapon II",
+          "es": "Arma envenenada II",
+          "pt": "Arma Envenenada II"
+        }
+      },
+      "3": {
+        "itemId": 28901,
+        "name": {
+          "fr": "Arme empoisonnée III",
+          "en": "Poisoned Weapon III",
+          "es": "Arma envenenada III",
+          "pt": "Arma Envenenada III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -20,
+          -15,
+          -10,
+          -5
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted"
@@ -2501,12 +4857,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28902,
+        "name": {
+          "fr": "Vol de Tacle I",
+          "en": "Lock Steal I",
+          "es": "Robo de placaje I",
+          "pt": "Roubo de Bloqueio I"
+        }
+      },
+      "2": {
+        "itemId": 28804,
+        "name": {
+          "fr": "Vol de Tacle II",
+          "en": "Lock Steal II",
+          "es": "Robo de placaje II",
+          "pt": "Roubo de Bloqueio II"
+        }
+      },
+      "3": {
+        "itemId": 28903,
+        "name": {
+          "fr": "Vol de Tacle III",
+          "en": "Lock Steal III",
+          "es": "Robo de placaje III",
+          "pt": "Roubo de Bloqueio III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -10,
+          -10,
+          -10,
+          -10
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted"
@@ -2528,12 +4920,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28904,
+        "name": {
+          "fr": "Vol d'Esquive I",
+          "en": "Dodge Steal I",
+          "es": "Robo de esquiva I",
+          "pt": "Roubo de Esquiva I"
+        }
+      },
+      "2": {
+        "itemId": 28805,
+        "name": {
+          "fr": "Vol d'Esquive II",
+          "en": "Dodge Steal II",
+          "es": "Robo de esquiva II",
+          "pt": "Roubo de Esquiva II"
+        }
+      },
+      "3": {
+        "itemId": 28905,
+        "name": {
+          "fr": "Vol d'Esquive III",
+          "en": "Dodge Steal III",
+          "es": "Robo de esquiva III",
+          "pt": "Roubo de Esquiva III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -10,
+          -10,
+          -10,
+          -10
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted"
@@ -2555,6 +4983,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28906,
+        "name": {
+          "fr": "Contre-attaque I",
+          "en": "Counterattack I",
+          "es": "Contraataque I",
+          "pt": "Contra-Ataque I"
+        }
+      },
+      "2": {
+        "itemId": 28806,
+        "name": {
+          "fr": "Contre-attaque II",
+          "en": "Counterattack II",
+          "es": "Contraataque II",
+          "pt": "Contra-Ataque II"
+        }
+      },
+      "3": {
+        "itemId": 28907,
+        "name": {
+          "fr": "Contre-attaque III",
+          "en": "Counterattack III",
+          "es": "Contraataque III",
+          "pt": "Contra-Ataque III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2574,6 +5032,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28908,
+        "name": {
+          "fr": "Expert des armes légères I",
+          "en": "Light Weapons Expert I",
+          "es": "Experto en armas ligeras I",
+          "pt": "Especialista em Armas Leves I"
+        }
+      },
+      "2": {
+        "itemId": 28807,
+        "name": {
+          "fr": "Expert des armes légères II",
+          "en": "Light Weapons Expert II",
+          "es": "Experto en armas ligeras II",
+          "pt": "Especialista em Armas Leves II"
+        }
+      },
+      "3": {
+        "itemId": 28909,
+        "name": {
+          "fr": "Expert des armes légères III",
+          "en": "Light Weapons Expert III",
+          "es": "Experto en armas ligeras III",
+          "pt": "Especialista em Armas Leves III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -2583,7 +5071,15 @@
       {
         "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
-        "percentOfLevel": 75
+        "percentOfLevel": 75,
+        "valuesByLevel": [
+          25,
+          50,
+          75,
+          100,
+          125,
+          150
+        ]
       }
     ],
     "rawText": "If no shield, dagger or two-handed weapon equipped | +75% of level as mastery elementary"
@@ -2605,6 +5101,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28910,
+        "name": {
+          "fr": "Arcanes I",
+          "en": "Arcana I",
+          "es": "Arcanos I",
+          "pt": "Arcanos I"
+        }
+      },
+      "2": {
+        "itemId": 28808,
+        "name": {
+          "fr": "Arcanes II",
+          "en": "Arcana II",
+          "es": "Arcanos II",
+          "pt": "Arcanos II"
+        }
+      },
+      "3": {
+        "itemId": 28911,
+        "name": {
+          "fr": "Arcanes III",
+          "en": "Arcana III",
+          "es": "Arcanos III",
+          "pt": "Arcanos III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2624,6 +5150,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28912,
+        "name": {
+          "fr": "Relations sociales I",
+          "en": "Social Relations I",
+          "es": "Relaciones sociales I",
+          "pt": "Relações Sociais I"
+        }
+      },
+      "2": {
+        "itemId": 28809,
+        "name": {
+          "fr": "Relations sociales II",
+          "en": "Social Relations II",
+          "es": "Relaciones sociales II",
+          "pt": "Relações Sociais II"
+        }
+      },
+      "3": {
+        "itemId": 28913,
+        "name": {
+          "fr": "Relations sociales III",
+          "en": "Social Relations III",
+          "es": "Relaciones sociales III",
+          "pt": "Relações Sociais III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
@@ -2632,7 +5188,15 @@
         "value": 6,
         "scenarioGate": {
           "orientation": "BACK"
-        }
+        },
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted (rear)"
@@ -2654,6 +5218,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28914,
+        "name": {
+          "fr": "Retour vital I",
+          "en": "Vital Return I",
+          "es": "Vuelta vital I",
+          "pt": "Volta Vital I"
+        }
+      },
+      "2": {
+        "itemId": 28810,
+        "name": {
+          "fr": "Retour vital II",
+          "en": "Vital Return II",
+          "es": "Vuelta vital II",
+          "pt": "Volta Vital II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2673,6 +5258,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28915,
+        "name": {
+          "fr": "Destruction I",
+          "en": "Destruction I",
+          "es": "Destrucción I",
+          "pt": "Destruição I"
+        }
+      },
+      "2": {
+        "itemId": 28811,
+        "name": {
+          "fr": "Destruction II",
+          "en": "Destruction II",
+          "es": "Destrucción II",
+          "pt": "Destruição II"
+        }
+      },
+      "3": {
+        "itemId": 28916,
+        "name": {
+          "fr": "Destruction III",
+          "en": "Destruction III",
+          "es": "Destrucción III",
+          "pt": "Destruição III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -2682,7 +5297,15 @@
         "value": -6,
         "scenarioGate": {
           "orientation": "FRONT"
-        }
+        },
+        "valuesByLevel": [
+          -2,
+          -4,
+          -6,
+          -8,
+          -10,
+          -12
+        ]
       },
       {
         "type": "flat",
@@ -2690,7 +5313,15 @@
         "value": 9,
         "scenarioGate": {
           "orientation": "BACK"
-        }
+        },
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "-6% Damage Inflicted (front) | +9% Damage Inflicted (rear)"
@@ -2712,12 +5343,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28917,
+        "name": {
+          "fr": "Être sensible I",
+          "en": "Sensitivity I",
+          "es": "Ser sensible I",
+          "pt": "Sensibilidade I"
+        }
+      },
+      "2": {
+        "itemId": 28812,
+        "name": {
+          "fr": "Être sensible II",
+          "en": "Sensitivity II",
+          "es": "Ser sensible II",
+          "pt": "Sensibilidade II"
+        }
+      },
+      "3": {
+        "itemId": 28918,
+        "name": {
+          "fr": "Être sensible III",
+          "en": "Sensitivity III",
+          "es": "Ser sensible III",
+          "pt": "Sensibilidade III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -2739,6 +5406,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28919,
+        "name": {
+          "fr": "Longueur d'armure I",
+          "en": "Armor Length I",
+          "es": "Longitud de armadura I",
+          "pt": "Extensão da Armadura I"
+        }
+      },
+      "2": {
+        "itemId": 28813,
+        "name": {
+          "fr": "Longueur d'armure II",
+          "en": "Armor Length II",
+          "es": "Longitud de armadura II",
+          "pt": "Extensão da Armadura II"
+        }
+      },
+      "3": {
+        "itemId": 28920,
+        "name": {
+          "fr": "Longueur d'armure III",
+          "en": "Armor Length III",
+          "es": "Longitud de armadura III",
+          "pt": "Extensão da Armadura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2758,12 +5455,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28921,
+        "name": {
+          "fr": "Altruisme I",
+          "en": "Altruism I",
+          "es": "Altruismo I",
+          "pt": "Altruísmo I"
+        }
+      },
+      "2": {
+        "itemId": 28814,
+        "name": {
+          "fr": "Altruisme II",
+          "en": "Altruism II",
+          "es": "Altruismo II",
+          "pt": "Altruísmo II"
+        }
+      },
+      "3": {
+        "itemId": 28922,
+        "name": {
+          "fr": "Altruisme III",
+          "en": "Altruism III",
+          "es": "Altruismo III",
+          "pt": "Altruísmo III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -2785,6 +5520,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28923,
+        "name": {
+          "fr": "Manie I",
+          "en": "Mania I",
+          "es": "Manía I",
+          "pt": "Mania I"
+        }
+      },
+      "2": {
+        "itemId": 28815,
+        "name": {
+          "fr": "Manie II",
+          "en": "Mania II",
+          "es": "Manía II",
+          "pt": "Mania II"
+        }
+      },
+      "3": {
+        "itemId": 28924,
+        "name": {
+          "fr": "Manie III",
+          "en": "Mania III",
+          "es": "Manía III",
+          "pt": "Mania III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2804,12 +5569,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28925,
+        "name": {
+          "fr": "Nature I",
+          "en": "Nature I",
+          "es": "Naturaleza I",
+          "pt": "Natureza I"
+        }
+      },
+      "2": {
+        "itemId": 28816,
+        "name": {
+          "fr": "Nature II",
+          "en": "Nature II",
+          "es": "Naturaleza II",
+          "pt": "Natureza II"
+        }
+      },
+      "3": {
+        "itemId": 28926,
+        "name": {
+          "fr": "Nature III",
+          "en": "Nature III",
+          "es": "Naturaleza III",
+          "pt": "Natureza III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -2831,12 +5634,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28927,
+        "name": {
+          "fr": "Dernier souffle I",
+          "en": "Last Breath I",
+          "es": "Último aliento I",
+          "pt": "Último Suspiro I"
+        }
+      },
+      "2": {
+        "itemId": 28817,
+        "name": {
+          "fr": "Dernier souffle II",
+          "en": "Last Breath II",
+          "es": "Último aliento II",
+          "pt": "Último Suspiro II"
+        }
+      },
+      "3": {
+        "itemId": 28928,
+        "name": {
+          "fr": "Dernier souffle III",
+          "en": "Last Breath III",
+          "es": "Último aliento III",
+          "pt": "Último Suspiro III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "+9% Damage Inflicted"
@@ -2858,6 +5699,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28929,
+        "name": {
+          "fr": "Main forte I",
+          "en": "Strong Hand I",
+          "es": "Mano aliada I",
+          "pt": "Mãozinha I"
+        }
+      },
+      "2": {
+        "itemId": 28818,
+        "name": {
+          "fr": "Main forte II",
+          "en": "Strong Hand II",
+          "es": "Mano aliada II",
+          "pt": "Mãozinha II"
+        }
+      },
+      "3": {
+        "itemId": 28930,
+        "name": {
+          "fr": "Main forte III",
+          "en": "Strong Hand III",
+          "es": "Mano aliada III",
+          "pt": "Mãozinha III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2877,6 +5748,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28931,
+        "name": {
+          "fr": "Pied ferme I",
+          "en": "Firm Foot I",
+          "es": "Pie firme I",
+          "pt": "Pé Firme I"
+        }
+      },
+      "2": {
+        "itemId": 28819,
+        "name": {
+          "fr": "Pied ferme II",
+          "en": "Firm Foot II",
+          "es": "Pie firme II",
+          "pt": "Pé Firme II"
+        }
+      },
+      "3": {
+        "itemId": 28932,
+        "name": {
+          "fr": "Pied ferme III",
+          "en": "Firm Foot III",
+          "es": "Pie firme III",
+          "pt": "Pé Firme III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2896,6 +5797,18 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 28933,
+        "name": {
+          "fr": "Volte-face II",
+          "en": "About-Turn II",
+          "es": "Media vuelta II",
+          "pt": "Meia-Volta II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2915,6 +5828,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28942,
+        "name": {
+          "fr": "Courage I",
+          "en": "Courage I",
+          "es": "Coraje I",
+          "pt": "Coragem I"
+        }
+      },
+      "2": {
+        "itemId": 28943,
+        "name": {
+          "fr": "Courage II",
+          "en": "Courage II",
+          "es": "Coraje II",
+          "pt": "Coragem II"
+        }
+      },
+      "3": {
+        "itemId": 28944,
+        "name": {
+          "fr": "Courage III",
+          "en": "Courage III",
+          "es": "Coraje III",
+          "pt": "Coragem III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2934,6 +5877,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28988,
+        "name": {
+          "fr": "Revigoration I",
+          "en": "Reinvigoration I",
+          "es": "Revigorización I",
+          "pt": "Revigorada I"
+        }
+      },
+      "2": {
+        "itemId": 28989,
+        "name": {
+          "fr": "Revigoration II",
+          "en": "Reinvigoration II",
+          "es": "Revigorización II",
+          "pt": "Revigorada II"
+        }
+      },
+      "3": {
+        "itemId": 28990,
+        "name": {
+          "fr": "Revigoration III",
+          "en": "Reinvigoration III",
+          "es": "Revigorización III",
+          "pt": "Revigorada III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2953,6 +5926,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28991,
+        "name": {
+          "fr": "Précaution I",
+          "en": "Precaution I",
+          "es": "Precaución I",
+          "pt": "Precaução I"
+        }
+      },
+      "2": {
+        "itemId": 28992,
+        "name": {
+          "fr": "Précaution II",
+          "en": "Precaution II",
+          "es": "Precaución II",
+          "pt": "Precaução II"
+        }
+      },
+      "3": {
+        "itemId": 28993,
+        "name": {
+          "fr": "Précaution III",
+          "en": "Precaution III",
+          "es": "Precaución III",
+          "pt": "Precaução III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2972,12 +5975,37 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28994,
+        "name": {
+          "fr": "Critique technique I",
+          "en": "Technical Critical I",
+          "es": "Crítico técnico I",
+          "pt": "Crítico Técnico I"
+        }
+      },
+      "2": {
+        "itemId": 28995,
+        "name": {
+          "fr": "Critique technique II",
+          "en": "Technical Critical II",
+          "es": "Crítico técnico II",
+          "pt": "Crítico Técnico II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 12
+        "value": 12,
+        "valuesByLevel": [
+          6,
+          12
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted"
@@ -2999,17 +6027,46 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28996,
+        "name": {
+          "fr": "Parade offensive I",
+          "en": "Offensive Block I",
+          "es": "Anticipación ofensiva I",
+          "pt": "Parada Ofensiva I"
+        }
+      },
+      "2": {
+        "itemId": 28997,
+        "name": {
+          "fr": "Parade offensive II",
+          "en": "Offensive Block II",
+          "es": "Anticipación ofensiva II",
+          "pt": "Parada Ofensiva II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 4
+        "value": 4,
+        "valuesByLevel": [
+          2,
+          4
+        ]
       },
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -10,
+          -10
+        ]
       }
     ],
     "rawText": "+4% Damage Inflicted | -10% Block"
@@ -3031,6 +6088,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 28998,
+        "name": {
+          "fr": "Critique tactique I",
+          "en": "Tactical Critical I",
+          "es": "Crítico táctico I",
+          "pt": "Crítico Estratégico I"
+        }
+      },
+      "2": {
+        "itemId": 28999,
+        "name": {
+          "fr": "Critique tactique II",
+          "en": "Tactical Critical II",
+          "es": "Crítico táctico II",
+          "pt": "Crítico Estratégico II"
+        }
+      },
+      "3": {
+        "itemId": 29000,
+        "name": {
+          "fr": "Critique tactique III",
+          "en": "Tactical Critical III",
+          "es": "Crítico táctico III",
+          "pt": "Crítico Estratégico III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
@@ -3039,12 +6126,24 @@
         "value": -9,
         "scenarioGate": {
           "berserk": true
-        }
+        },
+        "valuesByLevel": [
+          -3,
+          -6,
+          -9,
+          -12
+        ]
       },
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12
+        ]
       }
     ],
     "rawText": "-9% Damage Inflicted (berserk) | +9% Damage Inflicted"
@@ -3066,6 +6165,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29001,
+        "name": {
+          "fr": "Neutralité I",
+          "en": "Neutrality I",
+          "es": "Neutralidad I",
+          "pt": "Neutralidade I"
+        }
+      },
+      "2": {
+        "itemId": 29002,
+        "name": {
+          "fr": "Neutralité II",
+          "en": "Neutrality II",
+          "es": "Neutralidad II",
+          "pt": "Neutralidade II"
+        }
+      },
+      "3": {
+        "itemId": 29003,
+        "name": {
+          "fr": "Neutralité III",
+          "en": "Neutrality III",
+          "es": "Neutralidad III",
+          "pt": "Neutralidade III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -3076,7 +6205,13 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 24
+        "value": 24,
+        "valuesByLevel": [
+          8,
+          16,
+          24,
+          32
+        ]
       }
     ],
     "rawText": "If each secondary mastery ≤ 0 | +24% Damage Inflicted"
@@ -3098,6 +6233,27 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29004,
+        "name": {
+          "fr": "Abandon I",
+          "en": "Abandon I",
+          "es": "Abandono I",
+          "pt": "Abandono I"
+        }
+      },
+      "2": {
+        "itemId": 29005,
+        "name": {
+          "fr": "Abandon II",
+          "en": "Abandon II",
+          "es": "Abandono II",
+          "pt": "Abandono II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
@@ -3107,12 +6263,28 @@
       {
         "type": "flat",
         "characteristic": "WAKFU_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          0,
+          1,
+          1,
+          2,
+          2,
+          3
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RANGE",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          0,
+          1,
+          1,
+          2,
+          2,
+          3
+        ]
       }
     ],
     "rawText": "If each secondary mastery ≤ 0 | +1 WP | +1 Range"
@@ -3134,6 +6306,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29007,
+        "name": {
+          "fr": "Prétention I",
+          "en": "Pretension I",
+          "es": "Pretensión I",
+          "pt": "Pretensão I"
+        }
+      },
+      "2": {
+        "itemId": 29008,
+        "name": {
+          "fr": "Prétention II",
+          "en": "Pretension II",
+          "es": "Pretensión II",
+          "pt": "Pretensão II"
+        }
+      },
+      "3": {
+        "itemId": 29009,
+        "name": {
+          "fr": "Prétention III",
+          "en": "Pretension III",
+          "es": "Pretensión III",
+          "pt": "Pretensão III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -3144,7 +6346,15 @@
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "If each secondary mastery ≤ 0 | +15% Block"
@@ -3166,6 +6376,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29499,
+        "name": {
+          "fr": "Combat rapproché I",
+          "en": "Brawling I",
+          "es": "Combate Cercano I",
+          "pt": "Combate Aproximado I"
+        }
+      },
+      "2": {
+        "itemId": 29500,
+        "name": {
+          "fr": "Combat rapproché II",
+          "en": "Brawling II",
+          "es": "Combate Cercano II",
+          "pt": "Combate Aproximado II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -3173,19 +6404,31 @@
         "type": "flat",
         "characteristic": "RANGE",
         "value": -1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -1,
+          -1
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "DODGE",
         "percentOfLevel": 100,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          50,
+          100
+        ]
       },
       {
         "type": "percentOfLevel",
         "characteristic": "LOCK",
         "percentOfLevel": 100,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          50,
+          100
+        ]
       }
     ],
     "rawText": "-1 Range | +100% of level as Dodge | +100% of level as Lock"
@@ -3207,6 +6450,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29497,
+        "name": {
+          "fr": "Carapace I",
+          "en": "Carapace I",
+          "es": "Caparazón I",
+          "pt": "Carapaça I"
+        }
+      },
+      "2": {
+        "itemId": 29498,
+        "name": {
+          "fr": "Carapace II",
+          "en": "Carapace II",
+          "es": "Caparazón II",
+          "pt": "Carapaça II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -3214,13 +6478,21 @@
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": 75,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          75,
+          75
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MAX_ACTION_POINT",
         "value": -1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -2,
+          -1
+        ]
       }
     ],
     "rawText": "+75 Elemental Resistance | -1 max AP"
@@ -3242,6 +6514,27 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29495,
+        "name": {
+          "fr": "Armure lourde I",
+          "en": "Heavy Armor I",
+          "es": "Armadura Pesada I",
+          "pt": "Armadura Pesada I"
+        }
+      },
+      "2": {
+        "itemId": 29496,
+        "name": {
+          "fr": "Armure lourde II",
+          "en": "Heavy Armor II",
+          "es": "Armadura Pesada II",
+          "pt": "Armadura Pesada II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -3249,13 +6542,21 @@
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 10,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          5,
+          10
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MAX_MOVEMENT_POINT",
         "value": -1,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          -1,
+          -1
+        ]
       }
     ],
     "rawText": "+10% Damage Inflicted | -1 max MP"
@@ -3277,12 +6578,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29507,
+        "name": {
+          "fr": "Temporisation I",
+          "en": "Delay I",
+          "es": "Temporización I",
+          "pt": "Temporização I"
+        }
+      },
+      "2": {
+        "itemId": 29508,
+        "name": {
+          "fr": "Temporisation II",
+          "en": "Delay II",
+          "es": "Temporización II",
+          "pt": "Temporização II"
+        }
+      },
+      "3": {
+        "itemId": 29509,
+        "name": {
+          "fr": "Temporisation III",
+          "en": "Delay III",
+          "es": "Temporización III",
+          "pt": "Temporização III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 12
+        "value": 12,
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted"
@@ -3304,6 +6641,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29504,
+        "name": {
+          "fr": "Préparation critique I",
+          "en": "Critical Preparation I",
+          "es": "Preparación Crítica I",
+          "pt": "Preparação Crítica I"
+        }
+      },
+      "2": {
+        "itemId": 29505,
+        "name": {
+          "fr": "Préparation critique II",
+          "en": "Critical Preparation II",
+          "es": "Preparación Crítica II",
+          "pt": "Preparação Crítica II"
+        }
+      },
+      "3": {
+        "itemId": 29506,
+        "name": {
+          "fr": "Préparation critique III",
+          "en": "Critical Preparation III",
+          "es": "Preparación Crítica III",
+          "pt": "Preparação Crítica III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3323,12 +6690,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29510,
+        "name": {
+          "fr": "Verrouillage I",
+          "en": "Locking I",
+          "es": "Bloqueo I",
+          "pt": "Trancamento I"
+        }
+      },
+      "2": {
+        "itemId": 29511,
+        "name": {
+          "fr": "Verrouillage II",
+          "en": "Locking II",
+          "es": "Bloqueo II",
+          "pt": "Trancamento II"
+        }
+      },
+      "3": {
+        "itemId": 29512,
+        "name": {
+          "fr": "Verrouillage III",
+          "en": "Locking III",
+          "es": "Bloqueo III",
+          "pt": "Trancamento III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 12
+        "value": 12,
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted"
@@ -3350,6 +6755,37 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29513,
+        "name": {
+          "fr": "Poids Plume I",
+          "en": "Featherweight I",
+          "es": "Peso Pluma I",
+          "pt": "Peso-pena I"
+        }
+      },
+      "2": {
+        "itemId": 29514,
+        "name": {
+          "fr": "Poids Plume II",
+          "en": "Featherweight II",
+          "es": "Peso Pluma II",
+          "pt": "Peso-pena II"
+        }
+      },
+      "3": {
+        "itemId": 29515,
+        "name": {
+          "fr": "Poids Plume III",
+          "en": "Featherweight III",
+          "es": "Peso Pluma III",
+          "pt": "Peso-pena III"
+        }
+      }
+    },
+    "stackModelled": false,
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -3381,6 +6817,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 29591,
+        "name": {
+          "fr": "Ambition I",
+          "en": "Ambition I",
+          "es": "Ambición I",
+          "pt": "Ambição I"
+        }
+      },
+      "2": {
+        "itemId": 29592,
+        "name": {
+          "fr": "Ambition II",
+          "en": "Ambition II",
+          "es": "Ambición II",
+          "pt": "Ambição II"
+        }
+      },
+      "3": {
+        "itemId": 29593,
+        "name": {
+          "fr": "Ambition III",
+          "en": "Ambition III",
+          "es": "Ambición III",
+          "pt": "Ambição III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -3391,7 +6857,15 @@
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "If each secondary mastery ≤ 0 | +15% Critical Hit"
@@ -3406,12 +6880,26 @@
       "pt": "Excesso II"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 29871,
+        "name": {
+          "fr": "Excès II",
+          "en": "Excess II",
+          "es": "Exceso II",
+          "pt": "Excesso II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -10,
+        "valuesByLevel": [
+          -10
+        ]
       }
     ],
     "rawText": "-10% Damage Inflicted"
@@ -3426,6 +6914,17 @@
       "pt": "Lunático"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 29872,
+        "name": {
+          "fr": "Lunatique",
+          "en": "Lunatic",
+          "es": "Lunático",
+          "pt": "Lunático"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3438,6 +6937,17 @@
       "pt": "Controle do Espaço II"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 29873,
+        "name": {
+          "fr": "Contrôle de l'espace II",
+          "en": "Controlling Space II",
+          "es": "Control del Espacio II",
+          "pt": "Controle do Espaço II"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_AT_LEAST",
@@ -3455,6 +6965,17 @@
       "pt": "Inflexibilidade II"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 29874,
+        "name": {
+          "fr": "Inflexibilité II",
+          "en": "Inflexibility II",
+          "es": "Inflexibilidad II",
+          "pt": "Inflexibilidade II"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -3465,7 +6986,10 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "rawText": "If each secondary mastery ≤ 0 | +20% Damage Inflicted"
@@ -3480,17 +7004,34 @@
       "pt": "Sentinela"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 29875,
+        "name": {
+          "fr": "Sentinelle",
+          "en": "Sentinel",
+          "es": "Centinela",
+          "pt": "Sentinela"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RANGE",
-        "value": 3
+        "value": 3,
+        "valuesByLevel": [
+          3
+        ]
       }
     ],
     "rawText": "+15% Damage Inflicted | +3 Range"
@@ -3505,32 +7046,58 @@
       "pt": "Assimilação"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 29876,
+        "name": {
+          "fr": "Assimilation",
+          "en": "Assimilation",
+          "es": "Asimilación",
+          "pt": "Assimilação"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": -50
+        "value": -50,
+        "valuesByLevel": [
+          -50
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_EARTH",
-        "value": 100
+        "value": 100,
+        "valuesByLevel": [
+          100
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_FIRE",
-        "value": 100
+        "value": 100,
+        "valuesByLevel": [
+          100
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_WATER",
-        "value": 100
+        "value": 100,
+        "valuesByLevel": [
+          100
+        ]
       },
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_WIND",
-        "value": 100
+        "value": 100,
+        "valuesByLevel": [
+          100
+        ]
       }
     ],
     "rawText": "-50 Elemental Resistance | +100 resistance elementary earth | +100 resistance elementary fire | +100 resistance elementary water | +100 resistance elementary wind"
@@ -3552,12 +7119,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30737,
+        "name": {
+          "fr": "Art du cachement I",
+          "en": "Art of Concealment I",
+          "es": "Arte del Escondite I",
+          "pt": "Arte do Escondimento I"
+        }
+      },
+      "2": {
+        "itemId": 30738,
+        "name": {
+          "fr": "Art du cachement II",
+          "en": "Art of Concealment II",
+          "es": "Arte del Escondite II",
+          "pt": "Arte do Escondimento II"
+        }
+      },
+      "3": {
+        "itemId": 30739,
+        "name": {
+          "fr": "Art du cachement III",
+          "en": "Art of Concealment III",
+          "es": "Arte del Escondite III",
+          "pt": "Arte do Escondimento III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -9
+        "value": -9,
+        "valuesByLevel": [
+          -3,
+          -6,
+          -9,
+          -12
+        ]
       }
     ],
     "rawText": "-9% Damage Inflicted"
@@ -3579,12 +7182,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30740,
+        "name": {
+          "fr": "Folie I",
+          "en": "Madness I",
+          "es": "Locura I",
+          "pt": "Loucura I"
+        }
+      },
+      "2": {
+        "itemId": 30741,
+        "name": {
+          "fr": "Folie II",
+          "en": "Madness II",
+          "es": "Locura II",
+          "pt": "Loucura II"
+        }
+      },
+      "3": {
+        "itemId": 30742,
+        "name": {
+          "fr": "Folie III",
+          "en": "Madness III",
+          "es": "Locura III",
+          "pt": "Loucura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 18
+        "value": 18,
+        "valuesByLevel": [
+          6,
+          12,
+          18,
+          24
+        ]
       }
     ],
     "rawText": "+18% Damage Inflicted"
@@ -3606,12 +7245,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30743,
+        "name": {
+          "fr": "Tabass'Carapace I",
+          "en": "Bashell I",
+          "es": "Caparagolpiza I",
+          "pt": "Soca-Carapaça I"
+        }
+      },
+      "2": {
+        "itemId": 30744,
+        "name": {
+          "fr": "Tabass'Carapace II",
+          "en": "Bashell II",
+          "es": "Caparagolpiza II",
+          "pt": "Soca-Carapaça II"
+        }
+      },
+      "3": {
+        "itemId": 30745,
+        "name": {
+          "fr": "Tabass'Carapace III",
+          "en": "Bashell III",
+          "es": "Caparagolpiza III",
+          "pt": "Soca-Carapaça III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 18
+        "value": 18,
+        "valuesByLevel": [
+          6,
+          12,
+          18,
+          24
+        ]
       }
     ],
     "rawText": "+18% Damage Inflicted"
@@ -3633,6 +7308,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30746,
+        "name": {
+          "fr": "Témérité I",
+          "en": "Recklessness I",
+          "es": "Temeridad I",
+          "pt": "Temeridade I"
+        }
+      },
+      "2": {
+        "itemId": 30747,
+        "name": {
+          "fr": "Témérité II",
+          "en": "Recklessness II",
+          "es": "Temeridad II",
+          "pt": "Temeridade II"
+        }
+      },
+      "3": {
+        "itemId": 30748,
+        "name": {
+          "fr": "Témérité III",
+          "en": "Recklessness III",
+          "es": "Temeridad III",
+          "pt": "Temeridade III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3652,6 +7357,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30749,
+        "name": {
+          "fr": "Folie Vampirique I",
+          "en": "Vampiric Madness I",
+          "es": "Palabra Vampírica I",
+          "pt": "Loucura Vampírica I"
+        }
+      },
+      "2": {
+        "itemId": 30750,
+        "name": {
+          "fr": "Folie Vampirique II",
+          "en": "Vampiric Madness II",
+          "es": "Locura Vampírica II",
+          "pt": "Loucura Vampírica II"
+        }
+      },
+      "3": {
+        "itemId": 30751,
+        "name": {
+          "fr": "Folie Vampirique III",
+          "en": "Vampiric Madness III",
+          "es": "Locura Vampírica III",
+          "pt": "Loucura Vampírica III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3671,6 +7406,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30752,
+        "name": {
+          "fr": "Accumulation I",
+          "en": "Accumulation I",
+          "es": "Acumulación I",
+          "pt": "Acumulação I"
+        }
+      },
+      "2": {
+        "itemId": 30753,
+        "name": {
+          "fr": "Accumulation II",
+          "en": "Accumulation II",
+          "es": "Acumulación II",
+          "pt": "Acumulação II"
+        }
+      },
+      "3": {
+        "itemId": 30754,
+        "name": {
+          "fr": "Accumulation III",
+          "en": "Accumulation III",
+          "es": "Acumulación III",
+          "pt": "Acumulação III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3690,6 +7455,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30763,
+        "name": {
+          "fr": "Conservation I",
+          "en": "Conservation I",
+          "es": "Conservación I",
+          "pt": "Conservação I"
+        }
+      },
+      "2": {
+        "itemId": 30764,
+        "name": {
+          "fr": "Conservation II",
+          "en": "Conservation II",
+          "es": "Conservación II",
+          "pt": "Conservação II"
+        }
+      },
+      "3": {
+        "itemId": 30765,
+        "name": {
+          "fr": "Conservation III",
+          "en": "Conservation III",
+          "es": "Conservación III",
+          "pt": "Conservação III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3709,6 +7504,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30946,
+        "name": {
+          "fr": "Carapace sanguine I",
+          "en": "Blood Carapace I",
+          "es": "Caparazón Sanguinario I",
+          "pt": "Carapaça Sanguínea I"
+        }
+      },
+      "2": {
+        "itemId": 30947,
+        "name": {
+          "fr": "Carapace sanguine II",
+          "en": "Blood Carapace II",
+          "es": "Caparazón Sanguinario II",
+          "pt": "Carapaça Sanguínea II"
+        }
+      },
+      "3": {
+        "itemId": 30948,
+        "name": {
+          "fr": "Carapace sanguine III",
+          "en": "Blood Carapace III",
+          "es": "Caparazón Sanguinario III",
+          "pt": "Carapaça Sanguínea III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3728,6 +7553,18 @@
     ],
     "maxLevel": 4,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 30952,
+        "name": {
+          "fr": "Retour d'Armure II",
+          "en": "Armor Return II",
+          "es": "Vuelta de Armadura II",
+          "pt": "Retorno da Armadura II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3747,6 +7584,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30949,
+        "name": {
+          "fr": "Profit I",
+          "en": "Profit I",
+          "es": "Provecho I",
+          "pt": "Proveito I"
+        }
+      },
+      "2": {
+        "itemId": 30950,
+        "name": {
+          "fr": "Profit II",
+          "en": "Profit II",
+          "es": "Provecho II",
+          "pt": "Proveito II"
+        }
+      },
+      "3": {
+        "itemId": 30951,
+        "name": {
+          "fr": "Profit III",
+          "en": "Profit III",
+          "es": "Provecho III",
+          "pt": "Proveito III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3766,12 +7633,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30953,
+        "name": {
+          "fr": "Force légère I",
+          "en": "Light Strength I",
+          "es": "Fuerza Ligera I",
+          "pt": "Força Branda I"
+        }
+      },
+      "2": {
+        "itemId": 30954,
+        "name": {
+          "fr": "Force légère II",
+          "en": "Light Strength II",
+          "es": "Fuerza Ligera II",
+          "pt": "Força Branda II"
+        }
+      },
+      "3": {
+        "itemId": 30955,
+        "name": {
+          "fr": "Force légère III",
+          "en": "Light Strength III",
+          "es": "Fuerza Ligera III",
+          "pt": "Força Branda III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "+9% Damage Inflicted"
@@ -3793,12 +7698,28 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 30956,
+        "name": {
+          "fr": "Agilité vitale II",
+          "en": "Vital Agility II",
+          "es": "Agilidad Vital II",
+          "pt": "Agilidade Vital II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1,
+          1
+        ]
       }
     ],
     "rawText": "+1 MP"
@@ -3820,12 +7741,28 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 30960,
+        "name": {
+          "fr": "Force vitale II",
+          "en": "Vital Strength II",
+          "es": "Fuerza Vital II",
+          "pt": "Força Vital II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1,
+          1
+        ]
       }
     ],
     "rawText": "+1 AP"
@@ -3847,13 +7784,51 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30957,
+        "name": {
+          "fr": "Influence vitale I",
+          "en": "Vital Influence I",
+          "es": "Influjo Vital I",
+          "pt": "Influência Vital I"
+        }
+      },
+      "2": {
+        "itemId": 30958,
+        "name": {
+          "fr": "Influence vitale II",
+          "en": "Vital Influence II",
+          "es": "Influjo Vital II",
+          "pt": "Influência Vital II"
+        }
+      },
+      "3": {
+        "itemId": 30959,
+        "name": {
+          "fr": "Influence vitale III",
+          "en": "Vital Influence III",
+          "es": "Influjo Vital III",
+          "pt": "Influência Vital III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 12
+        "value": 12,
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24
+        ]
       }
     ],
     "rawText": "+12% Critical Hit"
@@ -3875,6 +7850,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30973,
+        "name": {
+          "fr": "Influence paradoxale I",
+          "en": "Paradoxical Influence I",
+          "es": "Influjo Paradójico I",
+          "pt": "Influência Paradoxal I"
+        }
+      },
+      "2": {
+        "itemId": 30974,
+        "name": {
+          "fr": "Influence paradoxale II",
+          "en": "Paradoxical Influence II",
+          "es": "Influjo Paradójico II",
+          "pt": "Influência Paradoxal II"
+        }
+      },
+      "3": {
+        "itemId": 30975,
+        "name": {
+          "fr": "Influence paradoxale III",
+          "en": "Paradoxical Influence III",
+          "es": "Influjo Paradójico III",
+          "pt": "Influência Paradoxal III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3894,13 +7899,51 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30961,
+        "name": {
+          "fr": "Evasion I",
+          "en": "Evasion I",
+          "es": "Evasión I",
+          "pt": "Evasão I"
+        }
+      },
+      "2": {
+        "itemId": 30962,
+        "name": {
+          "fr": "Evasion II",
+          "en": "Evasion II",
+          "es": "Evasión II",
+          "pt": "Evasão II"
+        }
+      },
+      "3": {
+        "itemId": 30963,
+        "name": {
+          "fr": "Evasion III",
+          "en": "Evasion III",
+          "es": "Evasión III",
+          "pt": "Evasão III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "percentOfLevel",
         "characteristic": "DODGE",
-        "percentOfLevel": 150
+        "percentOfLevel": 150,
+        "valuesByLevel": [
+          50,
+          100,
+          150,
+          200,
+          250,
+          300
+        ]
       }
     ],
     "rawText": "+150% of level as Dodge"
@@ -3922,13 +7965,51 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30967,
+        "name": {
+          "fr": "Interception I",
+          "en": "Interception I",
+          "es": "Interceptación I",
+          "pt": "Interceptação I"
+        }
+      },
+      "2": {
+        "itemId": 30968,
+        "name": {
+          "fr": "Interception II",
+          "en": "Interception II",
+          "es": "Interceptación II",
+          "pt": "Interceptação II"
+        }
+      },
+      "3": {
+        "itemId": 30969,
+        "name": {
+          "fr": "Interception III",
+          "en": "Interception III",
+          "es": "Interceptación III",
+          "pt": "Interceptação III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "percentOfLevel": 150
+        "percentOfLevel": 150,
+        "valuesByLevel": [
+          50,
+          100,
+          150,
+          200,
+          250,
+          300
+        ]
       }
     ],
     "rawText": "+150% of level as Lock"
@@ -3950,12 +8031,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30964,
+        "name": {
+          "fr": "Fuite I",
+          "en": "Flee I",
+          "es": "Huida I",
+          "pt": "Fuga I"
+        }
+      },
+      "2": {
+        "itemId": 30965,
+        "name": {
+          "fr": "Fuite II",
+          "en": "Flee II",
+          "es": "Huida II",
+          "pt": "Fuga II"
+        }
+      },
+      "3": {
+        "itemId": 30966,
+        "name": {
+          "fr": "Fuite III",
+          "en": "Flee III",
+          "es": "Huida III",
+          "pt": "Fuga III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
       }
     ],
     "rawText": "+1 MP"
@@ -3977,6 +8096,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 30970,
+        "name": {
+          "fr": "Interposition I",
+          "en": "Interposition I",
+          "es": "Interposición I",
+          "pt": "Interposição I"
+        }
+      },
+      "2": {
+        "itemId": 30971,
+        "name": {
+          "fr": "Interposition II",
+          "en": "Interposition II",
+          "es": "Interposición II",
+          "pt": "Interposição II"
+        }
+      },
+      "3": {
+        "itemId": 30972,
+        "name": {
+          "fr": "Interposition III",
+          "en": "Interposition III",
+          "es": "Interposición III",
+          "pt": "Interposição III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3989,12 +8138,26 @@
       "pt": "Brilhantismo"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31000,
+        "name": {
+          "fr": "Pétillance",
+          "en": "Sparkle",
+          "es": "Burbujeo",
+          "pt": "Brilhantismo"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10
+        ]
       }
     ],
     "rawText": "+10% Damage Inflicted"
@@ -4009,6 +8172,17 @@
       "pt": "Contato"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31001,
+        "name": {
+          "fr": "Contact",
+          "en": "Contact",
+          "es": "Contacto",
+          "pt": "Contato"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4021,6 +8195,17 @@
       "pt": "Cara a Cara"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31002,
+        "name": {
+          "fr": "Face-à-face",
+          "en": "Face-to-Face",
+          "es": "Cara-a-cara",
+          "pt": "Cara a Cara"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4033,12 +8218,26 @@
       "pt": "Hipermetrope"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31003,
+        "name": {
+          "fr": "Hypermétrope",
+          "en": "Farsighted",
+          "es": "Hipermétrope",
+          "pt": "Hipermetrope"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       }
     ],
     "rawText": "+15% Damage Inflicted"
@@ -4053,6 +8252,17 @@
       "pt": "Distribuição"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31004,
+        "name": {
+          "fr": "Distribution",
+          "en": "Distribution",
+          "es": "Distribución",
+          "pt": "Distribuição"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4065,6 +8275,17 @@
       "pt": "Constância II"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30993,
+        "name": {
+          "fr": "Constance II",
+          "en": "Steadfast II",
+          "es": "Constancia II",
+          "pt": "Constância II"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "CRIT_AT_MOST",
@@ -4082,12 +8303,26 @@
       "pt": "Elementalismo"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30994,
+        "name": {
+          "fr": "Elémentalisme",
+          "en": "Elementalism",
+          "es": "Elementalismo",
+          "pt": "Elementalismo"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "rawText": "+20% Damage Inflicted"
@@ -4102,12 +8337,27 @@
       "pt": "Caos"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30995,
+        "name": {
+          "fr": "Chaos",
+          "en": "Chaos",
+          "es": "Caos",
+          "pt": "Caos"
+        }
+      }
+    },
+    "stackModelled": false,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "zeroesElementalMastery": true,
@@ -4123,13 +8373,27 @@
       "pt": "Abnegação"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30996,
+        "name": {
+          "fr": "Abnégation",
+          "en": "Abnegation",
+          "es": "Abnegación",
+          "pt": "Abnegação"
+        }
+      }
+    },
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -15
+        "value": -15,
+        "valuesByLevel": [
+          -15
+        ]
       }
     ],
     "rawText": "-15% Damage Inflicted"
@@ -4144,6 +8408,17 @@
       "pt": "Engajamento"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30997,
+        "name": {
+          "fr": "Engagement",
+          "en": "Engagement",
+          "es": "Compromiso",
+          "pt": "Engajamento"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "HEALING_MASTERY_AT_MOST",
@@ -4161,6 +8436,17 @@
       "pt": "Força de Vontade"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30998,
+        "name": {
+          "fr": "Volonté de fer",
+          "en": "Iron Will",
+          "es": "Voluntad de Hierro",
+          "pt": "Força de Vontade"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -4171,7 +8457,10 @@
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "rawText": "If Range ≤ 3 | +20 Force of Will"
@@ -4186,17 +8475,34 @@
       "pt": "Desmesura"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 30999,
+        "name": {
+          "fr": "Démesuré",
+          "en": "Colossal",
+          "es": "Desmesurado",
+          "pt": "Desmesura"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       },
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": -1
+        "value": -1,
+        "valuesByLevel": [
+          -1
+        ]
       }
     ],
     "rawText": "+1% Critical Hit | -1% Block"
@@ -4218,6 +8524,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31369,
+        "name": {
+          "fr": "Allocentrisme I",
+          "en": "Allocentrism I",
+          "es": "Alocentrismo I",
+          "pt": "Alocentrismo I"
+        }
+      },
+      "2": {
+        "itemId": 31370,
+        "name": {
+          "fr": "Allocentrisme II",
+          "en": "Allocentrism II",
+          "es": "Alocentrismo II",
+          "pt": "Alocentrismo II"
+        }
+      },
+      "3": {
+        "itemId": 31706,
+        "name": {
+          "fr": "Allocentrisme III",
+          "en": "Allocentrism III",
+          "es": "Alocentrismo III",
+          "pt": "Alocentrismo III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4237,12 +8573,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31371,
+        "name": {
+          "fr": "Apprêt I",
+          "en": "Embellishment I",
+          "es": "Adrezo I",
+          "pt": "Enfeite I"
+        }
+      },
+      "2": {
+        "itemId": 31372,
+        "name": {
+          "fr": "Apprêt II",
+          "en": "Embellishment II",
+          "es": "Adrezo II",
+          "pt": "Enfeite II"
+        }
+      },
+      "3": {
+        "itemId": 31373,
+        "name": {
+          "fr": "Apprêt III",
+          "en": "Embellishment III",
+          "es": "Adrezo III",
+          "pt": "Enfeite III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 3
+        "value": 3,
+        "valuesByLevel": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
       }
     ],
     "rawText": "+3% Damage Inflicted"
@@ -4257,12 +8631,26 @@
       "pt": "Último Instante"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31600,
+        "name": {
+          "fr": "Dernier instant",
+          "en": "Last Moment",
+          "es": "Último instante",
+          "pt": "Último Instante"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 35
+        "value": 35,
+        "valuesByLevel": [
+          35
+        ]
       }
     ],
     "rawText": "+35% Damage Inflicted"
@@ -4277,12 +8665,26 @@
       "pt": "Arrogância"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31601,
+        "name": {
+          "fr": "Arrogance",
+          "en": "Arrogance",
+          "es": "Arrogancia",
+          "pt": "Arrogância"
+        }
+      }
+    },
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": -100
+        "value": -100,
+        "valuesByLevel": [
+          -100
+        ]
       }
     ],
     "rawText": "-100 Elemental Resistance"
@@ -4297,6 +8699,17 @@
       "pt": "Modularidade"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31602,
+        "name": {
+          "fr": "Modularité",
+          "en": "Modularity",
+          "es": "Modularidad",
+          "pt": "Modularidade"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4309,6 +8722,17 @@
       "pt": "Calibragem"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31603,
+        "name": {
+          "fr": "Calibrage",
+          "en": "Calibration",
+          "es": "Calibrado",
+          "pt": "Calibragem"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4321,6 +8745,17 @@
       "pt": "Veemência"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31604,
+        "name": {
+          "fr": "Véhémence",
+          "en": "Vehemence",
+          "es": "Vehemencia",
+          "pt": "Veemência"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4333,12 +8768,26 @@
       "pt": "Além da Barreira"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31605,
+        "name": {
+          "fr": "Par-delà la barrière",
+          "en": "Beyond the Barrier",
+          "es": "Mas allá del parapeto",
+          "pt": "Além da Barreira"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          15
+        ]
       }
     ],
     "rawText": "+15% Damage Inflicted"
@@ -4353,6 +8802,17 @@
       "pt": "Couraça Singular"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31606,
+        "name": {
+          "fr": "Cuirasse singulière",
+          "en": "Single Shared Armor",
+          "es": "Cota singular",
+          "pt": "Couraça Singular"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4365,6 +8825,17 @@
       "pt": "Calibragem II"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31607,
+        "name": {
+          "fr": "Calibrage II",
+          "en": "Calibration II",
+          "es": "Calibrado II",
+          "pt": "Calibragem II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4377,6 +8848,17 @@
       "pt": "Lunático II"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31608,
+        "name": {
+          "fr": "Lunatique II",
+          "en": "Lunatic II",
+          "es": "Lunático II",
+          "pt": "Lunático II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4389,12 +8871,26 @@
       "pt": "Aprumo Natural"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31609,
+        "name": {
+          "fr": "Aplomb naturel",
+          "en": "Natural Poise",
+          "es": "Aplomo natural",
+          "pt": "Aprumo Natural"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": -50
+        "value": -50,
+        "valuesByLevel": [
+          -50
+        ]
       }
     ],
     "rawText": "-50 Elemental Resistance"
@@ -4409,6 +8905,17 @@
       "pt": "Petulância"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31610,
+        "name": {
+          "fr": "Pétulance",
+          "en": "Ebullience",
+          "es": "Petulancia",
+          "pt": "Petulância"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4421,6 +8928,17 @@
       "pt": "Afã"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31611,
+        "name": {
+          "fr": "Empressement",
+          "en": "Gusto",
+          "es": "Ahínco",
+          "pt": "Afã"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4433,6 +8951,17 @@
       "pt": "Lentidão Involuntária"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31612,
+        "name": {
+          "fr": "Lourdeur involontaire",
+          "en": "Involuntary Heaviness",
+          "es": "Pesadez involuntaria",
+          "pt": "Lentidão Involuntária"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4445,6 +8974,17 @@
       "pt": "Pilar II"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31613,
+        "name": {
+          "fr": "Pilier II",
+          "en": "Pillar II",
+          "es": "Pilar II",
+          "pt": "Pilar II"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "BLOCK_AT_LEAST",
@@ -4462,6 +9002,17 @@
       "pt": "Medida II"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31614,
+        "name": {
+          "fr": "Mesure II",
+          "en": "Measure II",
+          "es": "Medida II",
+          "pt": "Medida II"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -4472,12 +9023,18 @@
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 10
+        "value": 10,
+        "valuesByLevel": [
+          10
+        ]
       },
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "rawText": "If Critical Hit ≥ 50% | +10 Force of Will | +20% Block"
@@ -4499,12 +9056,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31615,
+        "name": {
+          "fr": "Volonté directe I",
+          "en": "Direct Force of Will I",
+          "es": "Voluntad directa I",
+          "pt": "Vontade Direta I"
+        }
+      },
+      "2": {
+        "itemId": 31616,
+        "name": {
+          "fr": "Volonté directe II",
+          "en": "Direct Force of Will II",
+          "es": "Voluntad directa II",
+          "pt": "Vontade Direta II"
+        }
+      },
+      "3": {
+        "itemId": 31617,
+        "name": {
+          "fr": "Volonté directe III",
+          "en": "Direct Force of Will III",
+          "es": "Voluntad directa III",
+          "pt": "Vontade Direta III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": -3
+        "value": -3,
+        "valuesByLevel": [
+          -1,
+          -2,
+          -3,
+          -4,
+          -5,
+          -6
+        ]
       }
     ],
     "rawText": "-3 Force of Will"
@@ -4526,12 +9121,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31618,
+        "name": {
+          "fr": "Volonté indirecte I",
+          "en": "Indirect Force of Will I",
+          "es": "Voluntad indirecta I",
+          "pt": "Vontade Indireta I"
+        }
+      },
+      "2": {
+        "itemId": 31619,
+        "name": {
+          "fr": "Volonté indirecte II",
+          "en": "Indirect Force of Will II",
+          "es": "Voluntad indirecta II",
+          "pt": "Vontade Indireta II"
+        }
+      },
+      "3": {
+        "itemId": 31620,
+        "name": {
+          "fr": "Volonté indirecte III",
+          "en": "Indirect Force of Will III",
+          "es": "Voluntad indirecta III",
+          "pt": "Vontade Indireta III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": -3
+        "value": -3,
+        "valuesByLevel": [
+          -1,
+          -2,
+          -3,
+          -4,
+          -5,
+          -6
+        ]
       }
     ],
     "rawText": "-3 Force of Will"
@@ -4553,12 +9186,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31621,
+        "name": {
+          "fr": "Acribie I",
+          "en": "Scrupulosity I",
+          "es": "Acribia I",
+          "pt": "Acribia I"
+        }
+      },
+      "2": {
+        "itemId": 31622,
+        "name": {
+          "fr": "Acribie II",
+          "en": "Scrupulosity II",
+          "es": "Acribia II",
+          "pt": "Acribia II"
+        }
+      },
+      "3": {
+        "itemId": 31623,
+        "name": {
+          "fr": "Acribie III",
+          "en": "Scrupulosity III",
+          "es": "Acribia III",
+          "pt": "Acribia III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -4580,12 +9251,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31624,
+        "name": {
+          "fr": "Vision intermédiaire I",
+          "en": "Intermediate Vision I",
+          "es": "Visión intermedia I",
+          "pt": "Visão Intermediária I"
+        }
+      },
+      "2": {
+        "itemId": 31625,
+        "name": {
+          "fr": "Vision intermédiaire II",
+          "en": "Intermediate Vision II",
+          "es": "Visión intermedia II",
+          "pt": "Visão Intermediária II"
+        }
+      },
+      "3": {
+        "itemId": 31626,
+        "name": {
+          "fr": "Vision intermédiaire III",
+          "en": "Intermediate Vision III",
+          "es": "Visión intermedia III",
+          "pt": "Visão Intermediária III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "+9% Damage Inflicted"
@@ -4607,6 +9316,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31627,
+        "name": {
+          "fr": "Dérobade continue I",
+          "en": "Constant Evasion I",
+          "es": "Escapatoria continua I",
+          "pt": "Evasão Contínua I"
+        }
+      },
+      "2": {
+        "itemId": 31628,
+        "name": {
+          "fr": "Dérobade continue II",
+          "en": "Constant Evasion II",
+          "es": "Escapatoria continua II",
+          "pt": "Evasão Contínua II"
+        }
+      },
+      "3": {
+        "itemId": 31629,
+        "name": {
+          "fr": "Dérobade continue III",
+          "en": "Constant Evasion III",
+          "es": "Escapatoria continua III",
+          "pt": "Evasão Contínua III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -4614,7 +9353,15 @@
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
         "value": 9,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "+9% Block"
@@ -4636,6 +9383,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31630,
+        "name": {
+          "fr": "Bouclier critique I",
+          "en": "Critical Shield I",
+          "es": "Escudo crítico I",
+          "pt": "Escudo Crítico I"
+        }
+      },
+      "2": {
+        "itemId": 31631,
+        "name": {
+          "fr": "Bouclier critique II",
+          "en": "Critical Shield II",
+          "es": "Escudo crítico II",
+          "pt": "Escudo Crítico II"
+        }
+      },
+      "3": {
+        "itemId": 31632,
+        "name": {
+          "fr": "Bouclier critique III",
+          "en": "Critical Shield III",
+          "es": "Escudo crítico III",
+          "pt": "Escudo Crítico III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -4643,7 +9420,15 @@
         "type": "flat",
         "characteristic": "RESISTANCE_CRITICAL",
         "value": 15,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "+15 Critical Resistance"
@@ -4665,6 +9450,18 @@
     ],
     "maxLevel": 2,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 31636,
+        "name": {
+          "fr": "Sauvegarde du Wakfu II",
+          "en": "Wakfu Conservation II",
+          "es": "Guardado del wakfu II",
+          "pt": "Salvaguarda do Wakfu II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4684,6 +9481,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31633,
+        "name": {
+          "fr": "Bouclier dorsal I",
+          "en": "Rear Shield I",
+          "es": "Escudo dorsal I",
+          "pt": "Escudo Dorsal I"
+        }
+      },
+      "2": {
+        "itemId": 31634,
+        "name": {
+          "fr": "Bouclier dorsal II",
+          "en": "Rear Shield II",
+          "es": "Escudo dorsal II",
+          "pt": "Escudo Dorsal II"
+        }
+      },
+      "3": {
+        "itemId": 31635,
+        "name": {
+          "fr": "Bouclier dorsal III",
+          "en": "Rear Shield III",
+          "es": "Escudo dorsal III",
+          "pt": "Escudo Dorsal III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -4691,7 +9518,15 @@
         "type": "flat",
         "characteristic": "RESISTANCE_BACK",
         "value": 15,
-        "appliesBeforeCombat": true
+        "appliesBeforeCombat": true,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "+15 Rear Resistance"
@@ -4713,6 +9548,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31637,
+        "name": {
+          "fr": "Propagation I",
+          "en": "Propagation I",
+          "es": "Propagación I",
+          "pt": "Propagação I"
+        }
+      },
+      "2": {
+        "itemId": 31638,
+        "name": {
+          "fr": "Propagation II",
+          "en": "Propagation II",
+          "es": "Propagación II",
+          "pt": "Propagação II"
+        }
+      },
+      "3": {
+        "itemId": 31709,
+        "name": {
+          "fr": "Propagation III",
+          "en": "Propagation III",
+          "es": "Propagación III",
+          "pt": "Propagação III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4732,6 +9597,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31639,
+        "name": {
+          "fr": "Valeur ajoutée I",
+          "en": "Added Value I",
+          "es": "Valor añadido I",
+          "pt": "Valor Adicionado I"
+        }
+      },
+      "2": {
+        "itemId": 31640,
+        "name": {
+          "fr": "Valeur ajoutée II",
+          "en": "Added Value II",
+          "es": "Valor añadido II",
+          "pt": "Valor Adicionado II"
+        }
+      },
+      "3": {
+        "itemId": 31641,
+        "name": {
+          "fr": "Valeur ajoutée III",
+          "en": "Added Value III",
+          "es": "Valor añadido III",
+          "pt": "Valor Adicionado III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4751,6 +9646,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31642,
+        "name": {
+          "fr": "Sanguinolence I",
+          "en": "Blood Stains I",
+          "es": "Sanguinolencia I",
+          "pt": "Sanguinolência I"
+        }
+      },
+      "2": {
+        "itemId": 31643,
+        "name": {
+          "fr": "Sanguinolence II",
+          "en": "Blood Stains II",
+          "es": "Sanguinolencia II",
+          "pt": "Sanguinolência II"
+        }
+      },
+      "3": {
+        "itemId": 31644,
+        "name": {
+          "fr": "Sanguinolence III",
+          "en": "Blood Stains III",
+          "es": "Sanguinolencia III",
+          "pt": "Sanguinolência III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4770,12 +9695,48 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31657,
+        "name": {
+          "fr": "Représailles I",
+          "en": "Reprisal I",
+          "es": "Represalias I",
+          "pt": "Represália I"
+        }
+      },
+      "2": {
+        "itemId": 31658,
+        "name": {
+          "fr": "Représailles II",
+          "en": "Reprisal II",
+          "es": "Represalias II",
+          "pt": "Represália II"
+        }
+      },
+      "3": {
+        "itemId": 31659,
+        "name": {
+          "fr": "Représailles III",
+          "en": "Reprisal III",
+          "es": "Represalias III",
+          "pt": "Represália III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 18
+        "value": 18,
+        "valuesByLevel": [
+          6,
+          12,
+          18,
+          24
+        ]
       }
     ],
     "rawText": "+18% Damage Inflicted"
@@ -4797,6 +9758,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31660,
+        "name": {
+          "fr": "Coque I",
+          "en": "Shell I",
+          "es": "Cáscara I",
+          "pt": "Casco I"
+        }
+      },
+      "2": {
+        "itemId": 31661,
+        "name": {
+          "fr": "Coque II",
+          "en": "Shell II",
+          "es": "Cáscara II",
+          "pt": "Casco II"
+        }
+      },
+      "3": {
+        "itemId": 31662,
+        "name": {
+          "fr": "Coque III",
+          "en": "Shell III",
+          "es": "Cáscara III",
+          "pt": "Casco III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4816,6 +9807,27 @@
     ],
     "maxLevel": 4,
     "maxTier": 2,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31663,
+        "name": {
+          "fr": "Rupture violente I",
+          "en": "Violent Rupture I",
+          "es": "Ruptura violenta I",
+          "pt": "Ruptura Violenta I"
+        }
+      },
+      "2": {
+        "itemId": 31664,
+        "name": {
+          "fr": "Rupture violente II",
+          "en": "Violent Rupture II",
+          "es": "Ruptura violenta II",
+          "pt": "Ruptura Violenta II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4835,6 +9847,18 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 31665,
+        "name": {
+          "fr": "Rupture PA II",
+          "en": "AP Rupture II",
+          "es": "Ruptura de PA II",
+          "pt": "Ruptura de PA II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4847,6 +9871,17 @@
       "pt": "Couraça Singular II"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31737,
+        "name": {
+          "fr": "Cuirasse singulière II",
+          "en": "Single Shared Armor II",
+          "es": "Cota singular II",
+          "pt": "Couraça Singular II"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4859,6 +9894,17 @@
       "pt": "Controle do Tempo"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31738,
+        "name": {
+          "fr": "Contrôle du temps",
+          "en": "Time Control",
+          "es": "Control del tiempo",
+          "pt": "Controle do Tempo"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4871,6 +9917,17 @@
       "pt": "Medida III"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 31739,
+        "name": {
+          "fr": "Mesure III",
+          "en": "Measure III",
+          "es": "Medida III",
+          "pt": "Medida III"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -4881,7 +9938,10 @@
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 20,
+        "valuesByLevel": [
+          20
+        ]
       }
     ],
     "rawText": "If Critical Hit ≤ 50% | +20% Damage Inflicted"
@@ -4903,12 +9963,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31710,
+        "name": {
+          "fr": "Balance critique I",
+          "en": "Critical Scale I",
+          "es": "Balanza crítica I",
+          "pt": "Equilíbrio Crítico I"
+        }
+      },
+      "2": {
+        "itemId": 31711,
+        "name": {
+          "fr": "Balance critique II",
+          "en": "Critical Scale II",
+          "es": "Balanza crítica II",
+          "pt": "Equilíbrio Crítico II"
+        }
+      },
+      "3": {
+        "itemId": 31712,
+        "name": {
+          "fr": "Balance critique III",
+          "en": "Critical Scale III",
+          "es": "Balanza crítica III",
+          "pt": "Equilíbrio Crítico III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Critical Hit"
@@ -4930,6 +10028,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31713,
+        "name": {
+          "fr": "Consolation critique I",
+          "en": "Critical Consolation I",
+          "es": "Consuelo crítico I",
+          "pt": "Consolação Crítica I"
+        }
+      },
+      "2": {
+        "itemId": 31714,
+        "name": {
+          "fr": "Consolation critique II",
+          "en": "Critical Consolation II",
+          "es": "Consuelo crítico II",
+          "pt": "Consolação Crítica II"
+        }
+      },
+      "3": {
+        "itemId": 31715,
+        "name": {
+          "fr": "Consolation critique III",
+          "en": "Critical Consolation III",
+          "es": "Consuelo crítico III",
+          "pt": "Consolação Crítica III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4949,6 +10077,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31716,
+        "name": {
+          "fr": "Dernière armure I",
+          "en": "Last Armor I",
+          "es": "Última armadura I",
+          "pt": "Última Armadura I"
+        }
+      },
+      "2": {
+        "itemId": 31717,
+        "name": {
+          "fr": "Dernière armure II",
+          "en": "Last Armor II",
+          "es": "Última armadura II",
+          "pt": "Última Armadura II"
+        }
+      },
+      "3": {
+        "itemId": 31718,
+        "name": {
+          "fr": "Dernière armure III",
+          "en": "Last Armor III",
+          "es": "Última armadura III",
+          "pt": "Última Armadura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4968,6 +10126,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31719,
+        "name": {
+          "fr": "Dernier soin I",
+          "en": "Last Heal I",
+          "es": "Última cura I",
+          "pt": "Última Cura I"
+        }
+      },
+      "2": {
+        "itemId": 31720,
+        "name": {
+          "fr": "Dernier soin II",
+          "en": "Last Heal II",
+          "es": "Última cura II",
+          "pt": "Última Cura II"
+        }
+      },
+      "3": {
+        "itemId": 31721,
+        "name": {
+          "fr": "Dernier soin III",
+          "en": "Last Heal III",
+          "es": "Última cura III",
+          "pt": "Última Cura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4987,12 +10175,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31722,
+        "name": {
+          "fr": "Dernières résistances I",
+          "en": "Last Resistance I",
+          "es": "Últimas resistencias I",
+          "pt": "Últimas Resistências I"
+        }
+      },
+      "2": {
+        "itemId": 31723,
+        "name": {
+          "fr": "Dernières résistances II",
+          "en": "Last Resistance II",
+          "es": "Últimas resistencias II",
+          "pt": "Últimas Resistências II"
+        }
+      },
+      "3": {
+        "itemId": 31724,
+        "name": {
+          "fr": "Dernières résistances III",
+          "en": "Last Resistance III",
+          "es": "Últimas resistencias III",
+          "pt": "Últimas Resistências III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 60
+        "value": 60,
+        "valuesByLevel": [
+          20,
+          40,
+          60,
+          80,
+          100,
+          120
+        ]
       }
     ],
     "rawText": "+60 Elemental Resistance"
@@ -5014,6 +10240,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31725,
+        "name": {
+          "fr": "Brûlure secondaire I",
+          "en": "Secondary Burn I",
+          "es": "Quemadura secundaria I",
+          "pt": "Queimadura Secundária I"
+        }
+      },
+      "2": {
+        "itemId": 31726,
+        "name": {
+          "fr": "Brûlure secondaire II",
+          "en": "Secondary Burn II",
+          "es": "Quemadura secundaria II",
+          "pt": "Queimadura Secundária II"
+        }
+      },
+      "3": {
+        "itemId": 31727,
+        "name": {
+          "fr": "Brûlure secondaire III",
+          "en": "Secondary Burn III",
+          "es": "Quemadura secundaria III",
+          "pt": "Queimadura Secundária III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5033,6 +10289,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31728,
+        "name": {
+          "fr": "Gel secondaire I",
+          "en": "Secondary Freezing I",
+          "es": "Congelación secundaria I",
+          "pt": "Congelamento Secundário I"
+        }
+      },
+      "2": {
+        "itemId": 31729,
+        "name": {
+          "fr": "Gel secondaire II",
+          "en": "Secondary Freezing II",
+          "es": "Congelación secundaria II",
+          "pt": "Congelamento Secundário II"
+        }
+      },
+      "3": {
+        "itemId": 31730,
+        "name": {
+          "fr": "Gel secondaire III",
+          "en": "Secondary Freezing III",
+          "es": "Congelación secundaria III",
+          "pt": "Congelamento Secundário III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5052,6 +10338,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31731,
+        "name": {
+          "fr": "Tellurisme secondaire I",
+          "en": "Secondary Earthbound I",
+          "es": "Telurismo secundario I",
+          "pt": "Telurismo Secundário I"
+        }
+      },
+      "2": {
+        "itemId": 31732,
+        "name": {
+          "fr": "Tellurisme secondaire II",
+          "en": "Secondary Earthbound II",
+          "es": "Telurismo secundario II",
+          "pt": "Telurismo Secundário II"
+        }
+      },
+      "3": {
+        "itemId": 31733,
+        "name": {
+          "fr": "Tellurisme secondaire III",
+          "en": "Secondary Earthbound III",
+          "es": "Telurismo secundario III",
+          "pt": "Telurismo Secundário III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5071,6 +10387,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31734,
+        "name": {
+          "fr": "Ventilation secondaire I",
+          "en": "Secondary Ventilation I",
+          "es": "Ventilación secundaria I",
+          "pt": "Ventilação Secundária I"
+        }
+      },
+      "2": {
+        "itemId": 31735,
+        "name": {
+          "fr": "Ventilation secondaire II",
+          "en": "Secondary Ventilation II",
+          "es": "Ventilación secundaria II",
+          "pt": "Ventilação Secundária II"
+        }
+      },
+      "3": {
+        "itemId": 31736,
+        "name": {
+          "fr": "Ventilation secondaire III",
+          "en": "Secondary Ventilation III",
+          "es": "Ventilación secundaria III",
+          "pt": "Ventilação Secundária III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5090,6 +10436,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31645,
+        "name": {
+          "fr": "Brûlure I",
+          "en": "Burn I",
+          "es": "Quemadura I",
+          "pt": "Queimadura I"
+        }
+      },
+      "2": {
+        "itemId": 31646,
+        "name": {
+          "fr": "Brûlure II",
+          "en": "Burn II",
+          "es": "Quemadura II",
+          "pt": "Queimadura II"
+        }
+      },
+      "3": {
+        "itemId": 31647,
+        "name": {
+          "fr": "Brûlure III",
+          "en": "Burn III",
+          "es": "Quemadura III",
+          "pt": "Queimadura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -5099,7 +10475,13 @@
         "value": 12,
         "scenarioGate": {
           "element": "FIRE"
-        }
+        },
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted (fire)"
@@ -5121,6 +10503,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31648,
+        "name": {
+          "fr": "Gel I",
+          "en": "Freezing I",
+          "es": "Congelación I",
+          "pt": "Congelamento I"
+        }
+      },
+      "2": {
+        "itemId": 31649,
+        "name": {
+          "fr": "Gel II",
+          "en": "Freezing II",
+          "es": "Congelación II",
+          "pt": "Congelamento II"
+        }
+      },
+      "3": {
+        "itemId": 31650,
+        "name": {
+          "fr": "Gel III",
+          "en": "Freezing III",
+          "es": "Congelación III",
+          "pt": "Congelamento III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -5130,7 +10542,13 @@
         "value": 12,
         "scenarioGate": {
           "element": "WATER"
-        }
+        },
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted (water)"
@@ -5152,6 +10570,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31651,
+        "name": {
+          "fr": "Tellurisme I",
+          "en": "Earthbound I",
+          "es": "Telurismo I",
+          "pt": "Telurismo I"
+        }
+      },
+      "2": {
+        "itemId": 31652,
+        "name": {
+          "fr": "Tellurisme II",
+          "en": "Earthbound II",
+          "es": "Telurismo II",
+          "pt": "Telurismo II"
+        }
+      },
+      "3": {
+        "itemId": 31653,
+        "name": {
+          "fr": "Tellurisme III",
+          "en": "Earthbound III",
+          "es": "Telurismo III",
+          "pt": "Telurismo III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -5161,7 +10609,13 @@
         "value": 12,
         "scenarioGate": {
           "element": "EARTH"
-        }
+        },
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted (earth)"
@@ -5183,6 +10637,36 @@
     ],
     "maxLevel": 4,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 31654,
+        "name": {
+          "fr": "Ventilation I",
+          "en": "Ventilation I",
+          "es": "Ventilación I",
+          "pt": "Ventilação I"
+        }
+      },
+      "2": {
+        "itemId": 31655,
+        "name": {
+          "fr": "Ventilation II",
+          "en": "Ventilation II",
+          "es": "Ventilación II",
+          "pt": "Ventilação II"
+        }
+      },
+      "3": {
+        "itemId": 31656,
+        "name": {
+          "fr": "Ventilation III",
+          "en": "Ventilation III",
+          "es": "Ventilación III",
+          "pt": "Ventilação III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
@@ -5192,7 +10676,13 @@
         "value": 12,
         "scenarioGate": {
           "element": "AIR"
-        }
+        },
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted (air)"
@@ -5214,12 +10704,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 32627,
+        "name": {
+          "fr": "Apprêt secondaire I",
+          "en": "Secondary Embellishment I",
+          "es": "Adrezo secundario I",
+          "pt": "Preparo Secundário I"
+        }
+      },
+      "2": {
+        "itemId": 32628,
+        "name": {
+          "fr": "Apprêt secondaire II",
+          "en": "Secondary Embellishment II",
+          "es": "Adrezo secundario II",
+          "pt": "Preparo Secundário II"
+        }
+      },
+      "3": {
+        "itemId": 32629,
+        "name": {
+          "fr": "Apprêt secondaire III",
+          "en": "Secondary Embellishment III",
+          "es": "Adrezo secundario III",
+          "pt": "Preparo Secundário III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -5241,6 +10769,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 32630,
+        "name": {
+          "fr": "Élan I",
+          "en": "Surge I",
+          "es": "Bote I",
+          "pt": "Impulsão I"
+        }
+      },
+      "2": {
+        "itemId": 32631,
+        "name": {
+          "fr": "Élan II",
+          "en": "Surge II",
+          "es": "Bote II",
+          "pt": "Impulsão II"
+        }
+      },
+      "3": {
+        "itemId": 32632,
+        "name": {
+          "fr": "Élan III",
+          "en": "Surge III",
+          "es": "Bote III",
+          "pt": "Impulsão III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5260,12 +10818,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 32633,
+        "name": {
+          "fr": "Jugement I",
+          "en": "Judgment I",
+          "es": "Juicio I",
+          "pt": "Sentença I"
+        }
+      },
+      "2": {
+        "itemId": 32634,
+        "name": {
+          "fr": "Jugement II",
+          "en": "Judgment II",
+          "es": "Juicio II",
+          "pt": "Sentença II"
+        }
+      },
+      "3": {
+        "itemId": 32635,
+        "name": {
+          "fr": "Jugement III",
+          "en": "Judgment III",
+          "es": "Juicio III",
+          "pt": "Sentença III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 9
+        "value": 9,
+        "valuesByLevel": [
+          3,
+          6,
+          9,
+          12,
+          15,
+          18
+        ]
       }
     ],
     "rawText": "+9% Damage Inflicted"
@@ -5287,12 +10883,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 32636,
+        "name": {
+          "fr": "Diagnostic I",
+          "en": "Diagnosis I",
+          "es": "Diagnóstico I",
+          "pt": "Diagnóstico I"
+        }
+      },
+      "2": {
+        "itemId": 32637,
+        "name": {
+          "fr": "Diagnostic II",
+          "en": "Diagnosis II",
+          "es": "Diagnóstico II",
+          "pt": "Diagnóstico II"
+        }
+      },
+      "3": {
+        "itemId": 32638,
+        "name": {
+          "fr": "Diagnostic III",
+          "en": "Diagnosis III",
+          "es": "Diagnóstico III",
+          "pt": "Diagnóstico III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"
@@ -5314,12 +10948,32 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 32639,
+        "name": {
+          "fr": "Sauvegarde critique II",
+          "en": "Critical Save II",
+          "es": "Guardado crítico II",
+          "pt": "Salvaguarda Crítica II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 60
+        "value": 60,
+        "valuesByLevel": [
+          60,
+          60,
+          60,
+          60,
+          60,
+          60
+        ]
       }
     ],
     "rawText": "+60% Critical Hit"
@@ -5334,6 +10988,17 @@
       "pt": "Selo de Wakfu"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 32640,
+        "name": {
+          "fr": "Sceau de Wakfu",
+          "en": "Wakfu Seal",
+          "es": "Sello de Wakfu",
+          "pt": "Selo de Wakfu"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5346,12 +11011,26 @@
       "pt": "Parada Única"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 32641,
+        "name": {
+          "fr": "Parade unique",
+          "en": "Single Block",
+          "es": "Anticipación única",
+          "pt": "Parada Única"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": -100
+        "value": -100,
+        "valuesByLevel": [
+          -100
+        ]
       }
     ],
     "rawText": "-100% Block"
@@ -5366,17 +11045,34 @@
       "pt": "Absolvição"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 32642,
+        "name": {
+          "fr": "Absolution",
+          "en": "Absolution",
+          "es": "Absolución",
+          "pt": "Absolvição"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       }
     ],
     "rawText": "+1 AP | +1 MP"
@@ -5391,17 +11087,34 @@
       "pt": "Castigo"
     },
     "rarity": "RELIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 32643,
+        "name": {
+          "fr": "Châtiment",
+          "en": "Punishment",
+          "es": "Castigo",
+          "pt": "Castigo"
+        }
+      }
+    },
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       },
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1
+        ]
       }
     ],
     "rawText": "+1 AP | +1 MP"
@@ -5416,6 +11129,17 @@
       "pt": "Segredo Crítico"
     },
     "rarity": "EPIC",
+    "shardsByTier": {
+      "1": {
+        "itemId": 32644,
+        "name": {
+          "fr": "Secret critique",
+          "en": "Critical Secret",
+          "es": "Secreto crítico",
+          "pt": "Segredo Crítico"
+        }
+      }
+    },
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -5426,7 +11150,10 @@
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 30
+        "value": 30,
+        "valuesByLevel": [
+          30
+        ]
       }
     ],
     "rawText": "If Critical Mastery ≤ 0 | +30% Critical Hit"
@@ -5448,12 +11175,32 @@
     ],
     "maxLevel": 6,
     "maxTier": 2,
+    "shardsByTier": {
+      "2": {
+        "itemId": 33409,
+        "name": {
+          "fr": "Tout feu tout flamme II",
+          "en": "Fire and Flame II",
+          "es": "Puro Fuego II",
+          "pt": "Pegando Fogo II"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "valuesByLevel": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
       }
     ],
     "rawText": "+1 MP"
@@ -5475,6 +11222,36 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 33405,
+        "name": {
+          "fr": "Fureur pourpre I",
+          "en": "Crimson Fury I",
+          "es": "Furor Púrpura I",
+          "pt": "Furor Púrpura I"
+        }
+      },
+      "2": {
+        "itemId": 33406,
+        "name": {
+          "fr": "Fureur pourpre II",
+          "en": "Crimson Fury II",
+          "es": "Furor Púrpura II",
+          "pt": "Furor Púrpura II"
+        }
+      },
+      "3": {
+        "itemId": 33407,
+        "name": {
+          "fr": "Fureur pourpre III",
+          "en": "Crimson Fury III",
+          "es": "Furor Púrpura III",
+          "pt": "Furor Púrpura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
@@ -5483,7 +11260,15 @@
         "value": 12,
         "scenarioGate": {
           "ranged": true
-        }
+        },
+        "valuesByLevel": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24
+        ]
       }
     ],
     "rawText": "+12% Damage Inflicted (ranged)"
@@ -5505,12 +11290,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 33402,
+        "name": {
+          "fr": "Influence pourpre I",
+          "en": "Crimson Influence I",
+          "es": "Influencia Púrpura I",
+          "pt": "Influência Púrpura I"
+        }
+      },
+      "2": {
+        "itemId": 33403,
+        "name": {
+          "fr": "Influence pourpre II",
+          "en": "Crimson Influence II",
+          "es": "Influencia Púrpura II",
+          "pt": "Influência Púrpura II"
+        }
+      },
+      "3": {
+        "itemId": 33404,
+        "name": {
+          "fr": "Influence pourpre III",
+          "en": "Crimson Influence III",
+          "es": "Influencia Púrpura III",
+          "pt": "Influência Púrpura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 15
+        "value": 15,
+        "valuesByLevel": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
       }
     ],
     "rawText": "+15% Critical Hit"
@@ -5532,12 +11355,50 @@
     ],
     "maxLevel": 6,
     "maxTier": 3,
+    "shardsByTier": {
+      "1": {
+        "itemId": 33401,
+        "name": {
+          "fr": "Force pourpre I",
+          "en": "Crimson Strength I",
+          "es": "Fuerza Púrpura I",
+          "pt": "Força Púrpura I"
+        }
+      },
+      "2": {
+        "itemId": 33400,
+        "name": {
+          "fr": "Force pourpre II",
+          "en": "Crimson Strength II",
+          "es": "Fuerza Púrpura II",
+          "pt": "Força Púrpura II"
+        }
+      },
+      "3": {
+        "itemId": 33399,
+        "name": {
+          "fr": "Force pourpre III",
+          "en": "Crimson Strength III",
+          "es": "Fuerza Púrpura III",
+          "pt": "Força Púrpura III"
+        }
+      }
+    },
+    "cumulable": true,
     "kind": "FLAT",
     "effects": [
       {
         "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 6
+        "value": 6,
+        "valuesByLevel": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ]
       }
     ],
     "rawText": "+6% Damage Inflicted"

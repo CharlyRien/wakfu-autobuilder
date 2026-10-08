@@ -35,8 +35,8 @@ internal fun Sublimation.withRelaxedBuildStaticCondition(): Sublimation {
         // Keep the original single-copy semantics. [Sublimation.maxCopies] also keys on
         // `condition == null`; clearing only the condition could otherwise turn a future cumulable
         // conditional sub into several relaxed copies, changing more than the condition gate.
-        SublimationKind.STATIC_CONDITIONAL -> copy(kind = SublimationKind.FLAT, cumulable = false, condition = null)
-        SublimationKind.CONVERSION, SublimationKind.FLAT -> copy(cumulable = false, condition = null)
+        SublimationKind.STATIC_CONDITIONAL -> copy(kind = SublimationKind.FLAT, condition = null)
+        SublimationKind.CONVERSION, SublimationKind.FLAT -> copy(condition = null)
         SublimationKind.COMBAT_CONDITIONAL -> this
     }
 }

@@ -53,7 +53,9 @@ class WakfuBuildSolverTest {
         // wrong "proven optimal" badge).
         // (History: v56 proved 17,713,860 — a build wearing Épée de Brâkmar without the ring the game requires with it;
         // 1.92.1.58 pre-stacking proven optimum 16,909,590.)
-        const val LVL245_PROVEN_OPTIMUM = 17_350_320L
+        // CERTIFIER_VERSION 60: Brûlure III + I reaches level 4 (+16% fire DI instead of +12%). The search plus
+        // certificate/E8 rescue proves 17,698,920 (+348,600 / +2.009% over v59); no oracle decreases.
+        const val LVL245_PROVEN_OPTIMUM = 17_698_920L
 
         // The lvl-245 tier-1 FAST certificate ledger for the production shape (runes + subs, full EPIC pool):
         // AP cell → the sound per-cell upper bound the two-tier orchestrator uses to ELIMINATE cells. This is
@@ -84,27 +86,30 @@ class WakfuBuildSolverTest {
         // holds the COMMON 18691 Piquants du Guerrier Trool anciens, AP +1), CLOSED AP cell 17 (16_932_240 → 0) and left cells 0–16 unchanged: every
         // AP-17 build of the pool wore 18691 beside an epic item — illegal in game (the review of #246's pinned AP-17 CP-SAT
         // build: 18691 + Tyra 'neau) — so no legal build reaches 17 AP.
+        // CERTIFIER_VERSION 60: partial-cap and conditional marginal choices raise cells 2–16 by 1.041–1.758%.
+        // Cells 0, 1 and 17–20 remain closed; the floor ledger stays identical. Tier-t base values and the
+        // equipment pool are unchanged. See docs/SUBLIMATION_STACKING_PLAN.md §11 for every old/new cell.
         // Re-bank from `WAKFU_MAX_DAMAGE_CERT_LEDGER=1 …_LEVEL=245 …_INCUMBENT=99999999999999` on the manual
         // `certifyLedger end-to-end` test (a huge incumbent eliminates every cell ⇒ pure fast tier, ~80 s).
         val LVL245_FAST_LEDGER_ORACLE =
             mapOf(
                 0 to 0L,
                 1 to 0L,
-                2 to 2_392_200L,
-                3 to 4_000_850L,
-                4 to 5_008_795L,
-                5 to 6_613_880L,
-                6 to 8_295_700L,
-                7 to 9_249_465L,
-                8 to 10_767_360L,
-                9 to 12_259_800L,
-                10 to 13_141_235L,
-                11 to 14_437_890L,
-                12 to 14_934_855L,
-                13 to 16_031_450L,
-                14 to 16_322_070L,
-                15 to 17_128_500L,
-                16 to 17_517_150L,
+                2 to 2_417_100L,
+                3 to 4_043_480L,
+                4 to 5_063_850L,
+                5 to 6_688_930L,
+                6 to 8_390_760L,
+                7 to 9_357_870L,
+                8 to 10_900_480L,
+                9 to 12_465_600L,
+                10 to 13_288_640L,
+                11 to 14_597_190L,
+                12 to 15_093_195L,
+                13 to 16_265_925L,
+                14 to 16_608_960L,
+                15 to 17_404_000L,
+                16 to 17_773_620L,
                 17 to 0L,
                 18 to 0L,
                 19 to 0L,
@@ -3760,7 +3765,16 @@ class WakfuBuildSolverTest {
         assertThat(best).describedAs("the search must produce a build").isNotNull
         assertThat(best!!.matchPercentage.signum()).describedAs("the build deals real damage").isGreaterThan(0)
         when (val proof = MaxDamageSearch.proveOptimality(params, pool, runes, subs, best)) {
-            is MaxDamageSearch.MaxDamageProof.ProvenOptimal -> Unit // badge won — the production happy path
+            is MaxDamageSearch.MaxDamageProof.ProvenOptimal -> {
+                if (level == 245) assertThat(best.maxDamageRawProxy ?: best.maxDamageObjective).isEqualTo(LVL245_PROVEN_OPTIMUM)
+                println("RUNES_SUBS_OPTIMUM level=$level objective=${best.maxDamageObjective} raw=${best.maxDamageRawProxy}")
+                println(
+                    "RUNES_SUBS_FAMILIES " +
+                        best.individual.sublimations.values
+                            .flatten()
+                            .joinToString { "${it.name.fr}:${it.stackLevel}" }
+                )
+            }
             is MaxDamageSearch.MaxDamageProof.ProvenWithin -> {
                 // The incumbent fell short of the certificate optimum — the E8 rescue must construct it.
                 val incumbent = best.maxDamageRawProxy ?: best.maxDamageObjective
@@ -3770,6 +3784,14 @@ class WakfuBuildSolverTest {
                     .describedAs("lvl $level: ProvenWithin ${"%.2f".format(proof.fraction * 100)}% — the E8 construct rescue must deliver the proven optimum")
                     .isNotNull
                 assertThat(constructed!!.isOptimal).isTrue()
+                if (level == 245) assertThat(constructed.maxDamageRawProxy ?: constructed.maxDamageObjective).isEqualTo(LVL245_PROVEN_OPTIMUM)
+                println("RUNES_SUBS_OPTIMUM level=$level objective=${constructed.maxDamageObjective} raw=${constructed.maxDamageRawProxy}")
+                println(
+                    "RUNES_SUBS_FAMILIES " +
+                        constructed.individual.sublimations.values
+                            .flatten()
+                            .joinToString { "${it.name.fr}:${it.stackLevel}" }
+                )
             }
             MaxDamageSearch.MaxDamageProof.Unavailable ->
                 org.junit.jupiter.api.Assertions
@@ -8836,6 +8858,7 @@ class WakfuBuildSolverTest {
         assertThat(fp(base.copy(forcedRunesByItem = mapOf("Item" to listOf(1, 2))))).describedAs("forcedRunesByItem").isNotEqualTo(baseline)
         assertThat(fp(base.copy(useSublimations = !base.useSublimations))).describedAs("useSublimations").isNotEqualTo(baseline)
         assertThat(fp(base.copy(maxSublimationTier = 1))).describedAs("maxSublimationTier").isNotEqualTo(baseline)
+        assertThat(fp(base.copy(forcedSublimationLevels = mapOf("S" to 2)))).isNotEqualTo(baseline)
         assertThat(fp(base.copy(forcedSublimations = listOf("S")))).describedAs("forcedSublimations").isNotEqualTo(baseline)
         assertThat(fp(base.copy(forcedPassives = listOf("P")))).describedAs("forcedPassives").isNotEqualTo(baseline)
         assertThat(fp(base.copy(damageScenario = base.damageScenario.copy(element = SpellElement.WATER)))).describedAs("scenario element").isNotEqualTo(baseline)
@@ -8884,6 +8907,7 @@ class WakfuBuildSolverTest {
                 "useSublimations",
                 "maxSublimationTier",
                 "forcedSublimations",
+                "forcedSublimationLevels",
                 "excludedSublimations",
                 "forcedPassives",
                 "damageScenario",
@@ -10085,30 +10109,32 @@ class WakfuBuildSolverTest {
                 ),
                 sublimation(9002, "FlatDi2", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.DAMAGE_INFLICTED to 25))
             )
-        val params = fireMaxDamageParams(50).copy(useSublimations = true, forcedSublimations = listOf("StackDi"))
-        val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, pool, sublimations = subs, applyDomination = false)
-        assertThat(cert.values.any { it > 0 }).describedAs("the certifier certifies the forced-cumulable pool (not all bailed)").isTrue()
-        var compared = 0
-        for ((ap, certObj) in cert) {
-            if (certObj < 0) continue
-            val profile =
-                WakfuBuildSolver.timedMaxDamageProfileForTest(
-                    params.copy(maxDamageApTarget = ap),
-                    pool,
-                    emptyList(),
-                    subs,
-                    workers = 1,
-                    seconds = 10.0,
-                    applyDomination = false,
-                    deterministicLimit = 6.0
-                )
-            if (!profile.hasSolution) continue
-            assertThat(certObj)
-                .describedAs("AP=%d: forced-cumulable certifier (%d) must equal the pinned CP-SAT optimum (%d)", ap, certObj, profile.objective)
-                .isEqualTo(profile.objective)
-            compared++
+        for (chosenLevel in listOf(2, 4, 6)) {
+            val params = fireMaxDamageParams(50).copy(useSublimations = true, forcedSublimations = listOf("StackDi"), forcedSublimationLevels = mapOf("StackDi" to chosenLevel))
+            val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, pool, sublimations = subs, applyDomination = false)
+            assertThat(cert.values.any { it > 0 }).describedAs("the certifier certifies the forced-cumulable pool (not all bailed)").isTrue()
+            var compared = 0
+            for ((ap, certObj) in cert) {
+                if (certObj < 0) continue
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params.copy(maxDamageApTarget = ap),
+                        pool,
+                        emptyList(),
+                        subs,
+                        workers = 1,
+                        seconds = 10.0,
+                        applyDomination = false,
+                        deterministicLimit = 6.0
+                    )
+                if (!profile.hasSolution) continue
+                assertThat(certObj)
+                    .describedAs("AP=%d: forced-cumulable certifier (%d) must equal the pinned CP-SAT optimum (%d)", ap, certObj, profile.objective)
+                    .isEqualTo(profile.objective)
+                compared++
+            }
+            assertThat(compared).describedAs("at least one AP cell compared against forced-cumulable CP-SAT").isGreaterThan(0)
         }
-        assertThat(compared).describedAs("at least one AP cell compared against forced-cumulable CP-SAT").isGreaterThan(0)
     }
 
     /**
@@ -10764,7 +10790,7 @@ class WakfuBuildSolverTest {
                     effect,
                     permanent = permanent,
                     cumulable = cumulable,
-                    maxStackLevel = if (cumulable) 6 else 1,
+                    maxStackLevel = if (cumulable) (if (iteration % 2 == 0) 4 else 6) else 1,
                     maxTier = if (cumulable) 3 else 1
                 )
             }
@@ -10855,7 +10881,23 @@ class WakfuBuildSolverTest {
                     condition = SublimationCondition(SublimationConditionType.BLOCK_AT_LEAST, 20 + rng.nextInt(21))
                 )
         }
-        return Triple(params, items.groupBy { it.itemType }, subs)
+        val stacked =
+            subs.map { sub ->
+                if (sub.rarity != SublimationRarity.NORMAL) {
+                    sub
+                } else {
+                    sub.copy(
+                        cumulable = true,
+                        maxTier = 3,
+                        maxStackLevel = 4,
+                        effects =
+                            sub.effects.map { effect ->
+                                if (effect is SublimationEffect.Flat) effect.copy(valuesByLevel = (1..4).map { it * effect.value / 3 }) else effect
+                            }
+                    )
+                }
+            }
+        return Triple(params, items.groupBy { it.itemType }, stacked)
     }
 
     /**

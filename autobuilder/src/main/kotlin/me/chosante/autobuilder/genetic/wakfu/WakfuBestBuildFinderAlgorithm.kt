@@ -603,8 +603,12 @@ object WakfuBestBuildFinderAlgorithm {
                 val isForced = sub.name.fr.lowercase() in forced || sub.name.en.lowercase() in forced
                 // Cap on the GENERATION tier (the name's I/II/III), not the shard upgrade level [maxTier] —
                 // "≤ 2" then excludes Mesure III (tier 3) as a user expects, since every epic's maxTier is 1.
-                isForced || params.maxSublimationTier?.let { sub.nameTier <= it } != false
-            }
+                if (sub.rarity == me.chosante.common.SublimationRarity.NORMAL && sub.stackModelled && sub.shardsByTier.isNotEmpty()) {
+                    sub.atTierLimit(params.maxSublimationTier) != null
+                } else {
+                    isForced || params.maxSublimationTier?.let { sub.nameTier <= it } != false
+                }
+            }.mapNotNull { it.atTierLimit(params.maxSublimationTier) }
     }
 
     /**
@@ -785,6 +789,7 @@ object WakfuBestBuildFinderAlgorithm {
         fun inCombatHeadroom(characteristic: Characteristic): Int? {
             if (subsInPlay.any { it.conversion?.to?.foldedToUsableStat() == characteristic }) return null
             return subsInPlay
+                .flatMap { it.certificateUnits(character.level) }
                 .filter { it.kind != SublimationKind.COMBAT_CONDITIONAL }
                 .flatMap { it.effects.filterIsInstance<SublimationEffect.StatEffect>() }
                 .filter { !it.appliesBeforeCombat && it.characteristic.foldedToUsableStat() == characteristic }
@@ -877,7 +882,20 @@ object WakfuBestBuildFinderAlgorithm {
                 }
             }
             // Epic/relic forced subs are bounded ≤1 each above; the remaining budget is the 10 NORMAL slots.
-            val forcedNormalCount = forcedSubs.count { it.rarity == SublimationRarity.NORMAL }
+            var forcedNormalCount = 0
+            for (sub in forcedSubs) {
+                val reachable = sub.reachableLevels(params.maxSublimationTier)
+                val requested =
+                    params.forcedSublimationLevels.entries
+                        .firstOrNull { (name, _) -> name.equals(sub.name.fr, true) || name.equals(sub.name.en, true) }
+                        ?.value
+                val level = requested ?: reachable.lastOrNull()
+                if (level == null || level !in reachable) {
+                    problems += RequestValidationProblem.ForcedSublimationLevelUnavailable(sub.name, level ?: 0, reachable)
+                } else if (sub.rarity == SublimationRarity.NORMAL) {
+                    forcedNormalCount += sub.shardPlan(level, params.maxSublimationTier).size
+                }
+            }
             if (forcedNormalCount > MAX_NORMAL_SUBLIMATIONS) {
                 problems += RequestValidationProblem.ForcedSublimationsExceedCapacity(forcedNormalCount, MAX_NORMAL_SUBLIMATIONS)
             }
@@ -1002,6 +1020,12 @@ sealed interface RequestValidationProblem {
         val rarity: SublimationRarity,
     ) : RequestValidationProblem
 
+    data class ForcedSublimationLevelUnavailable(
+        val sublimation: I18nText,
+        val level: Int,
+        val reachable: List<Int>,
+    ) : RequestValidationProblem
+
     /** More forced sublimations ([count]) than a build can socket ([max] = 10). */
     data class ForcedSublimationsExceedCapacity(
         val count: Int,
@@ -1044,6 +1068,8 @@ fun RequestValidationProblem.describe(): String =
             "a build hosts at most one $rarity sublimation, got: ${sublimations.joinToString { it.en }}"
         is RequestValidationProblem.ForcedSublimationNoCarrier ->
             "forced sublimation '${sublimation.en}' needs an equipped $rarity item, but that rarity is excluded from the search"
+        is RequestValidationProblem.ForcedSublimationLevelUnavailable ->
+            "sublimation '${sublimation.en}': level $level is unavailable; choose ${reachable.joinToString().ifEmpty { "an available shard tier" }}"
         is RequestValidationProblem.ForcedSublimationsExceedCapacity ->
             "$count sublimations forced, a build can socket at most $max"
         is RequestValidationProblem.SublimationForcedAndExcluded ->
@@ -1093,6 +1119,8 @@ data class WakfuBestBuildParams(
     // Sublimations the user requires the build to carry (matched on the sublimation's French name).
     // Combat-conditional subs are only usable this way. See createSublimationModel.
     val forcedSublimations: List<String> = emptyList(),
+    /** Exact family levels for forced names; absent means highest reachable level. */
+    val forcedSublimationLevels: Map<String, Int> = emptyMap(),
     // Sublimations the solver must NOT use (matched on the French or English name, like forcedSublimations).
     // Removed from the catalog at the production entry points ([WakfuBestBuildFinderAlgorithm.run] and the
     // proof/construct paths, so the certificate sees the same availability the search did). Forcing and

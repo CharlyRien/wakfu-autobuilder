@@ -62,7 +62,7 @@ class SublimationSemanticsTest {
 
         assertThat(relaxed.map { it.stateId }).containsExactlyElementsOf(originals.map { it.stateId })
         assertThat(relaxed).allMatch { it.condition == null }
-        assertThat(relaxed).allMatch { !it.cumulable && it.maxCopies == 1 }
+        assertThat(relaxed.map { it.maxCopies }).isEqualTo(originals.map { it.maxCopies })
         assertThat(
             relaxed.filter { relaxedSub -> originals.single { it.stateId == relaxedSub.stateId }.kind == SublimationKind.STATIC_CONDITIONAL }
         ).allMatch { it.kind == SublimationKind.FLAT }

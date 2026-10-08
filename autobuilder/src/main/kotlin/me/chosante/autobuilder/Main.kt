@@ -499,7 +499,8 @@ HUPPERMAGE"""
             """
             Force specific sublimations into the build (matched on the French or English name). Use this
             for combat-conditional sublimations the solver cannot evaluate, e.g.
-            --forced-sublimations 'Inflexibilite','Stasification',...
+            --forced-sublimations 'Neutralité III:2','Stasification',...
+            An optional :level fixes the exact family level; without it, use the highest reachable level.
             """.trimIndent()
     ).split(",").default(listOf())
 
@@ -766,6 +767,13 @@ HUPPERMAGE"""
                 else -> roledScenario.copy(elementResistances = bossResistances)
             }
 
+        val forcedSubRequest =
+            try {
+                parseForcedSublimations(forcedSublimations)
+            } catch (invalid: IllegalArgumentException) {
+                terminal.println(TextColors.brightRed(requireNotNull(invalid.message)))
+                exitProcess(1)
+            }
         runBlocking {
             val progressBar = progressBar(terminal)
             val searchParams =
@@ -782,7 +790,8 @@ HUPPERMAGE"""
                     forcedRunes = forcedRunes,
                     useSublimations = !noSublimations,
                     // Pre-rename names ("Carnage II") from older scripts resolve to the current record.
-                    forcedSublimations = forcedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
+                    forcedSublimations = forcedSubRequest.first,
+                    forcedSublimationLevels = forcedSubRequest.second,
                     excludedSublimations = excludedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
                     forcedPassives = passives,
                     damageScenario = damageScenario,

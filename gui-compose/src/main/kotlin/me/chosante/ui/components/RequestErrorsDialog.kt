@@ -129,6 +129,8 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
             val name = sublimation.localized(lang)
             "$name ${Tr.FORCED_SUBLIMATION_NO_CARRIER.value(lang)}"
         }
+        is RequestValidationProblem.ForcedSublimationLevelUnavailable ->
+            Tr.SUBLIMATION_LEVEL_UNAVAILABLE.value(lang).format(level, sublimation.localized(lang), reachable.joinToString(" / "))
         is RequestValidationProblem.ForcedSublimationsExceedCapacity ->
             Tr.FORCED_SUBLIMATIONS_EXCEED_CAPACITY.value(lang)
         is RequestValidationProblem.SublimationForcedAndExcluded -> {

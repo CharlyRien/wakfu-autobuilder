@@ -430,8 +430,10 @@ object WakfuBuildSolver {
      * stripped; CP-SAT det to OPTIMAL 1 558 → 445).
      * 59: official client spell AP costs replace encyclopedia guesses; AP-cell throughput and cached bounds change.
      * Bounds can only fall with the pool: a bound cached before stays an upper bound — bumped as the pool every certificate reads changed.
+     * 60: family-level marginals, partial final shards, and conditional family stacking; copy variables registered individually.
+     * 61: exact legal shard-tier sums, optimistic derived-condition debits, and singly counted sublimation domain lows.
      */
-    const val CERTIFIER_VERSION: Int = 59
+    const val CERTIFIER_VERSION: Int = 61
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -5316,14 +5318,14 @@ object WakfuBuildSolver {
                         (valueOf(subVar) + subModel.copyVars[sub].orEmpty().sumOf { valueOf(it) }).toInt()
                     else -> if (valueOf(subVar) > 0L) 1 else 0
                 }
-            repeat(copies) {
+            sub.socketedShards(copies, subModel.characterLevel, subModel.chosenLevels[sub]).forEach { socketed ->
                 val carrier =
                     when (sub.rarity) {
                         SublimationRarity.NORMAL -> normalCarrierItems.getOrNull(nextNormalCarrierIndex++)
                         SublimationRarity.EPIC -> epicItem
                         SublimationRarity.RELIC -> relicItem
                     }
-                if (carrier != null) sublimationsByItem.getOrPut(carrier) { mutableListOf() }.add(sub)
+                if (carrier != null) sublimationsByItem.getOrPut(carrier) { mutableListOf() }.add(socketed)
             }
         }
 

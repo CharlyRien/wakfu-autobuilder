@@ -287,10 +287,11 @@ data class UiState(
     val excludedItems: List<ItemChip> = emptyList(),
     /** When true (default), the solver may pick statically-modelable sublimations. */
     val useSublimations: Boolean = true,
-    /** Optional max item tier for solver-picked sublimations; forced sublimations can still override it. */
+    /** Optional maximum normal shard tier, also used by forced levels; other shapes keep the generation filter. */
     val maxSublimationTier: Int? = null,
     /** Sublimations the user forces into the build (French names; incl. combat-conditional ones). */
     val forcedSublimations: List<String> = emptyList(),
+    val forcedSublimationLevels: Map<String, Int> = emptyMap(),
     /** Sublimations the solver must never pick (French names). */
     val excludedSublimations: List<String> = emptyList(),
     /** The passive loadout the user selected (French names, capped to the level's slots). */

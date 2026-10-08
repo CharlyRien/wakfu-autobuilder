@@ -60,6 +60,35 @@ class ZenithShardPlanTest {
         )
 
     @Test
+    fun `a capped partial family exports its actual III and I shard item ids`() {
+        val family =
+            sublimation(6931, 29003, "Neutralité III").copy(
+                maxStackLevel = 4,
+                shardsByTier =
+                    mapOf(
+                        1 to me.chosante.common.SublimationShard(29001, I18nText("Neutralité I", "Neutrality I", "", "")),
+                        3 to me.chosante.common.SublimationShard(29003, I18nText("Neutralité III", "Neutrality III", "", ""))
+                    ),
+                effects =
+                    listOf(
+                        me.chosante.common.SublimationEffect
+                            .Flat(Characteristic.DAMAGE_INFLICTED, 24, valuesByLevel = listOf(8, 16, 24, 32))
+                    )
+            )
+        val first = equipment(1, ItemType.CAPE, "First")
+        val second = equipment(2, ItemType.BELT, "Second")
+        val shards = family.socketedShards(2, 65)
+        // Tier I is the live catalog's root. Resolving it by family maxTier would silently replace I with III.
+        val resolver = subShardIdResolver(mapOf(29001 to mapOf(1 to 29001, 2 to 29002, 3 to 29003)))
+        val calls =
+            plannedShards(first, first.itemType.id, emptyList(), listOf(shards[0]), resolver) + plannedShards(second, second.itemType.id, emptyList(), listOf(shards[1]), resolver)
+        assertThat(calls.map { it.shardId }).containsExactly(29003, 29001)
+        assertThat(calls.map { it.side }).containsExactly(first.itemType.id, second.itemType.id)
+        val forcedOne = family.socketedShards(1, 65, chosenLevel = 1)
+        assertThat(plannedShards(first, first.itemType.id, emptyList(), forcedOne, resolver).single().shardId).isEqualTo(29001)
+    }
+
+    @Test
     fun `official rune resources are available on the standalone Zenith classpath`() {
         val rune = rune(10).copy(characteristic = Characteristic.MASTERY_DISTANCE, doubleBonusPosition = listOf(0))
         assertThat(rune.valueOn(ItemType.BELT, 216)).isEqualTo(33)
@@ -144,9 +173,7 @@ class ZenithShardPlanTest {
         val catalog = mapOf(29591 to mapOf(1 to 29591, 2 to 29592, 3 to 29593))
 
         val resolved =
-            plannedShards(belt, ItemType.BELT.id, runes = emptyList(), subs = listOf(ambition)) { sub ->
-                catalog[sub.zenithId]?.get(sub.maxTier) ?: sub.zenithId
-            }
+            plannedShards(belt, ItemType.BELT.id, runes = emptyList(), subs = listOf(ambition), subShardId = subShardIdResolver(catalog))
         assertThat(resolved.single().shardId)
             .describedAs("maxTier 3 sockets the tier-III family member")
             .isEqualTo(29593)

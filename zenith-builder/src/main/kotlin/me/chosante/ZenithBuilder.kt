@@ -72,12 +72,12 @@ internal fun sideAssignments(equipments: List<Equipment>): List<Pair<Equipment, 
  * (positions `n..`, `level = null`). Positions never collide because the subs start after the runes.
  *
  * A CUMULABLE sublimation stacked across several carriers appears once in EACH carrier's [subs] list, so it
- * yields one call per carrier — same `id_shard`, different `side`. That is exactly how the game sockets it
+ * yields one call per carrier — the actual tier item `id_shard`, with a different `side`. That is how the game sockets it
  * (one copy per ≥3-socket item), and nothing here dedupes by shard id.
  *
  * [subShardId] maps a sublimation to the Zenith shard id actually socketed — the tier-resolved family
  * member (see [fetchSublimationLevelIds]); the default keeps the raw `zenithId`, which the extractor already
- * sets to the credited (maxTier) family member.
+ * sets to the actual socketed tier member (maxTier in legacy builds).
  *
  * EPIC/RELIC subs live in the build's dedicated character slots on Zenith, not on an item: the UI posts
  * them with `side = 0, position = 0`, so the export does too (the server routes them by the shard's
@@ -101,11 +101,15 @@ internal fun plannedShards(
 
 /**
  * The tier-resolver for [plannedShards]: the family member of [Sublimation.zenithId] whose Zenith shard
- * level equals the sub's credited [Sublimation.maxTier]. Falls back to the raw id when the catalog is
- * unreachable or the id is not a family root — both fine, since the raw id is already the maxTier member
+ * level equals [Sublimation.socketTier], or [Sublimation.maxTier] in a legacy build. Falls back to the raw id when the catalog is
+ * unreachable or the id is not a family root — the raw id already identifies the socketed tier
  * (verified live 2026-10-01: Ravage III / Poids Plume III read back at level 3).
  */
-private fun subShardIdResolver(levelIdsByRoot: Map<Int, Map<Int, Int>>): (Sublimation) -> Int = { sub -> levelIdsByRoot[sub.zenithId]?.get(sub.maxTier) ?: sub.zenithId }
+internal fun subShardIdResolver(levelIdsByRoot: Map<Int, Map<Int, Int>>): (Sublimation) -> Int =
+    { sub ->
+        levelIdsByRoot[sub.zenithId]?.get(sub.socketTier ?: sub.maxTier)
+            ?: sub.zenithId
+    }
 
 suspend fun ZenithInputParameters.createZenithBuild() =
     supervisorScope {

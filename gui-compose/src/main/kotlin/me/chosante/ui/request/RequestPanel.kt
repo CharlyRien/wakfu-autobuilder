@@ -116,6 +116,7 @@ fun RequestPanel(
     onMaxSublimationTierChange: (Int?) -> Unit = {},
     onOpenSublimationPicker: () -> Unit = {},
     onRemoveForcedSublimation: (String) -> Unit = {},
+    onForcedSublimationLevelChange: (String, Int) -> Unit = { _, _ -> },
     onOpenExcludedSublimationPicker: () -> Unit = {},
     onRemoveExcludedSublimation: (String) -> Unit = {},
     onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit = {},
@@ -195,6 +196,8 @@ fun RequestPanel(
                 useSublimations = ui.useSublimations,
                 maxSublimationTier = ui.maxSublimationTier,
                 forcedSublimations = ui.forcedSublimations,
+                forcedSublimationLevels = ui.forcedSublimationLevels,
+                onForcedSublimationLevelChange = onForcedSublimationLevelChange,
                 excludedSublimations = ui.excludedSublimations,
                 onToggleSublimations = onToggleSublimations,
                 onMaxSublimationTierChange = onMaxSublimationTierChange,
@@ -1390,6 +1393,8 @@ internal fun SublimationsRunesCard(
     onOpenExcludedSublimationPicker: () -> Unit,
     onRemoveExcludedSublimation: (String) -> Unit,
     onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit,
+    forcedSublimationLevels: Map<String, Int> = emptyMap(),
+    onForcedSublimationLevelChange: (String, Int) -> Unit = { _, _ -> },
 ) {
     val sublimationsByName =
         remember {
@@ -1456,9 +1461,16 @@ internal fun SublimationsRunesCard(
                 onAdd = onOpenSublimationPicker,
                 onRemove = onRemoveForcedSublimation,
                 noteForName = { name ->
-                    sublimationsByName[name]?.let {
+                    sublimationsByName[name]?.let { sub ->
+                        me.chosante.ui.components.SublimationLevelSelector(
+                            sub,
+                            forcedSublimationLevels[name],
+                            maxSublimationTier,
+                            { onForcedSublimationLevelChange(name, it) },
+                            "chip"
+                        )
                         me.chosante.ui.components
-                            .SublimationCombatBadge(it)
+                            .SublimationCombatBadge(sub)
                     }
                 }
             )

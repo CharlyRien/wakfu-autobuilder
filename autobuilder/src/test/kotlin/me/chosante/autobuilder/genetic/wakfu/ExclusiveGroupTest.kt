@@ -155,7 +155,7 @@ class ExclusiveGroupTest {
         assertThat(bestBuild(params(), p).ids()).containsExactlyInAnyOrder(9501, 9504)
         val forced = bestBuild(params(forcedSublimations = listOf(epicSub.name.fr)), p)
         assertThat(forced.ids()).containsExactlyInAnyOrder(9502, 9508)
-        assertThat(forced.sublimations[weakEpicAmulet].orEmpty()).contains(epicSub)
+        assertThat(forced.sublimations[weakEpicAmulet].orEmpty().map { it.stateId }).containsExactly(epicSub.stateId)
         assertThat(forced.isValid(CharacterClass.IOP)).isTrue()
         // isValid refuses the sub on the COMMON item.
         val onTrool = BuildCombination(listOf(trool, amulet), CharacterSkills(1), sublimations = mapOf(trool to listOf(epicSub)))
