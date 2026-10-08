@@ -20,8 +20,11 @@ jobs:
             # Single-host cross-build: the per-machine Compose/OR-Tools deps in gui-compose/build.gradle.kts
             # make Conveyor package each OS with its own Skiko + native (needs Compose >= 1.11 / Skiko
             # >= 0.144 so the JVM Skiko variant resolves unambiguously — SKIKO-1013).
+            # Pinned to v22.1 (Conveyor 22.1): v22.3 runs Conveyor 22.2, whose "Linker JDK" step resolves the build host's
+            # JDK through a live Foojay query that can come back empty, then fails ("Could not locate an OpenJDK for
+            # Java 25") — 1.15.0 and 1.17.0 deploys failed that way. Unpin once Hydraulic fixes it.
             -   name: Run Conveyor
-                uses: hydraulic-software/conveyor/actions/build@v22.3
+                uses: hydraulic-software/conveyor/actions/build@v22.1
                 env:
                     OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 with:
