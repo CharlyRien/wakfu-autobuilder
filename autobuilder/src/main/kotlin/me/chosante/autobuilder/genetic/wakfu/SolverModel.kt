@@ -117,6 +117,8 @@ internal class SublimationModel(
      * family-level marginal value to the objective. Empty for single-copy subs (the common non-stacking case).
      */
     val copyVars: Map<Sublimation, List<IntVar>> = emptyMap(),
+    /** Forced numeric families are fixed at this exact level; every needed shard is pinned. */
+    val chosenLevels: Map<Sublimation, Int> = emptyMap(),
 ) {
     companion object {
         val EMPTY = SublimationModel(emptyMap(), emptySet(), 0)

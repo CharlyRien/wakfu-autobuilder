@@ -15,6 +15,113 @@ import kotlin.time.Duration.Companion.seconds
 
 class SublimationStackLevelTest {
     @Test
+    fun `forced signed conditional AP credits bail rather than dropping the debit`() {
+        val sub =
+            me.chosante.common.Sublimation(
+                stateId = 999991,
+                name = me.chosante.common.I18nText("Signed gate", "Signed gate", "", ""),
+                rarity = me.chosante.common.SublimationRarity.NORMAL,
+                maxTier = 3,
+                maxStackLevel = 4,
+                cumulable = true,
+                kind = me.chosante.common.SublimationKind.STATIC_CONDITIONAL,
+                condition = me.chosante.common.SublimationCondition(me.chosante.common.SublimationConditionType.AP_AT_LEAST, 0),
+                effects =
+                    listOf(
+                        me.chosante.common.SublimationEffect
+                            .Flat(Characteristic.ACTION_POINT, -3, valuesByLevel = listOf(-1, -2, -3, -4))
+                    )
+            )
+        val carrier =
+            me.chosante.common.Equipment(
+                900005,
+                900005,
+                65,
+                me.chosante.common.I18nText("Carrier", "Carrier", "", ""),
+                Rarity.LEGENDARY,
+                me.chosante.common.ItemType.CAPE,
+                mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100),
+                maxShardSlots = 4
+            )
+        val params =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 65, 1, CharacterSkills(65)),
+                targetStats = TargetStats(emptyList()),
+                searchDuration = 10.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                useRunes = false,
+                useSublimations = false,
+                forcedSublimations = listOf(sub.name.fr),
+                forcedSublimationLevels = mapOf(sub.name.fr to 2)
+            )
+        val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, listOf(carrier).groupBy { it.itemType }, sublimations = listOf(sub))
+        assertThat(cert).isNotEmpty()
+        assertThat(cert.values).allMatch { it < 0 }
+    }
+
+    @Test
+    fun `forced Neutralite level 2 uses one tier II shard and has no optional extras`(): Unit =
+        runBlocking {
+            val sub = WakfuBestBuildFinderAlgorithm.sublimations.single { it.stateId == 6931 }
+            val carrier =
+                me.chosante.common.Equipment(
+                    equipmentId = 900001,
+                    guiId = 900001,
+                    level = 65,
+                    name = me.chosante.common.I18nText("Carrier", "Carrier", "", ""),
+                    rarity = Rarity.LEGENDARY,
+                    itemType = me.chosante.common.ItemType.CAPE,
+                    characteristics = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100),
+                    maxShardSlots = 4
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, 65, 1, CharacterSkills(65)),
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1))),
+                    searchDuration = 10.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = false,
+                    useSublimations = false,
+                    forcedSublimations = listOf(sub.name.fr),
+                    forcedSublimationLevels = mapOf(sub.name.fr to 2)
+                )
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 10.0)
+            for (tier in listOf(3, 1)) {
+                val pool = if (tier == 3) listOf(carrier) else listOf(carrier, carrier.copy(equipmentId = 900002, itemType = me.chosante.common.ItemType.HELMET))
+                val result =
+                    WakfuBuildSolver
+                        .optimize(
+                            params.copy(maxSublimationTier = tier),
+                            pool.groupBy {
+                                it.itemType
+                            },
+                            emptyList(),
+                            listOf(sub),
+                            tuning,
+                            hardConstraints = true
+                        ).toList()
+                        .last()
+                val shards =
+                    result.individual.sublimations.values
+                        .flatten()
+                assertThat(shards).hasSize(if (tier == 3) 1 else 2)
+                assertThat(shards.map { it.stackLevel }).containsOnly(2)
+                assertThat(shards.map { it.socketTier }).containsOnly(if (tier == 3) 2 else 1)
+                assertThat(shards.sumOf { (it.effects.single() as me.chosante.common.SublimationEffect.Flat).value }).isEqualTo(16)
+                assertThat(result.isOptimal).isTrue()
+            }
+            assertThat(params.copy(forcedSublimationLevels = emptyMap()).forcedLevel(sub)).isEqualTo(4)
+        }
+
+    @Test
     fun `tester Xelor 65 fire distance request`(): Unit =
         runBlocking {
             val params =

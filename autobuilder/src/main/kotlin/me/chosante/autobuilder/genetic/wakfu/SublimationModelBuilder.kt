@@ -133,6 +133,7 @@ internal fun CpModel.createSublimationModel(
     val (forcedSubs, choosableSubs) = modelledSublimations(params, sublimations)
     if (forcedSubs.isEmpty() && choosableSubs.isEmpty()) return SublimationModel.EMPTY
 
+    val chosenLevels = forcedSubs.filter { it.stackModelled }.associateWith { params.forcedLevel(it) }
     val subVars = LinkedHashMap<Sublimation, IntVar>()
     for (sub in forcedSubs) {
         val v = newBoolVar("subForced_${sub.stateId}")
@@ -159,12 +160,14 @@ internal fun CpModel.createSublimationModel(
     // Conditional copies share the family's one applies gate (SublimationTerms); each consumes one slot/carrier.
     val copyVars = LinkedHashMap<Sublimation, List<IntVar>>()
     for (sub in subVars.keys) {
-        if (sub.rarity != SublimationRarity.NORMAL || sub.maxCopies <= 1) continue
-        if (!isModelableSubShape(sub)) continue
+        val count = chosenLevels[sub]?.let { sub.shardPlan(it, params.maxSublimationTier).size } ?: sub.maxCopies
+        if (sub.rarity != SublimationRarity.NORMAL || count <= 1) continue
+        if (sub !in forcedSubs && !isModelableSubShape(sub)) continue
         var prev = subVars.getValue(sub)
-        val copies = ArrayList<IntVar>(sub.maxCopies - 1)
-        for (i in 1 until sub.maxCopies) {
+        val copies = ArrayList<IntVar>(count - 1)
+        for (i in 1 until count) {
             val c = newBoolVar("subCopy_${sub.stateId}_$i")
+            if (sub in forcedSubs) addEquality(c, 1L)
             addLessOrEqual(
                 LinearExpr
                     .newBuilder()
@@ -198,7 +201,7 @@ internal fun CpModel.createSublimationModel(
         addLessOrEqual(capacity.build(), 0L)
     }
 
-    return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, copyVars)
+    return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, copyVars, chosenLevels)
 }
 
 /** Σ(subs of [subRarity]) ≤ Σ(equipped items of [itemRarity]): an epic/relic sub's slot comes from its carrier item. */
@@ -216,3 +219,8 @@ private fun CpModel.gateSublimationsOnCarrierItems(
     allEquips.filter { it.rarity == itemRarity }.forEach { gate.addTerm(equipVars.getValue(it), -1L) }
     addLessOrEqual(gate.build(), 0L)
 }
+
+/** Missing fields in older requests mean the highest reachable level, not the old single-shard tier. */
+internal fun WakfuBestBuildParams.forcedLevel(sub: Sublimation): Int =
+    forcedSublimationLevels.entries.firstOrNull { (name, _) -> name.equals(sub.name.fr, true) || name.equals(sub.name.en, true) }?.value
+        ?: sub.reachableLevels(maxSublimationTier).last()

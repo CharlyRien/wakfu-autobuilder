@@ -673,7 +673,7 @@ internal object MaxDamageSoftCertificate {
         if (params.forcedItems.isNotEmpty() ||
             params.forcedRunes.isNotEmpty() ||
             params.forcedRunesByItem.isNotEmpty() ||
-            params.forcedSublimations.isNotEmpty() ||
+            (params.forcedSublimations.isNotEmpty() || params.forcedSublimationLevels.isNotEmpty()) ||
             params.forcedPassives.isNotEmpty()
         ) {
             return null
@@ -3650,7 +3650,7 @@ internal object MaxDamageSoftCertificate {
         if (params.forcedItems.isNotEmpty() ||
             params.forcedRunes.isNotEmpty() ||
             params.forcedRunesByItem.isNotEmpty() ||
-            params.forcedSublimations.isNotEmpty() ||
+            (params.forcedSublimations.isNotEmpty() || params.forcedSublimationLevels.isNotEmpty()) ||
             params.forcedPassives.isNotEmpty()
         ) {
             return false

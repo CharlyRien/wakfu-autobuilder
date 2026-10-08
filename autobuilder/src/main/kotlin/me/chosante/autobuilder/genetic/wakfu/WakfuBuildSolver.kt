@@ -5317,7 +5317,7 @@ object WakfuBuildSolver {
                         (valueOf(subVar) + subModel.copyVars[sub].orEmpty().sumOf { valueOf(it) }).toInt()
                     else -> if (valueOf(subVar) > 0L) 1 else 0
                 }
-            sub.socketedShards(copies, subModel.characterLevel).forEach { socketed ->
+            sub.socketedShards(copies, subModel.characterLevel, subModel.chosenLevels[sub]).forEach { socketed ->
                 val carrier =
                     when (sub.rarity) {
                         SublimationRarity.NORMAL -> normalCarrierItems.getOrNull(nextNormalCarrierIndex++)

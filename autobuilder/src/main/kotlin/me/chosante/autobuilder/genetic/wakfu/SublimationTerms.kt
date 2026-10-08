@@ -49,7 +49,7 @@ internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>
         }
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             // Every shard contributes its family-level marginal. Conditional copies reuse the one
             // family gate; only forced copies need a conjunction with their occupied carrier boolean.
             val gateVars =
@@ -66,11 +66,21 @@ internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>
                 params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
             ) {
                 val bucket = elementDiTermsByMastery.getOrPut(diMastery) { mutableListOf() }
-                gateVars.forEachIndexed { index, gate -> bucket.add(Term(gate, sub.marginalMagnitude(effect, index + 1, subModel.characterLevel).toLong())) }
+                gateVars.forEachIndexed {
+                    index,
+                    gate,
+                    ->
+                    bucket.add(Term(gate, sub.marginalMagnitude(effect, index + 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+                }
                 continue
             }
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
-            gateVars.forEachIndexed { index, gate -> bucket.add(Term(gate, sub.marginalMagnitude(effect, index + 1, subModel.characterLevel).toLong())) }
+            gateVars.forEachIndexed {
+                index,
+                gate,
+                ->
+                bucket.add(Term(gate, sub.marginalMagnitude(effect, index + 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+            }
         }
     }
     return map
@@ -146,7 +156,7 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!effect.appliesBeforeCombat) continue
             if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
             bucket.add(Term(subVar, magnitude))
             // Each socketed copy adds one more single-copy value (stackable subs are condition-less FLAT subs).
@@ -154,7 +164,7 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
                 index,
                 copyVar,
                 ->
-                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel).toLong()))
+                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
             }
         }
     }
@@ -173,14 +183,14 @@ internal fun StatBuilder.buildOutOfCombatSubTerms(): Map<Characteristic, List<Te
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!effect.appliesBeforeCombat || effect.scenarioGate != null) continue
-            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
             bucket.add(Term(subVar, magnitude))
             subModel.copyVars[sub].orEmpty().forEachIndexed {
                 index,
                 copyVar,
                 ->
-                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel).toLong()))
+                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
             }
         }
     }
@@ -204,14 +214,14 @@ internal fun StatBuilder.buildStartOfCombatFlatSubTerms(): Map<Characteristic, L
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (effect.appliesBeforeCombat) continue
             if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
             bucket.add(Term(subVar, magnitude))
             subModel.copyVars[sub].orEmpty().forEachIndexed {
                 index,
                 copyVar,
                 ->
-                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel).toLong()))
+                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
             }
         }
     }
@@ -228,7 +238,7 @@ private fun StatBuilder.copyAppliesVar(
     return copyAppliesVarCache.getOrPut(copy) {
         val gated = and(copy, appliesVar(sub), "subCopyApplies_${sub.stateId}_$index")
         tracker.record(gated, 0L..1L, "subCopyApplies_${sub.stateId}_$index")
-        subDerivedVars[gated] = sub.marginalUnit(index + 2, subModel.characterLevel)
+        subDerivedVars[gated] = sub.marginalUnit(index + 2, subModel.characterLevel, subModel.chosenLevels[sub])
         gated
     }
 }

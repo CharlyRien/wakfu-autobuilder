@@ -2137,7 +2137,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // NOTE: a forced conditional sub's terms ride its GATED var, attributed back to the sub through
     // [subDerivedVars] (tracked [0,1]) — [perSubValue]'s derived path returns the raw coefficient.
     // v44 world M: the assumed block sub rides the forced machinery (slot + rarity occupancy, constants).
-    val forcedSubs = if (assumedSub == null) subModel.forced else subModel.forced + assumedSub
+    // Every forced shard is pinned at the chosen level: put all of its exact marginals into the
+    // constants/condition credits and charge every carrier. No optional copies can raise that level.
+    val forcedIds = subModel.forced.map { it.stateId }.toSet()
+    val forcedUnits = subModel.forced + subByVar.filterKeys { it !in subModel.subVars.values }.values.filter { it.stateId in forcedIds }
+    val forcedSubs = if (assumedSub == null) forcedUnits else forcedUnits + assumedSub
     // A forced CONVERSION / CRITICAL-SECRET sub is handled by ITS world (convTaken/critSecret): the
     // world charges its slot, gates its condition and applies its effect — it must not double-enter
     // the plain forced credits/charges below. [certifierWorlds] guarantees such a sub only ever

@@ -419,17 +419,18 @@ data class Sublimation(
     fun marginalUnit(
         shard: Int,
         characterLevel: Int,
+        chosenLevel: Int? = null,
     ): Sublimation =
         copy(
             cumulable = false,
             stackModelled = false,
-            stackLevel = (shard * maxTier).coerceAtMost(maxStackLevel),
+            stackLevel = (shard * maxTier).coerceAtMost(chosenLevel ?: maxStackLevel),
             effects =
                 effects.map { effect ->
                     if (effect is SublimationEffect.StatEffect) {
                         SublimationEffect.Flat(
                             effect.characteristic,
-                            marginalMagnitude(effect, shard, characterLevel),
+                            marginalMagnitude(effect, shard, characterLevel, chosenLevel),
                             effect.scenarioGate,
                             effect.appliesBeforeCombat
                         )
@@ -451,6 +452,7 @@ data class Sublimation(
 
     /** Sums of available shards, with over-cap sums represented by the cap. */
     fun reachableLevels(tierLimit: Int? = null): List<Int> {
+        if (!stackModelled) return listOf(maxTier.coerceAtMost(maxStackLevel))
         if (!stacksByLevel) return availableTiers(tierLimit).map { it.coerceAtMost(maxStackLevel) }.distinct().sorted()
         val tiers = availableTiers(tierLimit)
         val reachable = BooleanArray(maxStackLevel + 1)
@@ -464,6 +466,10 @@ data class Sublimation(
         level: Int,
         tierLimit: Int? = null,
     ): List<Int> {
+        if (!stackModelled) {
+            require(level == maxTier.coerceAtMost(maxStackLevel))
+            return listOf(maxTier)
+        }
         val tiers = availableTiers(tierLimit)
         require(level in reachableLevels(tierLimit)) { "${name.fr}: level $level is unavailable; choose ${reachableLevels(tierLimit).joinToString()}" }
         if (!stacksByLevel) return listOf(tiers.last { it.coerceAtMost(maxStackLevel) == level })
@@ -491,9 +497,10 @@ data class Sublimation(
         chosenLevel: Int? = null,
     ): List<Sublimation> {
         if (copies == 0) return emptyList()
-        if (!stacksByLevel) return List(copies) { this }
+        if (!stackModelled || !stacksByLevel && chosenLevel == null) return List(copies) { this }
         // Keep legacy full-shard fixtures stable, but resolve partial and per-level synthetic families too.
-        if (shardsByTier.isEmpty() &&
+        if (chosenLevel == null &&
+            shardsByTier.isEmpty() &&
             copies * maxTier <= maxStackLevel &&
             effects.filterIsInstance<SublimationEffect.StatEffect>().all { it.valuesByLevel.isEmpty() }
         ) {

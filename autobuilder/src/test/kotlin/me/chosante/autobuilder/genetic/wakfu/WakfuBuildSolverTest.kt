@@ -8858,6 +8858,7 @@ class WakfuBuildSolverTest {
         assertThat(fp(base.copy(forcedRunesByItem = mapOf("Item" to listOf(1, 2))))).describedAs("forcedRunesByItem").isNotEqualTo(baseline)
         assertThat(fp(base.copy(useSublimations = !base.useSublimations))).describedAs("useSublimations").isNotEqualTo(baseline)
         assertThat(fp(base.copy(maxSublimationTier = 1))).describedAs("maxSublimationTier").isNotEqualTo(baseline)
+        assertThat(fp(base.copy(forcedSublimationLevels = mapOf("S" to 2)))).isNotEqualTo(baseline)
         assertThat(fp(base.copy(forcedSublimations = listOf("S")))).describedAs("forcedSublimations").isNotEqualTo(baseline)
         assertThat(fp(base.copy(forcedPassives = listOf("P")))).describedAs("forcedPassives").isNotEqualTo(baseline)
         assertThat(fp(base.copy(damageScenario = base.damageScenario.copy(element = SpellElement.WATER)))).describedAs("scenario element").isNotEqualTo(baseline)
@@ -8906,6 +8907,7 @@ class WakfuBuildSolverTest {
                 "useSublimations",
                 "maxSublimationTier",
                 "forcedSublimations",
+                "forcedSublimationLevels",
                 "excludedSublimations",
                 "forcedPassives",
                 "damageScenario",
@@ -10107,30 +10109,32 @@ class WakfuBuildSolverTest {
                 ),
                 sublimation(9002, "FlatDi2", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.DAMAGE_INFLICTED to 25))
             )
-        val params = fireMaxDamageParams(50).copy(useSublimations = true, forcedSublimations = listOf("StackDi"))
-        val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, pool, sublimations = subs, applyDomination = false)
-        assertThat(cert.values.any { it > 0 }).describedAs("the certifier certifies the forced-cumulable pool (not all bailed)").isTrue()
-        var compared = 0
-        for ((ap, certObj) in cert) {
-            if (certObj < 0) continue
-            val profile =
-                WakfuBuildSolver.timedMaxDamageProfileForTest(
-                    params.copy(maxDamageApTarget = ap),
-                    pool,
-                    emptyList(),
-                    subs,
-                    workers = 1,
-                    seconds = 10.0,
-                    applyDomination = false,
-                    deterministicLimit = 6.0
-                )
-            if (!profile.hasSolution) continue
-            assertThat(certObj)
-                .describedAs("AP=%d: forced-cumulable certifier (%d) must equal the pinned CP-SAT optimum (%d)", ap, certObj, profile.objective)
-                .isEqualTo(profile.objective)
-            compared++
+        for (chosenLevel in listOf(2, 4, 6)) {
+            val params = fireMaxDamageParams(50).copy(useSublimations = true, forcedSublimations = listOf("StackDi"), forcedSublimationLevels = mapOf("StackDi" to chosenLevel))
+            val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, pool, sublimations = subs, applyDomination = false)
+            assertThat(cert.values.any { it > 0 }).describedAs("the certifier certifies the forced-cumulable pool (not all bailed)").isTrue()
+            var compared = 0
+            for ((ap, certObj) in cert) {
+                if (certObj < 0) continue
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params.copy(maxDamageApTarget = ap),
+                        pool,
+                        emptyList(),
+                        subs,
+                        workers = 1,
+                        seconds = 10.0,
+                        applyDomination = false,
+                        deterministicLimit = 6.0
+                    )
+                if (!profile.hasSolution) continue
+                assertThat(certObj)
+                    .describedAs("AP=%d: forced-cumulable certifier (%d) must equal the pinned CP-SAT optimum (%d)", ap, certObj, profile.objective)
+                    .isEqualTo(profile.objective)
+                compared++
+            }
+            assertThat(compared).describedAs("at least one AP cell compared against forced-cumulable CP-SAT").isGreaterThan(0)
         }
-        assertThat(compared).describedAs("at least one AP cell compared against forced-cumulable CP-SAT").isGreaterThan(0)
     }
 
     /**

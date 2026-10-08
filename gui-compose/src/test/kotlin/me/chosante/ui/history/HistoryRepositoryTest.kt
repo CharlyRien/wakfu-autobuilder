@@ -12,6 +12,7 @@ import me.chosante.common.history.ItemRef
 import me.chosante.common.history.RequestSnapshot
 import me.chosante.common.history.ResultSnapshot
 import me.chosante.common.history.TargetSnapshot
+import me.chosante.ui.state.withRememberedRequest
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -22,6 +23,57 @@ import kotlin.io.path.createDirectories
 // lambda's value, giving the test a non-Unit return type that JUnit 5 silently skips — block bodies
 // return Unit and are discovered reliably.
 class HistoryRepositoryTest {
+    @Test
+    fun `forced level and socketed tier survive save load and legacy saves default to max`(
+        @TempDir tempDir: Path,
+    ) {
+        runBlocking {
+            val family =
+                me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm.sublimations
+                    .single { it.stateId == 6931 }
+            val repo = HistoryRepository(tempDir, Dispatchers.Unconfined)
+            val sample = sampleEntry("level", "Level 2")
+            val entry =
+                sample.copy(
+                    request = sample.request.copy(forcedSublimations = listOf(family.name.fr), forcedSublimationLevels = mapOf(family.name.fr to 2)),
+                    result = sample.result.copy(sublimations = mapOf(1234 to family.socketedShards(1, 110, 2)))
+                )
+            repo.save(entry)
+            val loaded = repo.loadAll().single()
+            assertThat(loaded).isEqualTo(entry)
+            val restored =
+                me.chosante.ui.state
+                    .UiState()
+                    .withRememberedRequest(loaded.request)
+            assertThat(restored.forcedSublimationLevels).containsEntry(family.name.fr, 2)
+            assertThat(
+                loaded.result.sublimations
+                    .getValue(1234)
+                    .single()
+                    .stackLevel
+            ).isEqualTo(2)
+            assertThat(
+                loaded.result.sublimations
+                    .getValue(1234)
+                    .single()
+                    .zenithId
+            ).isEqualTo(family.shardsByTier.getValue(2).itemId)
+            val file = repo.directory().resolve("level.json").toFile()
+            val json = kotlinx.serialization.json.Json
+            val root = json.parseToJsonElement(file.readText()) as kotlinx.serialization.json.JsonObject
+            val request = root.getValue("request") as kotlinx.serialization.json.JsonObject
+            file.writeText(
+                kotlinx.serialization.json
+                    .JsonObject(root + ("request" to kotlinx.serialization.json.JsonObject(request - "forcedSublimationLevels")))
+                    .toString()
+            )
+            val legacy = repo.loadAll().single()
+            assertThat(legacy.schemaVersion).isEqualTo(HistoryEntry.CURRENT_SCHEMA_VERSION)
+            assertThat(legacy.request.forcedSublimationLevels).isEmpty()
+            assertThat(family.reachableLevels().last()).isEqualTo(4)
+        }
+    }
+
     @Test
     fun `save then loadAll round-trips an entry`(
         @TempDir tempDir: Path,

@@ -30,7 +30,7 @@ private val PERCENT_CHARACS =
  */
 @Composable
 internal fun SublimationStackBadge(sub: Sublimation) {
-    if (sub.maxStackLevel <= sub.maxTier) return
+    if (sub.stackLevel == null && sub.maxStackLevel <= sub.maxTier) return
     Text(
         text = tr(Tr.SUBLIMATION_STACK_SHORT).format(sub.stackLevel ?: sub.maxTier, sub.maxStackLevel),
         style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)

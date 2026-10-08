@@ -743,7 +743,7 @@ internal object MostMasteriesCertificate {
         if (params.forcedItems.isNotEmpty() ||
             params.forcedRunes.isNotEmpty() ||
             params.forcedRunesByItem.isNotEmpty() ||
-            params.forcedSublimations.isNotEmpty()
+            (params.forcedSublimations.isNotEmpty() || params.forcedSublimationLevels.isNotEmpty())
         ) {
             return null
         }

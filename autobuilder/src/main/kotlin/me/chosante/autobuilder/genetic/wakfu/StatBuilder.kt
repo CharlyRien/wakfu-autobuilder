@@ -246,7 +246,14 @@ internal class StatBuilder(
     internal val subByVar: Map<IntVar, Sublimation> =
         buildMap {
             subModel.subVars.forEach { (sub, variable) -> put(variable, sub) }
-            subModel.copyVars.forEach { (sub, variables) -> variables.forEachIndexed { index, variable -> put(variable, sub.marginalUnit(index + 2, subModel.characterLevel)) } }
+            subModel.copyVars.forEach { (sub, variables) ->
+                variables.forEachIndexed {
+                    index,
+                    variable,
+                    ->
+                    put(variable, sub.marginalUnit(index + 2, subModel.characterLevel, subModel.chosenLevels[sub]))
+                }
+            }
         }
 
     init {
@@ -1676,7 +1683,9 @@ internal class StatBuilder(
             // tracked reach ceiling (already ≤ the ramp cap) — an upper bound since the source stat is
             // not tracked by the certifier.
             val d = tracker.of(term.variable)
-            val v = term.maxContribution(d)
+            // Conditional flat-effect gates are booleans: keep signed coefficients exactly, just as
+            // for direct shard booleans. Only a structured numeric derived term uses its optimistic reach.
+            val v = if (term.variable is com.google.ortools.sat.BoolVar) term.coefficient else term.maxContribution(d)
             bySub[derived] = (bySub[derived] ?: 0L) + v
         }
         return bySub
