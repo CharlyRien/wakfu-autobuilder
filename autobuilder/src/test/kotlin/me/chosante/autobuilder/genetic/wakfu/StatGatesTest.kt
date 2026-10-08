@@ -243,7 +243,11 @@ class StatGatesTest {
                         .last()
                         .individual
                 }
-            assertThat(built.sublimations.values.flatten()).describedAs("%s is forced", sub.name.fr).contains(sub)
+            assertThat(
+                built.sublimations.values
+                    .flatten()
+                    .map { it.stateId }
+            ).describedAs("%s is forced", sub.name.fr).contains(sub.stateId)
             assertThat(violations(built)).describedAs("%s", sub.name.fr).isEmpty()
             assertThat(built.equipments.map { it.equipmentId }.containsAll(listOf(cartesAnd, rangeHelmet, rangeAmulet).map { it.equipmentId }))
                 .describedAs("%s: Cartes And + the two range items (3 range) stay legal iff the sub adds no out-of-combat range", sub.name.fr)

@@ -743,7 +743,7 @@ internal object MostMasteriesCertificate {
         if (params.forcedItems.isNotEmpty() ||
             params.forcedRunes.isNotEmpty() ||
             params.forcedRunesByItem.isNotEmpty() ||
-            params.forcedSublimations.isNotEmpty()
+            (params.forcedSublimations.isNotEmpty() || params.forcedSublimationLevels.isNotEmpty())
         ) {
             return null
         }
@@ -872,7 +872,14 @@ internal object MostMasteriesCertificate {
                 return null
             }
             // World B folds every SUBSET of the objective-capping subs at each collapse state (2^n − 1).
-            if (sublimations.count { stagesSub(it, diag) && capStatOf(it) == null && isObjectiveCapping(it, requested) } > 6) return null
+            if (sublimations
+                    .filter { stagesSub(it, diag) && capStatOf(it) == null && isObjectiveCapping(it, requested) }
+                    .map { it.stateId }
+                    .distinct()
+                    .size > 6
+            ) {
+                return null
+            }
             // Review follow-ups (CERTIFIER_VERSION 51) — shapes no current sub reaches, bailed rather than under-counted:
             //  - the assumed cap sub and the world-B subs never feed an assume world's LOW dim (both are credited at the
             //    collapse only), while the solver's pre-combat read carries every permanent line of a STATIC sub, its own
@@ -961,6 +968,9 @@ internal object MostMasteriesCertificate {
         worldAssume: Sublimation? = null,
         worldDropCaps: Boolean = false,
     ): Result? {
+        // One slot consumer per family marginal. Dropping the prefix order is a relaxation; conditions
+        // keep exactly the same shared read/threshold as their family. Recursion sees maxCopies == 1 units.
+        val sublimations = sublimations.flatMap { it.certificateUnits(params.character.level) }
         val t0 = System.nanoTime()
         // Cancelled before this world even builds its options (the world split runs them in turn).
         if (!shouldContinue()) return null
@@ -1629,6 +1639,7 @@ internal object MostMasteriesCertificate {
         // PER STATE at collapse — the old analytic fold at power6(maxIndex) assumed all targets
         // fully met, which a knapsack-limited carrier cannot do (measured +24.6% vs +21% naive).
         val worldBSubs = mutableListOf<Triple<Long, Opt, Boolean>>()
+        val worldBFamilyIds = mutableListOf<Int>()
         // T1: the subs whose start-of-combat crit the fold already prices — staged subs (soc dim) and world-B subs
         // (their credits ride the per-state `extra`) — so the assume-CC constant [outsideReadMax] skips them.
         val socPricedSubs = HashSet<Sublimation>()
@@ -1775,6 +1786,7 @@ internal object MostMasteriesCertificate {
                                 otherRequestedMasteriesMax()
                         }
                     worldBSubs += Triple(mCap, opt, sub.rarity == SublimationRarity.EPIC)
+                    worldBFamilyIds += sub.stateId
                     socPricedSubs += sub
                     continue
                 }
@@ -2075,6 +2087,14 @@ internal object MostMasteriesCertificate {
         // Precompute the world-B SUBSET folds (2^n − 1, minus impossible two-EPIC combos): the
         // combined credits + the min cap of each subset, shared by every state's collapse. ([requestShape] bails
         // on more than 6 world-B subs.)
+        // One condition per family: the existing world-B free credit now combines all its marginal
+        // units. A build taking fewer shards is over-credited (sound); no exponential growth in copy count.
+        val groupedWorldB =
+            worldBSubs.withIndex().groupBy { worldBFamilyIds[it.index] }.values.map { units ->
+                Triple(units.minOf { it.value.first }, units.map { it.value.second }.reduce(::combineOpts), units.any { it.value.third })
+            }
+        worldBSubs.clear()
+        worldBSubs.addAll(groupedWorldB)
         check(worldBSubs.size <= 6) { "requestShape admitted ${worldBSubs.size} world-B subs" }
         val worldBSubsets: List<Pair<Long, Opt>> =
             (1 until (1 shl worldBSubs.size)).mapNotNull { mask ->

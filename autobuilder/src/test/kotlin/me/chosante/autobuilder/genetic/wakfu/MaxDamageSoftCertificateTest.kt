@@ -789,6 +789,7 @@ class MaxDamageSoftCertificateTest {
                 "forcedRunes",
                 "forcedRunesByItem",
                 "forcedSublimations",
+                "forcedSublimationLevels",
                 "forcedPassives",
                 "targetStats"
             )

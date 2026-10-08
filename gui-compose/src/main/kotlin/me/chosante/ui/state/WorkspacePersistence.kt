@@ -50,6 +50,7 @@ fun UiState.withRememberedRequest(request: RequestSnapshot): UiState {
         useSublimations = request.useSublimations,
         maxSublimationTier = request.maxSublimationTier,
         forcedSublimations = request.forcedSublimations,
+        forcedSublimationLevels = request.forcedSublimationLevels,
         excludedSublimations = request.excludedSublimations,
         forcedPassives = request.forcedPassives,
         forcedRunesByItem = request.forcedRunesByItem
@@ -126,6 +127,7 @@ fun UiState.withoutUnknownEntries(catalog: WorkspaceCatalog): Pair<UiState, Int>
             forcedItems = forcedItems.known { catalog.hasItem(it.matchName) },
             excludedItems = excludedItems.known { catalog.hasItem(it.matchName) },
             forcedSublimations = forcedSublimations.knownSublimations(),
+            forcedSublimationLevels = forcedSublimationLevels.mapKeys { catalog.canonicalSublimationName(it.key) }.filterKeys { catalog.hasSublimation(it) },
             excludedSublimations = excludedSublimations.knownSublimations(),
             forcedPassives = forcedPassives.known { catalog.hasPassive(clazz, it) },
             forcedRunesByItem = runes

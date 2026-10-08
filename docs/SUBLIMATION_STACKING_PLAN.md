@@ -1,3 +1,5 @@
+> Current model: §12 supersedes the historical FLOOR decision in §8.1 and the full-copy accounting in §10.
+
 # Sublimation stacking + slot-cap — design plan
 
 Status: **SHIPPED** (2026-07-10). Phases 1–3 landed on `docs/denouement-feasibility` (`600d512a` stacking + cap,
@@ -381,3 +383,202 @@ mastery:
 - Also landed alongside v15: `certifierTier15Threads()` — tier-1.5 workers are memory-light (~0.4 GiB
   measured), so they get their own heap formula (6 workers on a stock 4 GiB heap, 3 on the packaged GUI's
   -Xmx3g) instead of the exact tier's 1.25 GiB/worker gate that kept production serial.
+
+
+## 12. Family levels, conditional stacks and forced levels (2026-10-08)
+
+The FLOOR is gone. One **State/stateId is one family**. Each actual CDN shard item (type 812) adds its tier,
+including mixed tiers, and their sum MUST NOT exceed State `max_level`. `is_cumulable` still determines whether a normal
+family stacks. Conversion, per-stat-step ramp, best-element concentration and elemental-zeroing shapes deliberately
+stay single-shard at their modeled maximum tier (`stackModelled=false`).
+
+### Per-level data and client reproduction
+
+Each flat/percent stat effect has `valuesByLevel`, indexed by family level minus one. Flat entries evaluate the
+client's StaticEffect formula at that level; percent entries are raw percentages, resolved against the character level
+before differencing. The existing `value` / `percentOfLevel` remains the old `maxTier` value. `shardsByTier` maps each
+available tier to its own `itemId` and four-language name. No absent tier is invented. The install-gated reproduction
+checks identities, shape and every table against the committed JSON, with explicit decoded anchors:
+
+| Family | Levels | Values |
+| --- | --- | --- |
+| Neutralité (6931) | 1–4 | 8 / 16 / 24 / 32 % DI |
+| Brûlure (8518) | 1–4 | 4 / 8 / 12 / 16 % fire DI |
+| Carnage (5983) | 1–6 | 15 / 30 / 45 / 60 / 75 / 90 % of character level as elemental mastery |
+
+The client at `/Applications/Ankama/Wakfu` reproduced the data. Regeneration used `BDATA_FORCE_WRITE=1` and
+`:bdata-extractor:run --args='--sublimations-only /Applications/Ankama/Wakfu'` through the shared heavy Gradle lock.
+
+**Seven choosable families have `cap % topTier != 0`:** Ravage III, Neutralité III, Poids Plume III, Brûlure III,
+Gel III, Tellurisme III and Ventilation III. Six use the level model; Poids Plume is a structured ramp and stays
+single-shard. Every current stack-modeled normal family has an exact plan for its previously modeled levels. Overshoot and
+top-tier clamping fallbacks are never legal. Missing tiers restrict reachable levels and can change the entire tier plan.
+
+No choosable stack-modeled raw effect differs between `k * value(t)` and `value(k*t)` at uncapped full-tier multiples.
+Across all emitted effects the following forced-only entries do differ (left = old multiplication, right = decoded
+whole-family value):
+
+| Family / stat | k=2 | k=3 |
+| --- | --- | --- |
+| Réprobation II / willpower | −40 / −20 | −60 / −20 |
+| Sauvegarde II / AP | 12 / 6 | 18 / 6 |
+| Clameur II / willpower | −40 / −20 | −60 / −20 |
+| Fuite III / MP | 2 / 1 | — |
+| Sauvegarde critique II / critical hit | 120 / 60 | 180 / 60 |
+| Tout feu tout flamme II / MP | 2 / 1 | 3 / 1 |
+
+Percent-of-character-level flooring can also invalidate multiplication even with proportional raw tables: at character
+level 2, Carnage's two 45% shards each floor to 0, but the 90% family floors to 1. At level 245, Light Weapons Expert's
+75% first shard gives 183 and its second marginal gives 184. Concavity cannot be assumed. The complete
+stack-modeled percent-of-character-level inventory with this discrepancy at some character level 1–245 is:
+**Carnage III, Tacle Berserk III, Esquive Berserk III, Expert des armes légères III, Evasion III and Interception III**.
+For the four lock/dodge families, character level 245 gives `2 * 367 = 734` versus whole-family `735`; Light Weapons
+Expert gives `2 * 183 = 366` versus `367`. Scenario gates remain attached to every marginal.
+
+### Solver, output and certificates
+
+For available tiers and cap M, L_k is the highest exact sum of k shards that is ≤ M. Automatic selection keeps
+ordered booleans only while L_k strictly improves on L_(k−1). Shard k contributes `V(L_k) − V(L_(k−1))`, with **V(0)=0** because an absent family grants no effect (including nonzero
+bases). A conditional family reifies its condition once. Every selected shard consumes one normal slot and one
+≥3-socket carrier; forced conditional copies conjoin their occupancy with that same gate, never another condition.
+The normal tier cap selects the highest actual available shard tier ≤ the cap, so Neutralité remains available at tier II.
+Epic/relic and structured shapes keep their previous generation filter.
+
+Output resolves actual socket tiers and IDs from the whole exact tier multiset. Automatic completion uses the best
+exact k-shard plan, which may replace earlier shards ({2,3}, cap 4 → II + II). Forced completion uses its minimum-shard
+exact plan. Per-carrier resolved flat marginals, `stackLevel` and `socketTier` survive serialization;
+scorers, paperdoll/result badges, CLI names and Zenith therefore agree. Neutralité III + I uses item IDs **29003 + 29001**;
+Brûlure III + I uses **31647 + 31645**. Zenith tests verify separate carrier/side shard calls and their actual IDs **through the production catalog resolver**.
+The resolver uses `socketTier` when present; using family `maxTier` would incorrectly upgrade a tier-I root item back to
+III. A forced level-1 export and the legacy root-to-top-tier fallback are also locked.
+
+All three certificates keep the family condition on every marginal. MaxDamageCertifier attributes base, extra and
+conditional conjunction variables to separate marginal units; only analytic conversion moved terms are dropped.
+Identical marginals with identical family/condition can share a multiplicity stage; different ones remain independent
+optional units. MostMasteriesCertificate and MaxDamageSoftCertificate expand each family to marginal units before
+building their existing gates/budgets. Most-masteries' objective-capping worlds group copies by family under one gate
+and can freely credit the family's whole value, a relaxation. Independent subset selection contains every real ordered
+prefix, so the bound credits at least every real k-shard family, including non-concave marginals.
+
+A forced family's selected level is exact, not a minimum: all needed booleans are pinned and no extras exist. The AP-cell
+certificate credits every forced marginal in constants/shared conditional credits and charges every occupied slot.
+Derived boolean gates use their optimistic interval maximum: a negative conditional effect can be zero. Unsupported
+conditional AP/crit shapes bail based on their terms, even when their optimistic value is zero. Most-masteries and soft
+certificates keep their conservative forced-request bail. Certificate version **59 → 60 → 61**, engine results **4 → 5 → 6**;
+lock tests and histories are updated.
+
+### Forced-level picker, CLI and saves
+
+The picker row and forced chip show a level selector, defaulting to the highest reachable level. Choices are sums of
+available allowed tiers up to the cap. Ravage secondaire II (tier II only) offers **2 / 4 / 6**. The minimum-shard
+dynamic program always reaches the exact sum; overshoot is forbidden.
+Structured shapes keep their single modeled tier and have no lower-level effect model.
+
+`--forced-sublimations 'Neutralité III:2,Carnage III'` fixes Neutralité at level 2 and leaves Carnage at its maximum.
+Malformed suffixes, out-of-range and unreachable levels have clear errors. Requests, workspace persistence and saved
+history carry optional `forcedSublimationLevels`; an older save without the map means the highest reachable level.
+The schema stays **1** because all new fields have compatible defaults. Save/load tests cover the request, result level
+and actual shard ID, plus legacy JSON without the field.
+
+| Bundle | Selector | Unavailable-level message |
+| --- | --- | --- |
+| EN | level %d/%d | Level %d is unavailable for %s. Choose: %s. |
+| FR | niveau %d/%d | Le niveau %d n’est pas disponible pour %s. Choisis : %s. |
+| ES | nivel %d/%d | El nivel %d no está disponible para %s. Elige: %s. |
+| PT | nível %d/%d | O nível %d não está disponível para %s. Escolhe: %s. |
+
+Tier-cap hints also describe the new normal-shard behavior in all four languages. French uses **tu**.
+
+### Tester regression and validation
+
+Xélor 65, most-masteries, AP 12 / MP 4 / WP 20, fire + distance mastery targets at 1, subs on, **Mémoire forced as a
+passive**, Vélocité II / Vivacité II / Visibilité II excluded: old engine **1,354**, new proven optimum **1,521**
+(**+167, +12.33%**). Both runs use one worker, seed 1, interleave, the same full production pool/domination and hard leg.
+
+Shared equipment: Amulette acariâtre, Archiemblème - Cwalbinos le Blafard, Les Ailerons, Gelano, Anneau Insangsé, Plastif,
+Feuille de Palmier, Casque Malibulle, Krosmunster Feu, Mulou Féroxe, Ceinture Koko.
+
+| | Old build | New build |
+| --- | --- | --- |
+| Boots | Bottes Lantha | Bottes de Bowisse certifiées |
+| Weapon | Marteau Xik | Aiguille du Cwabe Royal |
+| Sublimations | Dévastation III; Carnage III ×2; Influence III; Inflexibilité II; Neutralité III; Armure lourde II; Dérobade continue III; Brûlure III | Dévastation III; Carnage III ×2; Expert des armes légères III ×2; Mesure III; Neutralité III + I; Armure lourde II; Brûlure III + I |
+
+The regression pins both completed families at level 4 and a score ≥ the old optimum. Existing divisible unconditional
+stacking locks (including Carnage ×2) remain. Non-slow certificate fuzz pools now contain partial and conditional families
+and check each certificate against pinned CP-SAT. A small Neutralité rune oracle increases **2,172,270 → 2,302,050**
+(two carriers now buy level 4 instead of level 3); its one-carrier case remains **1,540,880**.
+
+Formatting ran before each feature commit. Data/common/Zenith tests, the full engine suite (669 tests, 83 existing skips)
+and the full GUI suite (501 tests, two existing skips) passed before their commits. Focused locks cover chosen Neutralité
+level 2 (one tier-II shard, or two tier-I shards with a tier-1 cap), forced certificate equality at levels 2/4/6,
+conditional AP bails, selector defaults/choices, CLI parsing, translations and legacy saves.
+
+The final level-245 slow-oracle run uses `:autobuilder:slowTest --tests '*lvl-245*' --tests '*level-245*'`.
+This selects the two fast-ledger locks plus the free-solve and runes+subs proof/rescue tests. The fast ledger adds
+partial-cap and conditional marginal choices with unchanged tier-t base values; whole-family percentage rounding is
+also preserved. Every previously modeled prefix remains available. AP cells 2–16 increase; cells 0, 1 and 17–20
+remain zero. These are **upper bounds**, not build scores.
+
+| AP cell | Old fast bound | New fast bound | Increase |
+| --- | ---: | ---: | ---: |
+| 2 | 2,392,200 | 2,417,100 | +24,900 (1.041%) |
+| 3 | 4,000,850 | 4,043,480 | +42,630 (1.066%) |
+| 4 | 5,008,795 | 5,063,850 | +55,055 (1.099%) |
+| 5 | 6,613,880 | 6,688,930 | +75,050 (1.135%) |
+| 6 | 8,295,700 | 8,390,760 | +95,060 (1.146%) |
+| 7 | 9,249,465 | 9,357,870 | +108,405 (1.172%) |
+| 8 | 10,767,360 | 10,900,480 | +133,120 (1.236%) |
+| 9 | 12,259,800 | 12,465,600 | +205,800 (1.679%) |
+| 10 | 13,141,235 | 13,288,640 | +147,405 (1.122%) |
+| 11 | 14,437,890 | 14,597,190 | +159,300 (1.103%) |
+| 12 | 14,934,855 | 15,093,195 | +158,340 (1.060%) |
+| 13 | 16,031,450 | 16,265,925 | +234,475 (1.463%) |
+| 14 | 16,322,070 | 16,608,960 | +286,890 (1.758%) |
+| 15 | 17,128,500 | 17,404,000 | +275,500 (1.608%) |
+| 16 | 17,517,150 | 17,773,620 | +256,470 (1.464%) |
+
+The floor ledger reproduces every new cell exactly. The free level-245 CP-SAT proof passes. The runes+subs
+search plus certificate/E8 rescue proves **17,350,320 → 17,698,920** (**+348,600, +2.009%**). Its winning build
+sockets **Brûlure III + I at level 4** (+16% fire DI), with Ravage III at level 3, Carnage III ×2 at level 6,
+Vivacité II, Influence III, Armure lourde II, Influence vitale III ×2 at level 6 and Concentration Elémentaire.
+Both ledger drifts are re-banked only after confirming every changed cell increased. The proven objective now has
+an equality lock as well as the fast-bound ≥ optimum guard.
+
+Final verification followed `git fetch origin` and `git rebase origin/main` (already up to date). The locked,
+serial Gradle run passed in **30m 32s**, including `ktlintFormat`, `:bdata-extractor:test` (35 tests),
+`:common-lib:test` (38), `:zenith-builder:test` (8), the full `:autobuilder:test` (673, 83 existing skips),
+the full `:gui-compose:test` (501, two existing skips), and all four selected level-245 `:autobuilder:slowTest`
+checks (no skips). All suites have zero failures/errors. The final slow run reproduces **17,698,920** exactly
+and both re-banked ledgers; no oracle decreases were accepted. Data/common/Zenith tasks reused Gradle's
+up-to-date results where their tested inputs were unchanged. Formatting runs once more before the documentation
+commit. No push or pull request is part of this work.
+
+
+### Review corrections: exact sums and optimistic conditional debits
+
+The game never clamps an overshooting shard sum. Synthetic locks now cover tiers {3} at cap 4 (one shard only)
+and {2,3} at cap 4 (III for one shard, II + II for two). Solver and certificate marginals use the best legal exact
+k-shard levels, while forced marginals follow their minimum-shard exact tier plan. A catalog lock checks every
+modeled family at tier caps 1/2/3 and character levels 1–245 against the previous levels and marginals.
+
+`perSubValue` keeps signed coefficients for direct selected-sub variables, but uses `term.maxContribution(domain)`
+for every derived gate: a forced condition can fail, making a negative contribution zero. The forced Maniement :
+Deux mains lock proves an AP > 12 max-damage optimum with pinned CP-SAT and checks that the certificate upper-bounds
+it (the unsupported conditional AP shape explicitly bails). Conditional AP/crit bail detection reads nonzero terms,
+so optimistic zeroing of a negative term cannot hide an unsupported axis. A direct lock also checks a derived −2 gate
+credits zero, while the direct selected coefficient stays −2.
+
+`reachableSumDomain` counts the grouped sublimation low once, after aggregation. The direct lock expects
+`3 + (−2)*subBoolean` to have range 1..3, rather than the duplicated −1..3. Versions 61/6 invalidate old proof caches
+and saved-result stamps for these corrections.
+
+Review verification passed after `ktlintFormat`: `:bdata-extractor:test` (35), `:common-lib:test` (38),
+`:zenith-builder:test` (8), full `:autobuilder:test` (677, 83 existing skips), and full `:gui-compose:test`
+(501, two existing skips), with zero failures/errors. The seven engine `SublimationStackLevelTest` locks and
+non-slow `WakfuBuildSolverTest` locks all pass. The full final run took 16m 4s. The Xélor optimum remains 1,521;
+every checked current-catalog automatic level and marginal is unchanged, and no banked regression needed an
+update. The level-245 slow tests were not rerun: exact plans preserve their current-data levels/marginals,
+the derived-gate correction concerns forced conditional effects (absent from that request), and the domain
+low correction tightens declared lower bounds without changing legal builds. An EN/FR `fix` note
+records the corrected shard rules. No push or PR is included.

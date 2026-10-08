@@ -193,7 +193,17 @@ class RuneChoicePruningTest {
                 WakfuBuildSolver.optimize(p, pool, runes, listOf(neutralite), tuning, hardConstraints = false).collect { last = it }
                 requireNotNull(last).individual
             }
-        assertThat(build.sublimations.values.flatten()).containsExactly(neutralite)
+        assertThat(
+            build.sublimations.values
+                .flatten()
+                .map { it.stateId }
+        ).containsExactly(neutralite.stateId)
+        assertThat(
+            build.sublimations.values
+                .flatten()
+                .single()
+                .stackLevel
+        ).isEqualTo(3)
         assertThat(
             build.runes.entries
                 .single { it.key.equipmentId == helmet.equipmentId }

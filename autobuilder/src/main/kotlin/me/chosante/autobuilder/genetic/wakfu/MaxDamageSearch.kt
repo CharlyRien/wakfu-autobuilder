@@ -1374,6 +1374,11 @@ object MaxDamageCertificateCache {
         tok(p.maxSublimationTier ?: -1)
         tok(p.forcedSublimations.size)
         p.forcedSublimations.forEach { tok(it) }
+        tok(p.forcedSublimationLevels.size)
+        p.forcedSublimationLevels.toSortedMap().forEach { (name, level) ->
+            tok(name)
+            tok(level)
+        }
         // Exclusions already shrink the sub identity list (key.subIds) below, but tokenizing the param keeps
         // the fingerprint injective at the request level too (belt and braces — a stale hit is a wrong badge).
         tok(p.excludedSublimations.size)

@@ -49,14 +49,13 @@ internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>
         }
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
-            // A cumulable sub is socketed up to maxCopies times; each copy adds one more single-copy value
-            // (constant marginal — see [Sublimation.maxCopies]). The gate vars are the base [applies] plus every
-            // copy var; all are unconditional (a stackable sub has condition == null), so no extra reification.
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
+            // Every shard contributes its family-level marginal. Conditional copies reuse the one
+            // family gate; only forced copies need a conjunction with their occupied carrier boolean.
             val gateVars =
                 buildList {
                     add(applies)
-                    addAll(subModel.copyVars[sub].orEmpty())
+                    addAll(subModel.copyVars[sub].orEmpty().mapIndexed { index, variable -> copyAppliesVar(sub, index, variable) })
                 }
             // Per-element DI in most-masteries: route into the element's OWN bucket so it only multiplies
             // that element's damage fold (NOT the global DI). Other modes (max-damage) keep it global —
@@ -67,11 +66,21 @@ internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>
                 params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
             ) {
                 val bucket = elementDiTermsByMastery.getOrPut(diMastery) { mutableListOf() }
-                gateVars.forEach { bucket.add(Term(it, magnitude)) }
+                gateVars.forEachIndexed {
+                    index,
+                    gate,
+                    ->
+                    bucket.add(Term(gate, sub.marginalMagnitude(effect, index + 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+                }
                 continue
             }
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
-            gateVars.forEach { bucket.add(Term(it, magnitude)) }
+            gateVars.forEachIndexed {
+                index,
+                gate,
+                ->
+                bucket.add(Term(gate, sub.marginalMagnitude(effect, index + 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+            }
         }
     }
     return map
@@ -147,11 +156,16 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!effect.appliesBeforeCombat) continue
             if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
             bucket.add(Term(subVar, magnitude))
             // Each socketed copy adds one more single-copy value (stackable subs are condition-less FLAT subs).
-            for (copyVar in subModel.copyVars[sub].orEmpty()) bucket.add(Term(copyVar, magnitude))
+            subModel.copyVars[sub].orEmpty().forEachIndexed {
+                index,
+                copyVar,
+                ->
+                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+            }
         }
     }
     return map
@@ -169,10 +183,15 @@ internal fun StatBuilder.buildOutOfCombatSubTerms(): Map<Characteristic, List<Te
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!effect.appliesBeforeCombat || effect.scenarioGate != null) continue
-            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
             bucket.add(Term(subVar, magnitude))
-            for (copyVar in subModel.copyVars[sub].orEmpty()) bucket.add(Term(copyVar, magnitude))
+            subModel.copyVars[sub].orEmpty().forEachIndexed {
+                index,
+                copyVar,
+                ->
+                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+            }
         }
     }
     return map
@@ -195,13 +214,33 @@ internal fun StatBuilder.buildStartOfCombatFlatSubTerms(): Map<Characteristic, L
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (effect.appliesBeforeCombat) continue
             if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+            val magnitude = sub.marginalMagnitude(effect, 1, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()
             val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
             bucket.add(Term(subVar, magnitude))
-            for (copyVar in subModel.copyVars[sub].orEmpty()) bucket.add(Term(copyVar, magnitude))
+            subModel.copyVars[sub].orEmpty().forEachIndexed {
+                index,
+                copyVar,
+                ->
+                bucket.add(Term(copyVar, sub.marginalMagnitude(effect, index + 2, subModel.characterLevel, subModel.chosenLevels[sub]).toLong()))
+            }
         }
     }
     return map
+}
+
+/** Every forced shard shares the ONE family's applies variable; only the conjunction with its slot boolean is new. */
+private fun StatBuilder.copyAppliesVar(
+    sub: Sublimation,
+    index: Int,
+    copy: IntVar,
+): IntVar {
+    if (sub !in subModel.forced || sub.condition?.type !in SUPPORTED_SUB_CONDITIONS) return copy
+    return copyAppliesVarCache.getOrPut(copy) {
+        val gated = and(copy, appliesVar(sub), "subCopyApplies_${sub.stateId}_$index")
+        tracker.record(gated, 0L..1L, "subCopyApplies_${sub.stateId}_$index")
+        subDerivedVars[gated] = sub.marginalUnit(index + 2, subModel.characterLevel, subModel.chosenLevels[sub])
+        gated
+    }
 }
 
 /**
@@ -216,6 +255,7 @@ internal fun StatBuilder.buildStartOfCombatFlatSubTerms(): Map<Characteristic, L
  * invalid builds — e.g. a forced CRIT_AT_MOST-30 DI sub "applying" at 40 pre-combat crit.) A forced
  * sub with an UNSUPPORTED condition type keeps the optimistic unconditional credit, as before.
  */
+
 internal fun StatBuilder.appliesVar(sub: Sublimation): IntVar =
     appliesVarCache.getOrPut(sub) {
         val subVar = subModel.subVars.getValue(sub)

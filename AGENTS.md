@@ -380,6 +380,15 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   (crit bands, couplings) — so its locks assert `≥`, never `==`, and **when in doubt the certifier BAILS**
   (`Long.MAX_VALUE`, always sound). Below the AP constant the exact pass bails and the sound fast bound
   carries the cell.
+- **Sublimation families (CERTIFIER_VERSION 61, ENGINE_RESULTS_VERSION 6):** one `stateId` accumulates shard tiers,
+  whose tier sum must not exceed `maxStackLevel`. Cumulable normal flat/percent families use ordered carrier
+  booleans at strictly improving highest exact k-shard sums, each priced by its family-level MARGINAL (whole-family percent-of-character-level rounding first), including
+  conditional families sharing ONE condition. Structured effects stay single-shard. Certificates include every marginal
+  unit, relaxing the prefix so any real k-shard choice is covered even when marginals increase after rounding. Copy and
+  conditional-copy variables must be seeded and registered to their marginal (`subByVar` / `subDerivedVars`) or explicitly
+  dropped: NEVER let an unregistered leaf leak into constants. Forced levels pin the fewest available-tier shards at exactly
+  that level; the AP-cell certifier credits all forced marginals and charges their slots, with no optional extras. The
+  most-masteries and soft certificates bail on forced requests. See `docs/SUBLIMATION_STACKING_PLAN.md` §12.
 - **`CERTIFIER_VERSION` (`WakfuBuildSolver.kt`) must be bumped on ANY certifier change** (fast pass,
   exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
   cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a

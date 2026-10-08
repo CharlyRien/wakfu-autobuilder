@@ -85,6 +85,7 @@ data class RequestSnapshot(
     val useSublimations: Boolean = true,
     val maxSublimationTier: Int? = null,
     val forcedSublimations: List<String> = emptyList(),
+    val forcedSublimationLevels: Map<String, Int> = emptyMap(),
     val excludedSublimations: List<String> = emptyList(),
     /**
      * The remaining engine-affecting request state, persisted so a save reproduces the search EXACTLY

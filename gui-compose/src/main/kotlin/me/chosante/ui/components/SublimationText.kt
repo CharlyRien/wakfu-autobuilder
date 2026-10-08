@@ -21,18 +21,15 @@ private val PERCENT_CHARACS =
     setOf(Characteristic.DAMAGE_INFLICTED, Characteristic.BLOCK_PERCENTAGE, Characteristic.CRITICAL_HIT)
 
 /**
- * Stacking-at-a-glance badge, shared by the picker, the paperdoll cards and the stats panel:
- * `granted levels / stack cap` (Carnage III → "3/6", Carnage II → "2/6") — so an
- * autobuilder-vs-Zenith stacking discrepancy is visible on every surface. Uses the record's TIER
- * (what one socketed shard grants), NOT [Sublimation.maxCopies] (a solver-modeling clamp that
- * reads 1 for cumulable CONDITIONAL subs — displaying it misled the exact audit the badge is
- * for). Hidden when the stack cap leaves no headroom beyond one shard.
+ * Family level / cap, shared by the picker, paperdoll and result stats. Socketed results carry
+ * their actual total family level (Neutralité III + I: both carriers show 4/4); a catalog record
+ * without a selected level shows its single-shard tier. Never derives the displayed level from maxCopies.
  */
 @Composable
 internal fun SublimationStackBadge(sub: Sublimation) {
-    if (sub.maxStackLevel <= sub.maxTier) return
+    if (sub.stackLevel == null && sub.maxStackLevel <= sub.maxTier) return
     Text(
-        text = tr(Tr.SUBLIMATION_STACK_SHORT).format(sub.maxTier, sub.maxStackLevel),
+        text = tr(Tr.SUBLIMATION_STACK_SHORT).format(sub.stackLevel ?: sub.maxTier, sub.maxStackLevel),
         style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
     )
 }

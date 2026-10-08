@@ -108,6 +108,7 @@ fun UiState.toRequestSnapshot(keepBossInAnyMode: Boolean = false): RequestSnapsh
         useSublimations = useSublimations,
         maxSublimationTier = maxSublimationTier,
         forcedSublimations = forcedSublimations,
+        forcedSublimationLevels = forcedSublimationLevels,
         excludedSublimations = excludedSublimations,
         excludedRarities = excludedRarities,
         forcedPassives = forcedPassives,
