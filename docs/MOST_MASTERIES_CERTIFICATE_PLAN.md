@@ -1,6 +1,15 @@
 # Most-masteries optimality certificate — design plan
 
-Status: **DESIGN (not started)**. Author context: post-PR-#190 (max-damage certificate campaign closed:
+> **Status (2026-10-11): superseded / historical.** P0 measured NO-GO for the early stop (block below), so the P2
+> "early stop" was never built (most-masteries has no `maybeStopSearchProven` analogue). The bound itself shipped, in its
+> target-aware v2 form, as the most-masteries **quality badge**: `MostMasteriesCertificate.bound` →
+> `WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality` ("proven optimal" / "proven within X%"), computed in the
+> search's tail by `MostMasteriesBoundCache` and keyed on the shared `CERTIFIER_VERSION` (no separate
+> `MM_CERTIFIER_VERSION`). §2's "unpenalized bound suffices" algebra was refuted by M3 (`MOST_MASTERIES_PERF_PLAN.md` §3
+> P3). History and current state: `MOST_MASTERIES_PERF_PLAN.md` §8.9bis–§8.21 and AGENTS.md §4. The E8-style construct
+> (§4, P3 here) was never built — unverified whether it is still wanted.
+
+Status (original): **DESIGN (not started)**. Author context: post-PR-#190 (max-damage certificate campaign closed:
 badge lands with the result, search stops on proof). This plan opens the same capability for the
 **most-masteries** mode — the last big time-to-proven number in the product.
 

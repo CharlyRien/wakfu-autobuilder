@@ -30,7 +30,10 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
   - `./gradlew :gui-compose:run` — lancer la GUI
   - `WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run` — smoke screenshot (skip warm-up)
   - `./gradlew ktlintFormat` — formatage obligatoire
-- **i18n** = enum `Tr` écrit à la main (EN/FR) dans `gui-compose/.../i18n/I18n.kt`. Pas de code généré.
+- **i18n** = enum `Tr` de **clés seules** (`gui-compose/.../i18n/I18n.kt`) ; les textes EN/FR/ES/PT vivent dans
+  `gui-compose/src/main/resources/i18n/strings_{en,fr,es,pt}.properties` (UTF-8). Pas de code généré.
+  `TranslationBundlesTest` garde complétude + parité des placeholders : le lancer après tout ajout de clé `Tr`.
+  *(Mis à jour 2026-10-11 : l'ancien « enum écrit à la main (EN/FR) » date d'avant l'externalisation et #257 ES/PT.)*
 
 ### Légende
 
@@ -45,12 +48,18 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 > items** (RUNE-2/3, SUB-1/2, FLOW-1/2/3, PICK-1/2, REF-2, QOL-1) — suite complète verte
 > (common-lib + autobuilder + gui-compose). **Reste ouvert : ENG-3** (seul item moteur, P2).
 > **REF-1 terminé le 2026-10-07** : scaffold des six pickers et UX révisée (choix cochés, retrait, masquage mémorisé, boss courant).
+>
+> **État au 2026-10-11 (audit doc ↔ code, HEAD `6f0c6d2b`).** **ENG-3 est fait** sur ses deux volets (détail et preuves
+> dans sa fiche) ; seul reste un complément optionnel (avertissement « subli forcée inerte »). Toutes les fiches
+> encore marquées `🔲 TODO` alors que le tableau les disait faites ont été alignées. **Reste ouvert : QOL-3** (P3, bloqué
+> données — il manquait au tableau). Symboles des items ✅ re-vérifiés présents dans le code ; les SHA `b146b68e` /
+> `c7cac999` ne se résolvent plus dans l'historique actuel de `main` (réécrit) — les symboles cités font foi.
 
 | ID | Titre | Type | Prio | Effort | Statut | Dépend / Conflits |
 |----|-------|------|------|--------|--------|-------------------|
 | **ENG-1** | Validation requête + **pop-up listant toutes les erreurs** (item non équipable, force-equip) | 🐞 | P0 | M | ✅ `fix/eng-1-emblem-force-equip` | inclut ENG-2 ; → PICK-1/PICK-2 |
 | **ENG-2** | Forcer 2 sublis épique/relique = recherche « sans résultat » | 🐞 | P1 | M | ✅ **fusionné dans ENG-1** | voir ENG-1 |
-| **ENG-3** | Sublimations conditionnelles (croisées + forcée) | 🐞 | P2 | M | 🔲 **TODO — seul item moteur restant** | re-baseline tests |
+| **ENG-3** | Sublimations conditionnelles (croisées + forcée) | 🐞 | P2 | M | ✅ (a) `preCombatStat`/`firstTurnStat`, (b) `appliesVar` forcée = `subVar ∧ cond` (`6ee555dd`, étendu par #269) — résidu optionnel : avertissement subli forcée inerte | voir fiche |
 | **RUNE-1** | Runes builder ≠ Zenith : expliciter « all gold » | 🐞 | P2 | S | ✅ mergé (#181) | — |
 | **RUNE-2** | Badge « ×2 » rune doublée dans le picker | 🧹 | P3 | S | ✅ `b146b68e` (RuneDoubleBadge + `RuneType.isDoubledOn`) | — |
 | **RUNE-3** | Bouton « verrouiller les runes actuelles » | ✨ | P3 | S | ✅ `b146b68e` (`lockCurrentRunes`) | — |
@@ -65,7 +74,8 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 | **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | ✅ `b146b68e` (LocalizedSort.kt, 6 modales + TopBar) | — |
 | **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | ✅ `b146b68e` (TooltipArea sur le libellé cible) | — |
 | **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | ✅ mergé (#182) | — |
-| **I18N-1** | Sublis/passifs en EN sous UI FR | 🔵 | — | — | 🔵 Déjà fait (1.8.0) | résidu effect-text |
+| **I18N-1** | Sublis/passifs en EN sous UI FR | 🔵 | — | — | 🔵 Déjà fait (1.8.0) | résidu effect-text (requalifié 2026-10-11) |
+| **QOL-3** | Difficulté boss : picker « stasis » au lieu du ×PV brut | 🧹 | P3 | — | 🔲 TODO (bloqué données) | voir section G |
 | **CLAR-*** | Clarifications / non-bugs | 💬 | — | — | 💬 | voir section |
 
 ### Carte des conflits de fichiers (à lire avant de prendre 2 items en parallèle)
@@ -141,12 +151,13 @@ rejetées ; **agrégation de plusieurs problèmes à la fois** ; item imposé é
 
 **Suite = prévention côté GUI (nouveaux tickets).** **PICK-1** (filtre « équipables » coché par défaut) empêche
 de choisir un item hors niveau ; **PICK-2** nettoie les forced devenus invalides au changement de niveau. Le cas
-« 2 imposés dans un slot à 1 place » : à ajouter à `validateRequest` (même pop-up) — TODO.
+« 2 imposés dans un slot à 1 place » : à ajouter à `validateRequest` (même pop-up) — ~~TODO~~ **fait** (vérifié 2026-10-11 :
+`RequestValidationProblem.ForcedItemsSlotConflict` / `ForcedWeaponsConflict` dans `WakfuBestBuildFinderAlgorithm.kt`).
 
 ---
 
 ## PICK-1 — Picker « équipables uniquement » (coché par défaut)  ✨ P2 · Effort M
-**Statut : 🔲 TODO** · *(prévention GUI issue d'ENG-1 ; à implémenter dans REF-1)*
+**Statut : ✅ Done** — `b146b68e` (`Tr.EQUIPPABLE_ONLY`, `Modals.kt`) · *(prévention GUI issue d'ENG-1)*
 
 **Origine.** Décision dev (24/06) : « une checkbox cochée par défaut pour n'afficher que les items possibles à
 équiper pour le build, sinon c'est la porte ouverte à n'importe quoi. »
@@ -166,7 +177,7 @@ tout ; changer niveau/rareté recompute la liste.
 ---
 
 ## PICK-2 — Nettoyer les forced hors-niveau au changement de niveau  🧹 P2 · Effort S
-**Statut : 🔲 TODO** · *(sœur d'ENG-1)*
+**Statut : ✅ Done** — `b146b68e` (`Tr.TOAST_FORCED_ITEMS_REMOVED`, `BuildSearchModel.kt`) · *(sœur d'ENG-1)*
 
 **Origine.** Décision dev (24/06) : « si jamais il change de level sur un build, il faut virer dans les forced
 les items qui n'ont plus de sens (on peut garder les excluded). »
@@ -182,7 +193,7 @@ excluded restent intacts.
 ---
 
 ## ENG-2 — Forcer 2 sublis épique/relique = recherche « sans résultat »  🐞 P1 · Effort M
-**Statut : 🔲 TODO** · *(partage fichiers GUI avec SUB-1)*
+**Statut : ✅ Done — fusionné dans ENG-1** (`RequestValidationProblem.ForcedSublimationRarityExceeded`, pop-up `RequestErrorsDialog`)
 
 **Symptôme (testeur).** « Je peux forcer 2 sublimations épique/relique, et rechercher me donnera toujours
 une erreur. → limiter à 1 les épique/relique pour éviter les problèmes. »
@@ -222,7 +233,33 @@ Le moteur n'a pas à changer (l'infaisabilité est correcte) — on rejette l'in
 ---
 
 ## ENG-3 — Sublimations conditionnelles : interactions croisées + subli forcée  🐞 P2 · Effort M
-**Statut : 🔲 TODO** · *(re-baseline `SublimationReproductionTest` / `SublimationConditionTest`)*
+**Statut : ✅ Done (critères d'acceptation remplis, résolu autrement que le plan pour (a))** · résidu optionnel ouvert, voir
+la note ci-dessous.
+
+> **Vérification 2026-10-11 (HEAD `6f0c6d2b`).** Le code de modélisation des sublis a quitté `WakfuBuildSolver.kt`
+> (lignes citées plus bas = historiques) pour `StatBuilder.kt`, `SublimationTerms.kt`, `SublimationModelBuilder.kt` et
+> `SublimationSemantics.kt` (spec de condition partagée `subConditionSpec`, lue par le solveur ET le re-scorer).
+> - **(a) Fait.** Les conditions ne lisent plus `preSubStat` : `reifyCondition` → `reifyStatBound` lit
+>   `StatBuilder.preCombatStat` (base + items + runes + aptitudes + effets **permanents** des sublis,
+>   `appliesBeforeCombat` : Vivacité +PA, Visibilité +PO, Influence +CC…) ou, pour les conditions « premier tour »
+>   (famille Neutralité), `firstTurnStat` (+ effets de début de combat des sublis FLAT inconditionnelles, ex. Ravage).
+>   Les effets d'une subli **conditionnelle** (Ambition +CC, Prétention +parade…) ne nourrissent volontairement aucune
+>   condition : ils tombent au début du combat, après la lecture (sémantique de jeu, acyclique). Le re-scorer miroite
+>   exactement : `sublimationFixedContributions` → `preCombatSubStats` / `firstTurnSubStats` / `subConditionHolds`
+>   (`FindClosestBuildFromInputScoring.kt`). Tests : `SublimationPreCombatConditionTest` (Influence II ⇒ pas de
+>   Mesure III à 47 CC, Ambition / Dévastation secondaire ne bloquent pas Mesure III, Ravage casse Neutralité côté
+>   solveur, pas d'auto-activation), `SublimationConditionTest`. Historique visible : `38fe9c0c` (10/07),
+>   `22dbceea` (couche premier tour, 01/10), `e0751351` (Neutralité = chaque maîtrise secondaire ≤ 0, 04/10).
+> - **(b) Fait, par l'alignement inverse.** Le solveur ne crédite plus une subli forcée inconditionnellement :
+>   `appliesVar` (`SublimationTerms.kt`) gate son effet sur `subVar ∧ condHolds` (la subli reste équipée, inerte si la
+>   condition casse) ; le re-scorer, qui ré-évaluait déjà la condition pour toutes les sublis, concorde donc. Seul un type
+>   de condition non supporté garde le crédit optimiste, des deux côtés (`SubConditionSpec.AlwaysApplies`). Verrou :
+>   `WakfuBuildSolverTest` « max-damage AP-cell certifier matches pinned CP-SAT with a forced conditional sub » (son
+>   KDoc raconte la divergence trouvée puis corrigée ; `6ee555dd`, 10/07). #269 (`6f0c6d2b`) étend la règle aux copies
+>   empilées d'une subli forcée (`copyAppliesVar`) et aux familles conditionnelles partageant une condition.
+> - **Reste (optionnel, non fait)** : aucun avertissement GUI/CLI quand une subli conditionnelle **forcée** est inerte
+>   dans le build rendu (le plan le proposait en « alternative/complément »). Seules les sublis de combat ont un badge
+>   « non comptée » (`SublimationCombatBadge`, `c5352f29`).
 
 **Symptôme (dev).** « Ça prend en compte que les sublis s'activent en même temps, ce qui est peut-être faux. »
 « Si je force une subli conditionnelle… j'ai peut-être pas géré ce cas. »
@@ -270,7 +307,7 @@ des deux côtés sinon `matchPercentage` diverge.
 # B. Runes
 
 ## RUNE-1 — Runes builder ≠ Zenith : expliciter l'hypothèse « all gold »  🐞 P2 · Effort S
-**Statut : 🔲 TODO**
+**Statut : ✅ Done** — mergé #181 (`Tr.RUNES_ALLGOLD_HINT`)
 
 **Symptôme (testeur).** « Différence de rune entre le builder et l'ouverture sur Zenith. » + « +1000 maîtrise
 critique mais 1 % CC ? » (vu sur Zenith).
@@ -308,7 +345,7 @@ couleurs de sockets natives, absentes des données.)
 ---
 
 ## RUNE-2 — Badge « ×2 » (rune doublée) dans le picker de runes  🧹 P3 · Effort S
-**Statut : 🔲 TODO** · *(construire sur REF-1/REF-2 si déjà mergés)*
+**Statut : ✅ Done** — `b146b68e` (`RuneDoubleBadge` dans `Modals.kt`, `RuneType.isDoubledOn`)
 
 **Symptôme (testeur).** « Peut-être ajouter un indicateur pour les runes ×2 selon l'équipement (dans le petit
 bouton bleu). »
@@ -343,7 +380,7 @@ si on préfère éviter de toucher `common-lib`.
 ---
 
 ## RUNE-3 — Bouton « verrouiller les runes actuelles »  ✨ P3 · Effort S
-**Statut : 🔲 TODO**
+**Statut : ✅ Done** — `b146b68e` (`BuildSearchModel.lockCurrentRunes`, câblé dans `AppShell.kt`)
 
 **Symptôme (testeur).** « J'imaginais pouvoir forcer des runes. Même forcer des items avec un set de runes
 particulier si t'as zéro thunes pour changer l'enchantement. »
@@ -378,7 +415,7 @@ prouvé » en max-dégâts (attendu, cf. mémoire fold-runes). Seulement items s
 # C. Sublimations (GUI)
 
 ## SUB-1 — Filtre/tri des sublis par rareté + couleur de rareté sur les chips  ✨ P2 · Effort M
-**Statut : 🔲 TODO** · *(s'appuie sur REF-1/REF-2 ; partage Modals/RequestPanel avec ENG-2)*
+**Statut : ✅ Done** — `b146b68e` (`SublimationRarityFilter` dans `Modals.kt`, chips teintés `WRarityColor`)
 
 **Symptôme (testeur).** « Filtrer/trier les sublimations par raretés. » « Avoir une indication visuelle de la
 rareté dans les sublimations imposées (rose/violet). »
@@ -409,7 +446,7 @@ chargée (évite le flash pendant le parse paresseux du JSON).
 ---
 
 ## SUB-2 — Cap niveau de subli (filtre « prix » officieux lvl 1/2/3)  ✨ P2 · Effort M
-**Statut : 🔲 TODO** · *(⚠️ investigation moteur requise avant chiffrage ferme)*
+**Statut : ✅ Done** — `c7cac999` (`WakfuBestBuildParams.maxSublimationTier`, lu par `SublimationModelBuilder` ; depuis #269 le niveau d'une subli forcée se choisit aussi)
 
 **Symptôme (testeur).** « Une option pour bloquer les sublis et prendre que celles lvl 1 pourrait être
 intéressant. Les lvl 1 sont pas chères, lvl 2 ça va (30K–300K), lvl 3 hors de prix (millions). Ça ferait
@@ -435,7 +472,7 @@ de 1–2 h avant de coder.
 # D. Modes & flux
 
 ## FLOW-1 — Charger un build dans un autre mode (comparer les dégâts)  ✨ P1 · Effort M
-**Statut : 🔲 TODO**
+**Statut : ✅ Done** — `b146b68e` (`Tr.VIEW_AS_DAMAGE`, `StatsPanel.kt`)
 
 **Symptôme (testeur, tout premier retour).** « Est-ce que c'est prévu de charger un build fait en mode
 “maîtrises” dans le mode “dégâts” ? Pour comparer les dégâts et pas que les maîtrises. »
@@ -477,7 +514,7 @@ existantes ; tests `HistoryMappingTest`, `CompareScreenUiTest`, `SpellRotationTe
 ---
 
 ## FLOW-2 — DI sélectionnable en mode max-maîtrises  ✨ P2 · Effort S
-**Statut : 🔲 TODO** · **💬 Décision dev prise**
+**Statut : ✅ Done** — `b146b68e` (`Tr.DI_AUTOMAX_HINT`, plancher seulement) · **💬 Décision dev prise**
 
 **Symptôme (testeur).** « Dans le mode “Max maîtrises”, pas possible de choisir la stat “Dommages Infligés”,
 alors qu'elle est possible dans le mode Boss. »
@@ -515,7 +552,7 @@ coerce ≥ 0). Garder le fold inchangé ; test dédié.
 ---
 
 ## FLOW-3 — Avertir des points d'aptitude non distribués (mode boss/dégâts)  🧹 P2 · Effort S
-**Statut : 🔲 TODO**
+**Statut : ✅ Done** — `b146b68e` (`Tr.SKILL_LEFTOVER_WARNING`, Option A)
 
 **Symptôme (testeur).** « La répartition des aptitudes n'est pas faite. Des branches entières (Intelligence,
 Agilité) non distribuées. Le builder pourrait prévenir, ou remplir lui-même, ou demander d'ajouter au moins une
@@ -617,7 +654,7 @@ acceptable (le filtrage moteur est lui-même par nom), à revoir si on veut une 
 ---
 
 ## REF-2 — Tri alphabétique localisé de TOUTES les modales catalogue  🏗️ P2 · Effort M
-**Statut : 🔲 TODO** · **Décision dev : « par ordre alphabétique PAR LANGUE, et toutes les modales avec catalog
+**Statut : ✅ Done** — `b146b68e` (`i18n/LocalizedSort.kt` : `localizedCollator` / `sortedByLocalized`) · **Décision dev : « par ordre alphabétique PAR LANGUE, et toutes les modales avec catalog
 de la même manière : boss, items, runes, sublimations, etc. »**
 
 **Origine.** Testeur : « Choix de classe par ordre alphabétique ? » → généralisé par le dev à **toutes** les
@@ -656,7 +693,7 @@ sémantique ; sinon, tri alpha en option secondaire. Perf : tri d'un gros catalo
 # F. QoL ponctuels
 
 ## QOL-1 — Tooltip sur les libellés de stats cibles tronqués  🧹 P3 · Effort S
-**Statut : 🔲 TODO**
+**Statut : ✅ Done** — `b146b68e` (`TooltipArea` sur le libellé de `TargetStatRow`)
 
 **Symptôme (testeur).** « Sur les stats cibles : permettre de hover quand le texte n'est pas affiché en
 entier ? »
@@ -674,7 +711,7 @@ entier ? »
 ---
 
 ## QOL-2 — Durée de recherche vide → 10 minutes  🧹 P2 · Effort S
-**Statut : 🔲 TODO** · **Décision dev : « pour la durée vide, on peut mettre 10 minutes. »**
+**Statut : ✅ Done** — mergé #182 (`duration.toIntOrNull() ?: 600`) · **Décision dev : « pour la durée vide, on peut mettre 10 minutes. »**
 
 **Symptôme (testeur).** « Si je laisse vide la durée de recherche, il continue jusqu'à l'optimum ? » →
 aujourd'hui un champ vide retombe sur **20 s en dur**, pas « illimité » ni 10 min.
@@ -703,6 +740,11 @@ livré en **1.8.0**. Le testeur était sur la **1.6**. Données : FR rempli pour
 *Résidu mineur (toujours présent)* : le **texte d'effet** des ~75 sublis sans effet structuré reste EN
 (`gui-compose/.../components/SublimationText.kt:35`, fallback `rawText` anglais). À traiter plus tard
 (idéalement `bdata-extractor` émet un `rawText` en `I18nText`). *Petit ticket potentiel si on veut le finir.*
+*Requalifié 2026-10-11* : plus de fuite d'anglais. Les sublis à effets structurés (148/236) ont un texte synthétisé
+dans les 4 langues (`sublimationEffectText`, `SublimationText.kt`) ; les 88 sans effet structuré sont toutes
+`COMBAT_CONDITIONAL` et n'ont **aucun** `rawText` dans `sublimations.json` → pas de texte d'effet du tout, seulement
+le badge localisé « effet non compté par la recherche » (`SublimationCombatBadge`, `c5352f29`). Le résidu = afficher
+leur effet (texte client i18n à extraire), pas une traduction.
 
 ### CLAR-1 — 11 PA « mieux » que 12 PA  💬
 Normal : on troque 1 PA contre des dégâts ; plus de PA ≠ plus de dégâts. Suggestion UX (optionnelle) : une
