@@ -5171,6 +5171,73 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * Cascade exact-first probe lock (production badge path, `cascadeTier15 = true`): before paying a survivor's
+     * tier-1.5 pass, the cascade runs the exact pass of its most promising world on tier-1's step-8 rows; when that
+     * one world already beats the incumbent the cell cannot be cleared, so tier-1.5 is skipped and the cell is
+     * confirmed exactly on the tier-1 rows. The invariant: every BOUND the ledger reports is the plain cascade's —
+     * per-cell objectives, exact cells, bailed cells, the fast array and the argmax provenance. Only the superseded
+     * tier-1.5 value of a probed cell may be missing. Driven at the optimum (the probe stays below: plain path, probed
+     * world reused), just below it (the rescue shape) and at a weak incumbent; serial and parallel exact tier. The
+     * probe must actually skip tier-1.5 somewhere.
+     */
+    @Test
+    fun `cascade exact-first probe reports the plain cascade's bounds`() {
+        val fixtures =
+            buildList {
+                add(couplingPanel())
+                for (iteration in 0 until 4) add(fuzzScenario(iteration))
+            }
+        val skippedBefore = CertifierTuning.exactFirstProbeSkippedTier15ForTest.get()
+        try {
+            for ((i, fixture) in fixtures.withIndex()) {
+                val (params, pool, subs) = fixture
+                val reference =
+                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, forceTier2All = true)
+                val max = reference.maxCellObjective ?: continue
+                if (max <= 1L) continue
+                for (incumbent in listOf(max, max - 1, max * 9 / 10)) {
+                    for (threads in listOf(1, 4)) {
+                        fun ledger(probe: Boolean): CertLedger {
+                            CertifierTuning.exactFirstProbeEnabled = probe
+                            return checkNotNull(
+                                WakfuBuildSolver.maxDamageCertificate(
+                                    params,
+                                    pool,
+                                    sublimations = subs,
+                                    applyDomination = false,
+                                    incumbentObjective = incumbent,
+                                    threads = threads,
+                                    threadsProvider = { threads },
+                                    cascadeTier15 = true
+                                )
+                            ) { "fixture $i: the cascade ledger must not bail" }
+                        }
+                        val probed = ledger(probe = true)
+                        val plain = ledger(probe = false)
+                        val label = "fixture $i incumbent $incumbent threads $threads"
+                        assertThat(probed.cellObjectives).describedAs("$label: per-cell bounds").isEqualTo(plain.cellObjectives)
+                        assertThat(probed.maxCellObjective).describedAs("$label: the ledger max").isEqualTo(plain.maxCellObjective)
+                        assertThat(probed.tier2Cells).describedAs("$label: exact cells").isEqualTo(plain.tier2Cells)
+                        assertThat(probed.bailedCells).describedAs("$label: bailed cells").isEqualTo(plain.bailedCells)
+                        assertThat(probed.exactBailedCells).describedAs("$label: exact-bailed cells").isEqualTo(plain.exactBailedCells)
+                        assertThat(probed.fastObjectives).describedAs("$label: the fast array").isEqualTo(plain.fastObjectives)
+                        assertThat(probed.cellProvenance).describedAs("$label: the argmax provenance").isEqualTo(plain.cellProvenance)
+                        // A probed cell skips tier-1.5; every tier-1.5 value it DID compute is the plain cascade's.
+                        for ((cell, t15) in probed.tier15Objectives) {
+                            assertThat(t15).describedAs("$label cell $cell: tier-1.5 value").isEqualTo(plain.tier15Objectives[cell])
+                        }
+                    }
+                }
+            }
+        } finally {
+            CertifierTuning.exactFirstProbeEnabled = true
+        }
+        assertThat(CertifierTuning.exactFirstProbeSkippedTier15ForTest.get() - skippedBefore)
+            .describedAs("the probe must actually confirm a cell without tier-1.5 somewhere (else this lock is vacuous)")
+            .isGreaterThan(0L)
+    }
+
+    /**
      * Tier-1.5 segment-skip soundness lock (floor speed): tier-1's step-8 per-(cell, crit-step) bounds let
      * tier-1.5 SKIP every step-1 segment that provably cannot cross the incumbent (step-1 ≤ step-8 per c) —
      * the badge floor's dominant cost. The skip is DECISION-identical, not byte-identical: a cleared cell may

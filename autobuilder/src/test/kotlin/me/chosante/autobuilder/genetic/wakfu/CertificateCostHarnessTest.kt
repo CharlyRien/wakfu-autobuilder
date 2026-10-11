@@ -23,7 +23,8 @@ import kotlin.time.Duration.Companion.seconds
  *   WAKFU_TEST_MAX_HEAP=3g WAKFU_TEST_JVM_ARGS="-XX:ActiveProcessorCount=4" WAKFU_MAX_DAMAGE_CERT_TIMING=1 \
  *   ./gradlew :autobuilder:test --tests '*CertificateCostHarnessTest*' --rerun
  * ```
- * Arms: `on` / `off` toggle [CertifierTuning.crossWorldPruneEnabled]. Prints `CERTCOST` lines (ms + the full ledger, so
+ * Arms: `on` (every lever), `noprobe` (no [CertifierTuning.exactFirstProbeEnabled]), `off` (no
+ * [CertifierTuning.crossWorldPruneEnabled] either). Prints `CERTCOST` lines (ms + the full ledger, so
  * the arms' bounds can be diffed).
  */
 @Tag("manual")
@@ -79,7 +80,9 @@ class CertificateCostHarnessTest {
         )
         try {
             for ((i, arm) in arms.withIndex()) {
+                // "off": neither lever; "noprobe": the cross-world prune only; anything else: both.
                 CertifierTuning.crossWorldPruneEnabled = arm != "off"
+                CertifierTuning.exactFirstProbeEnabled = arm != "off" && arm != "noprobe"
                 MaxDamageCertificateCache.clear()
                 val t0 = System.nanoTime()
                 val ledger =
@@ -102,6 +105,7 @@ class CertificateCostHarnessTest {
             }
         } finally {
             CertifierTuning.crossWorldPruneEnabled = true
+            CertifierTuning.exactFirstProbeEnabled = true
         }
     }
 }

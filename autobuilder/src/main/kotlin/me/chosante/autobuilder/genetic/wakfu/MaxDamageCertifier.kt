@@ -167,6 +167,15 @@ internal object CertifierTuning {
     @Volatile
     var crossWorldPruneEnabled = true
 
+    /** Cascade exact-first probe (see the cascade in [certifyLedger]). On in production; tests / A/B harnesses may disable. */
+    @Volatile
+    var exactFirstProbeEnabled = true
+
+    /** Cells the exact-first probe confirmed WITHOUT a tier-1.5 pass (thread-safe; tests read the delta). */
+    val exactFirstProbeSkippedTier15ForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+
     /** Crit-steps skipped by the CROSS-WORLD floor (`cPruneFloor` of [certifyMaxPerHitAtApPass]; tests assert > 0). */
     val cPruneCrossWorldSkippedForTest =
         java.util.concurrent.atomic
@@ -460,6 +469,9 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
     ubByWorld: Array<LongArray?>? = null,
     // False ⇒ the NORMAL worlds only: the caller ([certifyLedger], v48) applies the aux floor itself, at the end.
     applyAux: Boolean = true,
+    // World index → `[value, winningC]` of an exact pass ALREADY run in full for this cell (the cascade's exact-first
+    // probe): reused instead of re-run. It must be that world's unpruned-equivalent result (no cross-world floor).
+    presolved: Map<Int, LongArray>? = null,
 ): Long {
     // The world split (conversion / Critical-Secret / weapon-axis) lives in [certifierWorlds] — the
     // single source of truth shared with the fast pass, the parallel exact tier and the provenance
@@ -474,13 +486,17 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
     // order-independent: ties still resolve to the lowest-index argmax world (the update below), and a world that can
     // reach the cell max is never pruned below it. Without rows the order is the plain ascending one.
     val worldTimingEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1"
-    for (wi in worldPruneOrder(worlds.size, ubByWorld)) {
+    // Presolved worlds first: their values seed the cross-world floor for free.
+    val order = presolved.orEmpty().keys.sorted() + worldPruneOrder(worlds.size, ubByWorld).filter { presolved?.containsKey(it) != true }
+    for (wi in order) {
         val w = worlds[wi]
         val tw = if (worldTimingEnabled) System.nanoTime() else 0L
         val cOut = if (provOut != null) IntArray(1) { -1 } else null
         val ub = ubByWorld?.getOrNull(wi)
+        val known = presolved?.get(wi)
+        if (known != null) cOut?.set(0, known[1].toInt())
         val v =
-            certifyMaxPerHitAtApPass(
+            known?.get(0) ?: certifyMaxPerHitAtApPass(
                 scenario,
                 apTarget,
                 convTaken = w.conv,
@@ -525,6 +541,40 @@ internal fun worldPruneOrder(
 
     fun rowMax(wi: Int): Long = ubByWorld.getOrNull(wi)?.maxOrNull() ?: Long.MAX_VALUE
     return (0 until worldCount).sortedWith(compareByDescending<Int> { rowMax(it) }.thenBy { it })
+}
+
+/**
+ * The cascade's exact-first probe (see [certifyLedger]): the full exact pass of [cell]'s most promising world — first in
+ * [worldPruneOrder] over [rows] — pruned by its own row only. Returns `worldIndex to [value, winningC]`, or null on a bail
+ * (unsupported shape or cancellation: the caller then takes the plain path, which bails or cancels the same way).
+ */
+internal fun StatBuilder.probeTopWorld(
+    scenario: DamageScenario,
+    cell: Int,
+    rows: Array<LongArray?>,
+): Pair<Int, LongArray>? {
+    val worlds = certifierWorlds(scenario) ?: return null
+    val wi = worldPruneOrder(worlds.size, rows).firstOrNull() ?: return null
+    val w = worlds[wi]
+    val cOut = IntArray(1) { -1 }
+    val tw = System.nanoTime()
+    val v =
+        certifyMaxPerHitAtApPass(
+            scenario,
+            cell,
+            convTaken = w.conv,
+            critSecret = w.cs,
+            critSecretExcluded = w.csExcluded,
+            weaponsRestricted = w.wr,
+            requirementBundle = w.bundle,
+            winningCOut = cOut,
+            cPruneUbIn = rows.getOrNull(wi)
+        )
+    if (System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1") {
+        System.err.println("CERT_PROBE cell=$cell world=$wi/${worlds.size} value=$v c=${cOut[0]} ms=${(System.nanoTime() - tw) / 1_000_000}")
+    }
+    if (v == Long.MAX_VALUE) return null
+    return wi to longArrayOf(v, cOut[0].toLong())
 }
 
 /**
@@ -1101,6 +1151,8 @@ internal fun StatBuilder.exactForCells(
     ubByWorldCell: Map<Int, Array<LongArray?>>? = null,
     // False ⇒ the NORMAL worlds only: the caller ([certifyLedger], v48) applies the aux floor itself, at the end.
     applyAux: Boolean = true,
+    // Per cell, the worlds whose exact pass already ran in full (`[value, winningC]`, see [certifyMaxPerHitAtAp]).
+    presolvedByCell: Map<Int, Map<Int, LongArray>>? = null,
 ): Map<Int, Long> {
     if (cells.isEmpty()) return emptyMap()
     val worlds = if (threads <= 1) null else certifierWorlds(scenario)
@@ -1109,7 +1161,7 @@ internal fun StatBuilder.exactForCells(
         val out = LinkedHashMap<Int, Long>()
         for (a in cells) {
             val pv = if (provOut != null) IntArray(2) { -1 } else null
-            val v = certifyMaxPerHitAtAp(scenario, a, provOut = pv, ubByWorld = ubByWorldCell?.get(a), applyAux = applyAux)
+            val v = certifyMaxPerHitAtAp(scenario, a, provOut = pv, ubByWorld = ubByWorldCell?.get(a), applyAux = applyAux, presolved = presolvedByCell?.get(a))
             out[a] = v
             if (provOut != null && pv != null && v != Long.MAX_VALUE && pv[0] >= 0) provOut[a] = CellProvenance(pv[0], pv[1])
         }
@@ -1137,38 +1189,52 @@ internal fun StatBuilder.exactForCells(
             java.util.concurrent.atomic
                 .AtomicLong(Long.MIN_VALUE)
         }
-    val tasks = cells.flatMap { a -> worldPruneOrder(worlds.size, ubByWorldCell?.get(a)).map { wi -> Task(a, wi, worlds[wi]) } }
-    val pool = Executors.newFixedThreadPool(min(threads, tasks.size))
-    val results: List<TaskResult> =
-        try {
-            pool
-                .invokeAll(
-                    tasks.map { t ->
-                        Callable {
-                            val cOut = if (provOut != null) IntArray(1) { -1 } else null
-                            val ub = ubByWorldCell?.get(t.cell)?.getOrNull(t.worldIndex)
-                            val floor = floors.getValue(t.cell)
-                            val v =
-                                certifyMaxPerHitAtApPass(
-                                    scenario,
-                                    t.cell,
-                                    convTaken = t.world.conv,
-                                    critSecret = t.world.cs,
-                                    critSecretExcluded = t.world.csExcluded,
-                                    weaponsRestricted = t.world.wr,
-                                    requirementBundle = t.world.bundle,
-                                    winningCOut = cOut,
-                                    cPruneUbIn = ub,
-                                    cPruneFloor = if (ub != null && CertifierTuning.crossWorldPruneEnabled) ({ floor.get() }) else null
-                                )
-                            if (v != Long.MAX_VALUE) floor.accumulateAndGet(v, ::maxOf)
-                            TaskResult(t.cell, t.worldIndex, v, cOut?.get(0) ?: -1)
-                        }
-                    }
-                ).map { it.get() }
-        } finally {
-            pool.shutdown()
+    // Presolved worlds are results already: they seed their cell's floor before any task starts.
+    val presolvedResults =
+        cells.flatMap { a ->
+            presolvedByCell?.get(a).orEmpty().map { (wi, r) ->
+                floors.getValue(a).accumulateAndGet(r[0], ::maxOf)
+                TaskResult(a, wi, r[0], r[1].toInt())
+            }
         }
+    val tasks =
+        cells.flatMap { a ->
+            worldPruneOrder(worlds.size, ubByWorldCell?.get(a))
+                .filter { presolvedByCell?.get(a)?.containsKey(it) != true }
+                .map { wi -> Task(a, wi, worlds[wi]) }
+        }
+    val pool = Executors.newFixedThreadPool(maxOf(1, min(threads, tasks.size)))
+    val results: List<TaskResult> =
+        presolvedResults +
+            try {
+                pool
+                    .invokeAll(
+                        tasks.map { t ->
+                            Callable {
+                                val cOut = if (provOut != null) IntArray(1) { -1 } else null
+                                val ub = ubByWorldCell?.get(t.cell)?.getOrNull(t.worldIndex)
+                                val floor = floors.getValue(t.cell)
+                                val v =
+                                    certifyMaxPerHitAtApPass(
+                                        scenario,
+                                        t.cell,
+                                        convTaken = t.world.conv,
+                                        critSecret = t.world.cs,
+                                        critSecretExcluded = t.world.csExcluded,
+                                        weaponsRestricted = t.world.wr,
+                                        requirementBundle = t.world.bundle,
+                                        winningCOut = cOut,
+                                        cPruneUbIn = ub,
+                                        cPruneFloor = if (ub != null && CertifierTuning.crossWorldPruneEnabled) ({ floor.get() }) else null
+                                    )
+                                if (v != Long.MAX_VALUE) floor.accumulateAndGet(v, ::maxOf)
+                                TaskResult(t.cell, t.worldIndex, v, cOut?.get(0) ?: -1)
+                            }
+                        }
+                    ).map { it.get() }
+            } finally {
+                pool.shutdown()
+            }
     val out = LinkedHashMap<Int, Long>()
     for (a in cells) out[a] = 0L
     val bailedCells = HashSet<Int>()
@@ -1518,6 +1584,45 @@ internal fun StatBuilder.certifyLedger(
                     tier15Obj[a] = cachedT15
                     continue
                 }
+                // EXACT-FIRST probe: tier-1.5 only ever matters for a survivor it CLEARS (`tier-1.5 ≤ incumbent`); every
+                // other survivor pays it just for the per-crit-step rows that prune its exact pass. So first run the exact
+                // pass of the cell's most promising world alone, pruned by tier-1's step-8 rows (a sound `≥ dp(c)` per
+                // (cell, world, c) — the bound tier-1.5's segment skip already carries into those very rows). If that one
+                // world already exceeds the incumbent, tier-1.5 (≥ exact ≥ it) cannot clear the cell: skip it and confirm
+                // the cell exactly on the tier-1 rows, the probed world reused and the cross-world floor starting at its
+                // value. The cell's exact value and provenance are those of the plain path (same max over the same worlds);
+                // only its tier-1.5 value — superseded by the exact one — is not computed. A probe at or below the
+                // incumbent falls back to the plain path, its world reused there too.
+                var probed: Map<Int, LongArray>? = null
+                if (cachedT15 == null && tier15SkipUbByWorld != null && CertifierTuning.exactFirstProbeEnabled) {
+                    val tier1Rows = Array(tier15SkipUbByWorld.size) { wi -> tier15SkipUbByWorld[wi]?.getOrNull(a) }
+                    val probe = probeTopWorld(scenario, a, tier1Rows)
+                    if (probe != null) {
+                        probed = mapOf(probe.first to probe.second)
+                        if (scale(a, probe.second[0]) > incumbentObjective) {
+                            CertifierTuning.exactFirstProbeSkippedTier15ForTest.incrementAndGet()
+                            val mph =
+                                exactForCells(
+                                    scenario,
+                                    listOf(a),
+                                    tierThreads(CertTier.EXACT),
+                                    provOut = provByCell,
+                                    ubByWorldCell = mapOf(a to tier1Rows),
+                                    applyAux = false,
+                                    presolvedByCell = mapOf(a to probed)
+                                ).getValue(a)
+                            if (mph == Long.MAX_VALUE) {
+                                exactBailed += a
+                                continue
+                            }
+                            val obj = scale(a, mph)
+                            exactObj[a] = obj
+                            exactFreshRaw[a] = mph
+                            if (obj > incumbentObjective) break // ≥ the probe > incumbent: the rest keep their sound fast bounds
+                            continue
+                        }
+                    }
+                }
                 if (cachedT15 == null) {
                     val one =
                         certifyCellsTier15(
@@ -1541,7 +1646,15 @@ internal fun StatBuilder.certifyLedger(
                 }
                 // Not cleared: confirm exactly NOW; a confirmed over-incumbent cell ends the cascade.
                 val mph =
-                    exactForCells(scenario, listOf(a), tierThreads(CertTier.EXACT), provOut = provByCell, ubByWorldCell = perCAccum, applyAux = false).getValue(a)
+                    exactForCells(
+                        scenario,
+                        listOf(a),
+                        tierThreads(CertTier.EXACT),
+                        provOut = provByCell,
+                        ubByWorldCell = perCAccum,
+                        applyAux = false,
+                        presolvedByCell = probed?.let { mapOf(a to it) }
+                    ).getValue(a)
                 if (mph == Long.MAX_VALUE) {
                     exactBailed += a
                     continue
