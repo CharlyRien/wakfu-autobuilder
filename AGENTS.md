@@ -413,6 +413,11 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The plain counts slow the search where every rune type is
   a threshold read (the GUI default): OPEN, `docs/perf-review-backlog.md` §E OPEN #2. Locks: `MixedRuneSecondaryBudgetTest`
   (reference: the per-stat count model, `forceRuneCountModel`).
+- **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
+  skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,
+  `worldPruneOrder`); the production cascade first probes the top world's exact pass on tier-1's step-8 rows and skips
+  tier-1.5 for a cell that probe already puts above the incumbent. Both keep every reported bound and the argmax
+  provenance identical (locks in `WakfuBuildSolverTest`); measured in `docs/CERTIFICATE_PROD_PLAN.md` P7.
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
   pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +
