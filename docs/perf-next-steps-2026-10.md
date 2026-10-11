@@ -1,5 +1,51 @@
 # Perf next steps — measure-first pass on v38 / data 1.93 (2026-10-02)
 
+> **Status 2026-10-11** (audit against `main` @ `6f0c6d2b`, `CERTIFIER_VERSION` 61). The TL;DR and everything below it are the
+> historical measurement record of v38 (§1–§7) and v50 (§8). None of it is re-measured here. Numbers in it predate the
+> v51–v61 certificate changes, the target-0 FLOORS and the sublimation-stacking work, so treat them as history.
+>
+> **Shipped** (all default-ON in production; none of the §6 env seams survives):
+> - **P2 + P1** (§3 #1, #8) — `CERTIFIER_VERSION` 40, `e6571bc4`, `MOST_MASTERIES_PERF_PLAN.md` §8.17:
+>   `MostMasteriesCertificate.paretoPrune` (cap `PARETO_PRUNE_MAX_OPTIONS = 200_000`, ring-pair list skipped) +
+>   `LongLongMaxMap`. The boxed `applySequential` is gone from the MM certificate.
+> - **One full pass + E10-for-MM** (§3 #7) — `d22d9239`, plan §8.19 (orchestration, no version bump): the badge is
+>   one full-tier pass (`blockGate = true`; the quick tier survives only as a harness / assume-world setting),
+>   computed in the search's tail by `MostMasteriesBoundCache`.
+> - **T5 → T1 → T3** (§3 #2, #3) — `CERTIFIER_VERSION` 41 → 43, `332b2016`, plan §8.18; T3 is wired through
+>   `SolverResult.mostMasteriesHardConstraintsMet`.
+> - **AP-cell coverage on HP / resistance / dodge rows** (§3 #4) — `CERTIFIER_VERSION` 44, `9eecbf73`,
+>   `CERTIFICATE_PROD_PLAN.md` P5.4 (a non-damage rune is a zero-delta option), aux-world cost restored in 48
+>   (`27fc907e`, P5.4b), then the **target-aware** hard-leg ledger in 52 (`379830da`, P5.6) — which also answers
+>   §8.6 #1.
+> - **MM coverage: RANGE dim + 0-valued rows** (§3 #5) — `CERTIFIER_VERSION` 45 → 47, `aa38b70d`, plan §8.20.
+> - **E8 gate on required non-zero rows only** (§3 #6) — `644f3ef6`, `isFreeMaxDamageShape` (`MaxDamageConstruct.kt`),
+>   with the 60 s fallback cap `E8_FALLBACK_WALL_CAP_SECONDS` and cancellation; locked by `E8ConstructGateTest`.
+>
+> **Still open:**
+> - **P3** (§3 #9): ring / weapon pair options built once per proof. Prototyped, never measured or shipped (plan §8.20 "Not done").
+> - **P1 / P2 in `MaxDamageSoftCertificate`** (§3 #10): it still advances on boxed `HashMap<Long, Long>` through
+>   `applySequential`, with no `paretoPrune`. The region-read audit that §5 asks for before porting was never done.
+>   Production reaches this certificate only for unreachable targets (§8.4).
+> - **Idea #11, statically-met half**: `StatBuilder.addRequiredTargetHardConstraints` still posts `actual ≥ target` for
+>   a positive row that every build already meets (HP 2000 at level 245). It only uses the reach to detect
+>   infeasibility. Unmeasured.
+> - Not re-measured since v50: the §8.6 items #2–#6 (budget spent where nothing proves, low-core MM, soft-leg
+>   first-badge latency, free MD110 "within 0.89 %" with E8 failing at its cap, the level-245 ledger latency with a 60 s
+>   budget). No commit in `git log` claims to have closed any of them, so they are presumed open (unverified).
+>
+> **Obsolete:**
+> - **TL;DR item 1** (no badge for GUI-default max-damage requests or for low-core MM245; free max-damage gated out of
+>   E8). Every claim is closed by v44 / v52, v45–47 + E10-for-MM, and `644f3ef6`. §8.1 / §8.5 measured the badges on v50.
+> - **"No runes for 0-valued rows"** (§4.5 (a), §5 #3) and **idea #11's 0-valued half**. Since `b445e9ac` (2026-10-05)
+>   a required row of target 0 is a FLOOR (`actual ≥ 0`, AGENTS.md "Rows of target 0"). A rune on that stat can lift the
+>   floor, so dropping its variables or the row would no longer be exact. The AP-cell side was solved by mirroring the
+>   general rune fold instead (v44). `relevantRuneStats` still models runes for every row.
+> - **"Dropping the 0-valued rows is exact"** (§4.7, §3 #5): the MM certificate still skips them, but since floors exist
+>   it is a sound RELAXATION, not exact. The certificates ignore floors (`MostMasteriesCertificate` `tracked`). The CI
+>   test is still named `0-valued required rows are an exact skip`. The floors' cost on the MM proof is handled by
+>   relax-then-check (`15f134f6`, `53f8a728`, `42651c6d`; `RelaxThenCheckTest`).
+> - **T2, T4, T6**: falsified in §3. Their seams (`blockStepOverride`, `rampInKnapsack`) were never committed.
+
 Scope: backlog §E (E0 baseline-first, E1 leads) of `docs/perf-review-backlog.md`, on the committed tip
 `830bfeef` (release 1.11.0, `CERTIFIER_VERSION` 38, `WakfuData.VERSION` 1.93.1.62). Goal: find what still costs
 users time (first build, final build, proof / "proven within X%" badge, badge tightness) and rank the next
@@ -315,18 +361,29 @@ small saturating dim (target 4 ⇒ 3 bits), now affordable.
 
 ## 5. Recommended next actions
 
-1. **Ship P2 (+ P1) in `MostMasteriesCertificate`** — exact, ~10× on the badge DP, bit-identical on S2; run the full
+> Status markers added 2026-10-11 (see the status block at the top).
+
+1. ✅ **DONE** (P2 + P1: v40, `e6571bc4`, plan §8.17; one full pass + E10-for-MM: `d22d9239`, plan §8.19; port to
+   `MaxDamageSoftCertificate`: ⏳ **OPEN**, it is still boxed and unpruned) — **Ship P2 (+ P1) in `MostMasteriesCertificate`** — exact, ~10× on the badge DP, bit-identical on S2; run the full
    `MostMasteriesCertificateTest` locks + the oracle harness, bump `CERTIFIER_VERSION` for traceability. Then fold the
    quick/full two-tier into one full pass (the full tier now costs what the quick tier did) and add E10-for-MM
    (start it with the soft fallback / after N s without a proof). Expected: MM badge at search end instead of
    +114 s (10 cores) / several minutes (4 cores).
-2. **Ship the MM tightness trio T5 → T1 → T3** (in that order, one seam + one verdict per commit, each with a
+2. ✅ **DONE** (v41 T5, v42 T1, v43 T3, all in `332b2016`, plan §8.18; S2 +18.25 % soft / +23.58 % hard leg
+   as measured at the time) — **Ship the MM tightness trio T5 → T1 → T3** (in that order, one seam + one verdict per commit, each with a
    dedicated binding fixture in the CI lock): S2 soft badge +29.6 % → +18.3 %, hard-leg badge +42.1 % → +23.6 %.
 3. **Close the coverage holes found by E0** (cheapest first): E8 gate on required targets only (one predicate);
    MM weight-0 rows (exact skip) + a RANGE dim; AP-cell certificate damage-neutral non-damage runes + no runes for
    0-valued rows. These turn "no badge at all" into a badge for the GUI's default requests.
+   - ✅ E8 gate: `644f3ef6` (`isFreeMaxDamageShape`, 60 s fallback cap, cancellable).
+   - ✅ MM 0-valued rows + RANGE dim: v45–47, `aa38b70d`, plan §8.20. Since the floors (`b445e9ac`) the skip is a
+     sound relaxation, not exact.
+   - ✅ AP-cell damage-neutral non-damage runes: v44, `9eecbf73`, P5.4.
+   - ⛔ "No runes for 0-valued rows": OBSOLETE. A 0-valued row is now a floor that a rune can help meet, and the v44
+     mirror already made the bail go away.
 
-Shipping notes for #1 (P2/P1): keep `paretoPrune` + `applyOneRaw` as the only code paths (drop the boxed
+Shipping notes for #1 (P2/P1) (2026-10-11: followed for the MM certificate. `applySequential` dropped,
+`PARETO_PRUNE_MAX_OPTIONS = 200_000`, ring-pair list skipped. The soft-certificate port is ⏳ OPEN): keep `paretoPrune` + `applyOneRaw` as the only code paths (drop the boxed
 `applySequential`), keep `prune()`'s strictness rule (provenance-safe), cap the skyline at ~200 k options (the
 ring-pair list stays per-pair pruned), and port the same two changes to `MaxDamageSoftCertificate` only after
 restricting its dominance to same-region options for the per-band / target-cell / below-target reads. Locks: the
@@ -335,6 +392,21 @@ four `MostMasteriesCertificateTest` CI locks (already green under the seams) + t
 ---
 
 ## 6. What is in this worktree (uncommitted, all default-OFF)
+
+> **2026-10-11:** none of these env seams exists in the code today. `git log -S` finds `WAKFU_CERT_PRIMITIVE_DP`,
+> `WAKFU_MM_PRUNE_STAGE_OPTS`, `WAKFU_MM_SOC_DIM`, `WAKFU_MM_EXACT_KNAPSACK`, `WAKFU_MM_RAMP_IN_KNAPSACK`,
+> `WAKFU_MM_STAGE_PROBE`, `WAKFU_MM_DOMINANCE_PROBE`, `WAKFU_E0_DIAG`, `WAKFU_P4` and `WAKFU_P2_FUZZ` only in the
+> commit that added this doc, never in code.
+> What became of each item:
+> - Promoted to production, unconditionally: `LongLongMaxMap` (P1, MM certificate only), P2 (now
+>   `bound(pruneDominatedOptions = true)`, where `false` exists only for the bit-identity lock
+>   `stage-option pruning is bit-identical on seeded random pools`), T1, T5 and T3 (v40–v43). None of them has an
+>   env switch.
+> - Never committed: T2 (`blockStepOverride`), T4 (`rampInKnapsack`), the probes, `PerfProbeCertDpTest` and
+>   `PerfProbeMmTightnessTest`. That leaves the commands below for those harnesses (P1/P2 A/B, tightness probes,
+>   `WAKFU_E0_DIAG`, the P2 fuzz, P4) unrunnable.
+> - Committed: `PerfBaselineE0Test` (`fc04e73d`, manual, `WAKFU_E0=1`) and the `WAKFU_TEST_JVM_ARGS` hook
+>   (`autobuilder/build.gradle.kts`). The binding-path harness `WAKFU_MM_M3V2_PATH` lives in `MostMasteriesCertificateTest`.
 
 - `LongLongMaxMap.kt` (P1) + `primitiveDp` seams in both certificates (`applyOneRaw` refactor keeps one source of
   truth for the transition).
@@ -597,7 +669,9 @@ and the free level-110 one, still spends the whole 120 s budget, and none of the
 
 ### 8.6 What still costs users time (ranked by user impact; facts from the runs above)
 
-1. **No tight guarantee on a required-row max-damage request** (the GUI-default max-damage rows, S4, sacrieur 230): the
+1. ✅ *(2026-10-11: addressed by the target-aware hard-leg ledger, `CERTIFIER_VERSION` 52, `379830da`,
+   `CERTIFICATE_PROD_PLAN.md` P5.6. E8 stays gated off for these requests. #2–#6 below were not re-measured and are
+   presumed ⏳ open.)* **No tight guarantee on a required-row max-damage request** (the GUI-default max-damage rows, S4, sacrieur 230): the
    badge reads 9.2–16.3 % on 4 cores (9.5–13.9 % on 10 cores; SAC230 13.40 %) and nothing runs behind it that could
    close it — E8 is gated off by required rows (`gate=false`, 1–3 ms), the refinement is soft-leg only (null in ≤ 3
    ms), CP-SAT does not prove in 120 s on 3 or 9 workers. The bound is the FREE request's optimum, so the number is

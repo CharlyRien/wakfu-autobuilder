@@ -1,12 +1,21 @@
 # Enchantments (Runes + Sublimations) — Engine Integration Plan
 
 > **✅ Shipped.** Runes (PR #133) and sublimations (Lot 3, PR #160) are implemented & merged. Runes/sublimations data is now sourced first-party from the CDN `items.json` + bdata (PR #167), with FIXED resource names (`runes.json`, `sublimations.json`). Kept as the engine-integration design record.
+>
+> **Status (2026-10-11): fully shipped, historical design record — nothing open here.** Every phase landed: Phase 1
+> runes (`RuneModelBuilder.kt`), 2a forced sublimations (`WakfuBestBuildParams.forcedSublimations`), 2b solver-chosen
+> sublimations (`SublimationModelBuilder.kt`, the set locked by `SublimationReproductionTest`) and 2c the max-damage mode
+> (`ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE`). Superseded details: the WakForge-transcribed rune value / slot
+> tables (§4e, §6) are replaced by game-data resources (`common-lib/src/main/resources/rune-values.json`,
+> `equipment-positions.json`; AGENTS.md §5); the data version lives in `WakfuData.VERSION` (not `Main.kt`, §7);
+> sublimation stacking/levels are in `SUBLIMATION_STACKING_PLAN.md` §12. The "Status: not yet implemented" line and the
+> branch note below are the original 1.91 snapshot; line anchors into `WakfuBuildSolver.kt` have drifted.
 
 **Goal:** let the autobuilder account for Wakfu's **enchantment system** when searching builds —
 primarily **runes** (per-item socketed stats), and optionally **sublimations** (special
 combination/epic/relic effects). This document is the research + the concrete, phased plan.
 
-**Status:** plan validated, **not yet implemented**. Game data is already current
+**Status (original, superseded by the block above):** plan validated, **not yet implemented**. Game data is already current
 (`1.91.1.54`); no version bump required to start.
 
 **Decisions locked:**

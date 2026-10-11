@@ -3,6 +3,14 @@
 > **✅ COMPLETE (P0–P6 shipped).** The badge is live in CLI + GUI, backed by the two-tier certificate
 > (`CERTIFIER_VERSION` 8 as of 2026-07-09), the E8 rescue construction and the E10 search-time warm-up;
 > guards = CI fuzz locks + the nightly lvl-245 ledger oracle. Kept as the architecture/execution record.
+>
+> **Status (2026-10-11): complete; still the live architecture record.** Later extensions are logged in place (P5.4
+> GUI-default rows, v44; P5.4b, v48; P5.5 paired Major MP, v49; P5.6 target-aware hard-leg ledger, v52); since then
+> equip conditions (v57/58), spell costs (v59) and sublimation family levels (v60/61, `SUBLIMATION_STACKING_PLAN.md`
+> §12) moved it to **`CERTIFIER_VERSION` 61**. The P3 "memory-aware scheduler" deferral shipped as
+> `WakfuBuildSolver.certifierThreadsForHeap` (heap-bounded worker count, now also capped by `ComputeBudget`).
+> Genuinely still open (each a sound bail today): boss / multi-element proofs via the certificate (P4 note), and
+> the remaining forced-shape bails listed under P5.3 — unverified whether any of the latter have since been lifted.
 
 **Goal.** Ship the max-damage "proven optimal" badge, powered by the AP-cell certificate, computed
 **on the user's machine for arbitrary requests** in seconds-to-minutes (single-core acceptable,
@@ -201,7 +209,7 @@ the dense arrays into the old map shape (explain mode only, perf irrelevant ther
 **Acceptance:** ledgers byte-identical; locks green; wall-clock ≥3× better on the 245 {15,16} audit
 (measure 3 runs).
 
-**Status: PARTIAL (cheap carry-forward win shipped; dense arrays still TODO).** The per-stage
+**Status: PARTIAL (cheap carry-forward win shipped; dense arrays still TODO — superseded by the DONE block below).** The per-stage
 carry-forward (`nd` prefilled from `dp` — the "skip this stage" option) re-added every point through
 the O(n) dominance-checking `Frontier.add`, even though the source frontier is already non-dominated.
 Replaced with `nd[k] = fr.copy()` in all three carry-forward sites (item/skill `applyCells`, normal
@@ -526,7 +534,8 @@ them one at a time and never exceeds one DP. Correctness/robustness first ⇒ `c
 returns **1**; the parallel path stays implemented, correct and locked (panel scale), opt-in via an
 explicit `threads > 1` on a large heap. The `≤ 3 min` target inherently needs the exact-tier
 fan-out that OOMs, so it is deferred to a future **memory-aware scheduler** (bound concurrent DPs by
-free heap, or shrink the exact-DP footprint) — tracked here, not a P3 blocker. Serial `≤ 10 min` is
+free heap, or shrink the exact-DP footprint) — tracked here, not a P3 blocker. *(Since shipped: B2,
+`certifierThreadsForHeap`.)* Serial `≤ 10 min` is
 comfortably met (5.7 min at 245).
 
 **P4 hooks to leave in place (design now, wire in P4):** `incumbentObjective` is a parameter (P4

@@ -126,9 +126,10 @@ The output of the command will show the details of the best build found, such as
 
 - [X] Have a User Interface (Compose Desktop)
 - [X] Provably optimal builds (OR-Tools CP-SAT solver)
-- [X] Multi-language Support (English / French)
-- [ ] Enchantments support (runes + sublimations) — see `docs/ENCHANTMENTS_PLAN.md`
-- [ ] Add Changelog
+- [X] Multi-language Support (English / French / Spanish / Portuguese)
+- [X] Enchantments support (runes + sublimations, forced or chosen by the solver) — see `docs/ENCHANTMENTS_PLAN.md`
+- [X] Changelog (`CHANGELOG.md`) and an in-app "What's new" dialog
+- [ ] Boss difficulty picked as a stasis level instead of a raw HP multiplier (blocked on game data)
 
 See the [open issues](https://github.com/CharlyRien/wakfu-autobuilder/issues) for a full list of proposed features (and known issues).
 
@@ -194,13 +195,14 @@ To test your release for the CLI you can use the command:
 ./gradlew :autobuilder:run --args="--help"
 ```
 
-This command will package everything into a single executable file for the following platforms (x64):
+It runs the CLI with your local changes. To package it as a single runnable jar, use:
 
-* Linux
-* Windows
-* macOS
+```sh
+./gradlew :autobuilder:jar   # → autobuilder/build/libs/wakfu-autobuilder-cli.jar
+```
 
-After that you can use your executables created like any user would do.
+OR-Tools loads a native library, so run the jar with
+`java --enable-native-access=ALL-UNNAMED --add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED -jar …`.
 
 <!-- LICENSE -->
 

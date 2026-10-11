@@ -21,14 +21,17 @@ commit subjects and regression coverage.
 
 | # | Finding | Commit |
 |---|---|---|
-| F1 | Stop strands the best-so-far build | `dda71775` fix: stopping a search keeps the build usable |
-| F2 | Switching the search mode destroys the rows and the result | `59a617ab` fix: switching the search mode keeps each mode's targets and results |
-| F3 | My Builds / Compare mislabel Max Damage builds | `feb2286b` fix: Max Damage builds show their damage and boss in My Builds and Compare |
-| F4 | The Precision headline exceeds 100 % | `4594d9e1` fix: the Precision match never reads above 100% |
-| F5 | Zenith: two builds per export, raw error text | `afaaa867` fix: Zenith links are made once per build, and Zenith errors are readable |
-| F6 | Clipped request-panel copy, low contrast, contradictory proof badge | `a715dc93` fix: request panel text no longer cut off, easier-to-read small text, clearer optimum badge |
+| F1 | Stop strands the best-so-far build | `779152d9` fix: stopping a search keeps the build usable |
+| F2 | Switching the search mode destroys the rows and the result | `4a26ec87` fix: switching the search mode keeps each mode's targets and results |
+| F3 | My Builds / Compare mislabel Max Damage builds | `b1c31a12` fix: Max Damage builds show their damage and boss in My Builds and Compare |
+| F4 | The Precision headline exceeds 100 % | `007ddae4` fix: the Precision match never reads above 100% |
+| F5 | Zenith: two builds per export, raw error text | `4ae86c24` fix: Zenith links are made once per build, and Zenith errors are readable |
+| F6 | Clipped request-panel copy, low contrast, contradictory proof badge | `65d6527c` fix: request panel text no longer cut off, easier-to-read small text, clearer optimum badge |
 
-### F1 — Stop strands the build — FIXED (`dda71775`)
+(2026-10-11: the F1–F6 hashes now point at the commits on `main`; the branch hashes first quoted here were rewritten by the
+rebase-merge — same subjects.)
+
+### F1 — Stop strands the build — FIXED (`779152d9`)
 
 - **Seen:** after Stop, `phase=Idle progress=0` with the build kept (`STOP: phase=Idle progress=0 buildKept=true items=12
   match=1744`; with a finder that never completes: `phase=Idle progress=0 build=true match=55`). The paperdoll cards dim to
@@ -41,7 +44,7 @@ commit subjects and regression coverage.
   untouched. A search that *fails* after streaming a build ends the same way (see F5).
 - **Tests:** `BuildSearchModelStopTest`, `StoppedSearchUiTest`.
 
-### F2 — Mode switch destroys work — FIXED (`59a617ab`)
+### F2 — Mode switch destroys work — FIXED (`4a26ec87`)
 
 - **Seen:** `TARGETS before=[ACTION_POINT, MOVEMENT_POINT, RANGE, CRITICAL_HIT, MASTERY_DISTANCE, HP,
   RESISTANCE_ELEMENTARY_WIND, DODGE] | in max-damage=[] | back in most-masteries=[]`, and the shown build vanished with the click.
@@ -56,7 +59,7 @@ commit subjects and regression coverage.
   pair it with the wrong request.
 - **Tests:** `BuildSearchModelModeSwitchTest` (13).
 
-### F3 — My Builds / Compare mislabel Max Damage builds — FIXED (`feb2286b`)
+### F3 — My Builds / Compare mislabel Max Damage builds — FIXED (`b1c31a12`)
 
 - **Seen:** a saved Max Damage boss build read "10528% Match" under a "Precision" pill in My Builds; Compare repeated it and
   added "Mastery score 0". A max-damage build stores its **expected damage per turn** as its `match`.
@@ -69,7 +72,7 @@ commit subjects and regression coverage.
   scores the rotation against it. This also closes the audit item "saved boss builds forget the boss" (B7, below).
 - **Tests:** `LibraryScreenUiTest`, `CompareScreenUiTest`, `HistoryMappingTest`, `BuildSearchModelSavedBossTest`.
 
-### F4 — Precision headline above 100 % — FIXED (`4594d9e1`)
+### F4 — Precision headline above 100 % — FIXED (`007ddae4`)
 
 - **Seen:** `PRECISION with Distance mastery target 500: match=248.5`; with the seeded "Distance mastery 1" row the library
   card read "20330%".
@@ -80,7 +83,7 @@ commit subjects and regression coverage.
   A library card that is both targets-met and proven optimal shows both lines.
 - **Tests:** `MatchDisplayTest`, `PrecisionMatchUiTest`, `LibraryScreenUiTest`, `CompareScreenUiTest`.
 
-### F5 — Zenith — FIXED (`afaaa867`)
+### F5 — Zenith — FIXED (`4ae86c24`)
 
 - **Seen:** `ZENITH builds created after Open + Copy on the same build: 2`; the banner printed `api.zenithwakfu.com` and
   `Timed out waiting for 30 ms` (10 000 ms in production).
@@ -92,7 +95,7 @@ commit subjects and regression coverage.
   plain sentence + Retry. The raw text goes to the log (`printStackTrace`).
 - **Tests:** `BuildSearchModelZenithTest` (12), `ErrorBannerUiTest`.
 
-### F6 — Readability — FIXED (`a715dc93`)
+### F6 — Readability — FIXED (`65d6527c`)
 
 - **(a) Clipped copy.** The mode segments carried a second line that was cut at every width (`minimum constraints,`;
   `Précisi/on` in French at 260 dp), and the 77 dp priority bar left stat names ~30 dp (`Cri…`, `He…`, `minim/um`).
@@ -181,6 +184,10 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
   by the next search). Nothing is blocked and no stored build is rewritten. Saving or exporting a build that still holds the old result keeps its
   original stamp: stamping it with the current version would relabel old numbers as current, and its card would stop saying so.
 - **Tests:** `BuildSearchModelStaleDataTest` (6), `StaleDataCueUiTest` (6).
+- **Superseded (2026-10-11 check):** `f7ec4e1b` — `feat: badge saved builds a new search may improve as obsolete (#245)` turned this
+  cue into the **Obsolete** badge (`history/Obsolescence.kt`, `components/ObsoleteBuildCue.kt`): other game data *or* an older
+  `ENGINE_RESULTS_VERSION`, with its reasons and a "Re-run the search" action. `StaleDataCueUiTest` was replaced by
+  `ObsoleteBuildCueUiTest` (plus `ObsolescenceTest`, `BuildSearchModelObsoleteBuildTest`); `BuildSearchModelStaleDataTest` remains.
 
 ## Backlog status (from the audit)
 

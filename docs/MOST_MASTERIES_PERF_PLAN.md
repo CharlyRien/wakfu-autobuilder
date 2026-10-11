@@ -1,5 +1,18 @@
 # Most-masteries performance plan — cut time-to-optimum at 245 (~138-149 s today)
 
+> **Status (2026-10-11): mostly shipped or settled; a campaign log, not a to-do list.** Phase verdicts: P2a hard-leg
+> first — **SHIPPED** (production `mostMasteriesHardThenSoft`); P1b ε-stop — measured dead (§1bis); P2b overshoot split —
+> MEASURED-NO (dormant seam `mmTwoStageOvershoot`); P3 — the unpenalized bound was NO-GO (M3), its target-aware v2
+> shipped as the "proven within X%" badge (`MostMasteriesCertificate`, §8.11, tightened §8.17–§8.18, §8.20–§8.21, computed
+> in the search's tail §8.19 via `MostMasteriesBoundCache`); the E8-style MM construct was never built. P1a (greedy
+> objective floor) and P1c (restricted-pool race): no verdict recorded here and no code found — unverified. §7–§8's
+> encoding / decomposition tracks are closed (verdicts in §7.8 / §8.10). §9 (S4, max-damage soft leg) shipped in
+> production as `MaxDamageSoftCertificate` (§9.20) with the conditional-world B&B (§9.22undecies onward; the §9.36
+> prognosis constants `TWO_NODE_DET_BAIL` / `ZERO_PROGRESS_STALL_LIMIT` are in `WakfuBuildSolver.kt`). Last recorded
+> open threads (2026-07-18, not revisited since in this doc): the 2-dim S⁺×negB modelling campaign for the AP/MP-only
+> shapes' residual (§9.34), the ~140 s low-level DP fall-through on enutrof/feca-class shapes (§9.36), and the
+> secZero probe-vs-E2E ~2 % discrepancy (§9.34).
+
 Written 2026-07-11 from (a) the P0 GO/NO-GO measurement of the certificate campaign and (b) a
 6-agent recon sweep (model encoding, primal heuristics, CP-SAT levers, prior verdicts, trajectory
 analysis, completeness critique). Supersedes the *early-stop* ambition of

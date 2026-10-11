@@ -1,4 +1,13 @@
 > Current model: §12 supersedes the historical FLOOR decision in §8.1 and the full-copy accounting in §10.
+>
+> **Status (2026-10-11): §12 SHIPPED** in PR #269 (`6f0c6d2b`, "sublimations stack to their level cap, and forced
+> sublimations take a level"): per-level family values, partial/mixed-tier stacks, conditional families, forced levels
+> (GUI picker, CLI `Name:level`, saves) — `CERTIFIER_VERSION` 61, `ENGINE_RESULTS_VERSION` 6 (AGENTS.md §4). The §10
+> "still open" items are closed: the lvl-245 stacking optimum is re-proven and locked (`LVL245_PROVEN_OPTIMUM` =
+> 17,698,920, §12) and `maxLevel` is renamed `maxStackLevel` (`@SerialName("maxLevel")`). Remaining by design:
+> structured shapes (conversion, per-stat-step ramp, best-element, elemental-zeroing — `stackModelled = false`) stay
+> single-shard with no lower-level effect model; the most-masteries and soft certificates still bail on forced-sub
+> requests. §8.5's back+berserk lvl-245 re-measure: unverified (no record found).
 
 # Sublimation stacking + slot-cap — design plan
 
@@ -304,9 +313,10 @@ epic/relic, or any structured/conditional sub (conversion / per-stat-step / best
 ### Still open (Phase 2+ / follow-up)
 - **Cumulable SELF-stacking of a sub's OWN condition/scaling** — the general modeling of non-proportional
   `Scaling` notes stays out of scope; such subs are `maxCopies = 1` (single-copy) by the accessor guard.
-- **Re-prove the exact lvl-245 stacking optimum** (heavy nightly) — the oracle's `LVL245_PROVEN_OPTIMUM` floor
-  is still the pre-stacking value (a valid but loose lower bound; the true optimum is higher, ≤ 17,726,310).
-- **Cosmetic:** rename `Sublimation.maxLevel` → `maxStackLevel` (with `@SerialName("maxLevel")`).
+- ~~**Re-prove the exact lvl-245 stacking optimum** (heavy nightly) — the oracle's `LVL245_PROVEN_OPTIMUM` floor
+  is still the pre-stacking value (a valid but loose lower bound; the true optimum is higher, ≤ 17,726,310).~~
+  Done in §12 (17,698,920, equality-locked).
+- ~~**Cosmetic:** rename `Sublimation.maxLevel` → `maxStackLevel` (with `@SerialName("maxLevel")`).~~ — done.
 
 ## 11. Perf campaign — the stacking certificate cost, and the "families" plan (2026-07-10)
 

@@ -3,6 +3,13 @@
 > **✅ CONCLUDED (2026-07-09).** Every E-series experiment has a measured verdict (log in
 > `SOLVER_PERFORMANCE.md` §7); the perf backlog is closed except C8(3) (blocked, speculative — see
 > `perf-review-backlog.md`). Kept as the diagnosis/method record; do not re-run settled experiments.
+>
+> **Status (2026-10-11): concluded, historical.** The two items the log below still calls open are closed: C7 was
+> re-implemented sound and measured inert (stays OFF, 2026-07-09, perf-review-backlog §C7), and C8(3) — the "blocked"
+> greedy warm start — has since shipped as the production most-masteries warm start (`MostMasteriesWarmStart.kt`:
+> instant first emission + CP-SAT hint; it is the "warm start ON" arm of `MOST_MASTERIES_PERF_PLAN.md` §1). The E8 /
+> E10 / certificate pieces logged here are the current production design (AGENTS.md §4, `CERTIFIER_VERSION` now 61).
+> Nothing in this plan remains open.
 
 Goal: find *where* the solver actually loses time (per mode, per layer), then fix it with
 evidence-ranked experiments — up to and including architecture changes. Written to be executable by

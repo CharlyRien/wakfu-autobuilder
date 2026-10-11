@@ -1,5 +1,14 @@
 # Max-damage: linearize the bilinear objective — design note for a fresh start
 
+> **Status (2026-10-11): shipped, historical.** The binary-expansion products are production code
+> (`StatBuilder.tBinaryOffsetProduct`, used by `DamageObjective.kt` for `dmgCritTerm_*` and `dmgScore_*`). The
+> "remaining problem" below (low-worker proofs do not close the product bound) was answered by changing the proof
+> strategy, not the encoding: the AP-cell certificate + E8 construct + E10 warm-up (`CERTIFICATE_PROD_PLAN.md`,
+> `SOLVER_BOTTLENECK_PLAN.md`; AGENTS.md §4) and, for the soft leg, the S4 certificate (`MOST_MASTERIES_PERF_PLAN.md`
+> §9). Timings and the 14,003,760 optimum below are a July snapshot (data and model have moved since; the current
+> lvl-245 runes+subs oracle is `WakfuBuildSolverTest.LVL245_PROVEN_OPTIMUM`). No open step remains in this
+> note.
+
 **Status:** IMPLEMENTED, WITH FINAL A/B RESULTS — `codex/max-damage-linearization-impl` keeps the exact
 AP-selector plus binary expansions for both `D·Graw` and `crit·(M+5K)`. The old one-hot selectors were exact but
 too bulky on the full lvl-245 pool; the binary encoding preserves the exact objective while collapsing the
