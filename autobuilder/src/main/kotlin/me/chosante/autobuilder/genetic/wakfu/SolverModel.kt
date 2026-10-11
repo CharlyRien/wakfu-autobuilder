@@ -78,7 +78,7 @@ internal class RuneModel(
      */
     val choiceGates: Map<IntVar, Set<Sublimation>> = emptyMap(),
     /**
-     * CERTIFIER_VERSION 57: the [singleTypePerItem] carriers whose vars are per-type COUNTS (0..slots, `Σ = slots·selected`)
+     * CERTIFIER_VERSION 62: the [singleTypePerItem] carriers whose vars are per-type COUNTS (0..slots, `Σ = slots·selected`)
      * instead of picks — a carrier offering a type a single-type fill cannot represent exactly
      * ([MaxDamageRuneReads.mixedStats]: a budgeted secondary cap, a forced condition, a required row, …). Empty
      * without the fold (every carrier is then a count carrier by [singleTypePerItem] alone).

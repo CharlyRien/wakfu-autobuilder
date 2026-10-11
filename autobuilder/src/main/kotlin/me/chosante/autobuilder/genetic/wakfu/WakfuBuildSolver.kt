@@ -443,12 +443,17 @@ object WakfuBuildSolver {
      * on the same carriers — the bounds are expected unchanged — but the mirror's input changed and the model admits more
      * builds (a mixed item): invalidate. The same threshold reads cover the general fold's rows: a required row (an
      * aggregate resistance row keyed on its four elements, a negative aggregate / random-element resistance line expanded
-     * onto them) and the survivability floor (HP and the four resistances through `min(EHP, floor)`).
+     * onto them) and the survivability floor (HP and the four resistances through `min(EHP, floor)`). And the item STAT
+     * GATES (v57/v58, read on the out-of-combat sheet, runes included) are rune reads too ([statGateRuneReads]): a gated
+     * stat is opaque to the choice collapse's Pareto pruning — which used to drop the elemental rune for a larger distance
+     * one on every carrier, so a distance-gated item could be worn with no rune fill meeting its gate and CP-SAT proved a
+     * build below the optimum — and a threshold for [MaxDamageRuneReads.mixedStats]. The pool every certificate reads is
+     * unchanged and the certificates ignore the gates (a relaxation), so this half moves no bound.
      */
     const val CERTIFIER_VERSION: Int = 62
 
     /**
-     * A/B kill switch of the mixed-rune count carriers on the production path (`WAKFU_MD_MIXED_RUNES=0` ⇒ the v56
+     * A/B kill switch of the mixed-rune count carriers on the production path (`WAKFU_MD_MIXED_RUNES=0` ⇒ the ≤ v61
      * all-or-nothing fold, which can miss a part-filled optimum — measurement only). The test seams pass
      * `runeMixedCarriers = false` instead.
      */
@@ -781,7 +786,7 @@ object WakfuBuildSolver {
         // over — with 1 worker + interleave it is the same on every machine, however long the model takes to
         // reach it (a fixed det budget can end before the first solution once the model grows).
         val stopAtFirstSolution: Boolean = false,
-        // A/B seam (CERTIFIER_VERSION 57): false gives the max-damage rune fold no count carrier — the v56 all-or-nothing
+        // A/B seam (CERTIFIER_VERSION 62): false gives the max-damage rune fold no count carrier — the ≤ v61 all-or-nothing
         // fill, which can miss a part-filled optimum. Production keeps it on.
         val runeMixedCarriers: Boolean = true,
         // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
@@ -1687,7 +1692,7 @@ object WakfuBuildSolver {
         runeChoicePruning: Boolean = true,
         runeChoiceGating: Boolean = true,
         // Test seam (the mixed-rune lock): false gives the fold no count carrier ([RuneModel.countCarriers]) — the
-        // all-or-nothing fill of CERTIFIER_VERSION ≤ 56, which misses a part-filled optimum. Production keeps it on.
+        // all-or-nothing fill of CERTIFIER_VERSION ≤ 61, which misses a part-filled optimum. Production keeps it on.
         runeMixedCarriers: Boolean = true,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
@@ -1807,7 +1812,7 @@ object WakfuBuildSolver {
         // a forced sub with N>0.
         // N=0 does not rule a mix out either: an item's NEGATIVE secondary line gives that secondary's cap (the cap
         // holds EACH secondary mastery on its own) a positive budget, which a mixed item can fill exactly. Since
-        // CERTIFIER_VERSION 57 the fold keeps per-type COUNTS on exactly the carriers that can need such a mix
+        // CERTIFIER_VERSION 62 the fold keeps per-type COUNTS on exactly the carriers that can need such a mix
         // ([MaxDamageRuneReads.mixedStats] / [RuneModel.countCarriers]); the rest stay single-type picks.
         val forcedSubNames = params.forcedSublimations.map { it.lowercase() }.toSet()
         val secondaryCapMixSubInPlay =
@@ -1818,7 +1823,7 @@ object WakfuBuildSolver {
                     (sub.condition?.value ?: 0) > 0
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
-        val runeReads = maxDamageRuneReads(params, sublimations, buildSkillTerms(skillVars).percent.keys)
+        val runeReads = maxDamageRuneReads(params, sublimations, buildSkillTerms(skillVars).percent.keys, statGateRuneReads(allEquips))
         val runeModel =
             model.createRuneModel(
                 params,
@@ -3252,7 +3257,7 @@ object WakfuBuildSolver {
         applyDomination: Boolean = false,
         // v52: the hard-leg (target-aware) passes — see [StatBuilder.certifierTargetAware].
         targetAware: Boolean = false,
-        // v57: the mixed-rune lock — see [buildModel].
+        // v62: the mixed-rune lock — see [buildModel].
         runeMixedCarriers: Boolean = true,
     ): Triple<Map<Int, Long>, Map<Int, Long>, Map<Int, Long>> =
         buildModel(
@@ -3307,7 +3312,7 @@ object WakfuBuildSolver {
         threads: Int = 1,
         // v52: the hard-leg (target-aware) pass — see [StatBuilder.certifierTargetAware].
         targetAware: Boolean = false,
-        // v57: the mixed-rune lock — see [buildModel].
+        // v62: the mixed-rune lock — see [buildModel].
         runeMixedCarriers: Boolean = true,
     ): Pair<Map<Int, Long>, Map<Int, Long>> =
         buildModel(

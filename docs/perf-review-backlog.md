@@ -1189,11 +1189,12 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
 
 ### Status 2026-10-11 (audit of this section against the code at `6f0c6d2b`)
 
-Engine today: **CERTIFIER_VERSION 61** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 6**
+Engine today: **CERTIFIER_VERSION 62** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 7**
 (`domain/EngineResultsVersion.kt`). The body below was written for v38–v56. Bumps since then that this section does not
 describe: v57 for equip conditions and exclusivity groups (`0d20246f`, `81621547`); v58 for domination ignoring gates
 that cannot fail (`b2295eca`); v59 for spell costs from the client (`77f9a393`); v61 for sublimation stacking to the
-level cap (`6f0c6d2b`, #269). Statuses come from the code, `git log` and the docs cited. "Unverified" means no evidence
+level cap (`6f0c6d2b`, #269). *(Since: v62 / engine results 7 for the mixed-rune count carriers and the item stat gates
+as rune reads, PR #251 ported — OPEN #2.)* Statuses come from the code, `git log` and the docs cited. "Unverified" means no evidence
 either way was found in the repo.
 
 **DONE**
@@ -1609,7 +1610,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     — needs a bail on negative crit-mastery sub lines for Dénouement's conversion) and price a negative line of one
     secondary at nothing for the others (only valid per stat; not uniformly tighter on sources with negative elemental and
     positive scenario secondary). The capped world sits ~30 % below the normal worlds on real shapes, so neither moves a
-    production badge today. The single-type fold gap above was per stat (a negative line funds ITS stat only) — fixed in v57.
+    production badge today. The single-type fold gap above was per stat (a negative line funds ITS stat only) — fixed in v62 (PR #251, ported).
   - **Measured** (production path, 4-core profile `-XX:ActiveProcessorCount=4 -Xmx3g`, main `ed97adfa` → this fix):
     - the player's request (Xelor 200, most-masteries, the saved rows, Vivacité II / Visibilité II excluded, Mémoire
       forced, fire / distance / back, 240 s): main returned 8,470 and 8,532 — both carrying Neutralité III + Ambition III

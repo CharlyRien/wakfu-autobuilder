@@ -3,6 +3,8 @@ package me.chosante.autobuilder.genetic.wakfu
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.IntVar
 import com.google.ortools.sat.LinearExpr
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.common.Characteristic
@@ -117,7 +119,7 @@ internal fun CpModel.createRuneModel(
     // That premise holds only while the rune's every reader is LINEAR in its count (the damage objective). A
     // threshold read — a `secondary ≤ t` cap with a budget (an item's NEGATIVE line of that secondary, or t > 0), a
     // forced condition, a required row — can make a PART-fill optimal (3 rear runes absorbed by a −120-rear line, the
-    // 4th socket elemental): such carriers keep per-type COUNTS ([mixedStats], CERTIFIER_VERSION 57).
+    // 4th socket elemental): such carriers keep per-type COUNTS ([mixedStats], CERTIFIER_VERSION 62).
     val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
     // The fold carriers modelled with per-type counts (0..slots each, Σ = slots·selected) instead of picks.
     val countCarriers = LinkedHashSet<Equipment>()
@@ -321,7 +323,11 @@ internal data class RuneChoice(
  *    wins (the moved part is worth (400 + c) in M against 5c in K, and the rest stays in K); any other source is
  *    [opaque];
  *  - a per-stat-step ramp's source, a %-skill's stat, a required target row's stat, the per-element masteries a best-
- *    element concentration compares: [opaque] (never pruned, never pruning — none of them is a candidate today).
+ *    element concentration compares: [opaque] (never pruned, never pruning — none of them is a candidate today);
+ *  - an item STAT GATE of the pool (`x_item ⇒ outOfCombatStat ⋚ value`, AGENTS.md §4 "Item equip conditions": the
+ *    out-of-combat sheet counts runes) — distance mastery, lock and dodge in the data: [opaque] and a threshold
+ *    ([mixedStats]). A gate on distance mastery reads the distance rune where the elemental one is free, so the
+ *    elemental choice must not fall to it (the wearer of the gated item may need it) and a part-fill can meet the gate.
  */
 internal class MaxDamageRuneReads(
     private val damageStats: Set<Characteristic>,
@@ -352,7 +358,7 @@ internal class MaxDamageRuneReads(
     )
 
     /**
-     * The rune types a single-type fill can NOT represent exactly (CERTIFIER_VERSION 57): a carrier offering one of them
+     * The rune types a single-type fill can NOT represent exactly (CERTIFIER_VERSION 62): a carrier offering one of them
      * beside another type gets per-type counts ([createRuneModel]). The fold's premise — fill an item with its best type
      * — holds while every reader of a rune is linear in its count: the damage objective is (`Graw` is linear in M and
      * K at a fixed crit rate, convex through its `max(0, ·)` clamps, so a vertex — one type — maximises it over a
@@ -367,7 +373,7 @@ internal class MaxDamageRuneReads(
      *    into M ([convertedSources]) or t > 0. While the cap is not taken it restricts nothing: the fill is linear;
      *  - a FORCED condition (its effect gated by the condition, possibly a malus) or a non-`≤` comparison: the build may
      *    want to cross the threshold from either side — always mixed;
-     *  - [thresholdReads]: a ramp's steps, a per-element compare;
+     *  - [thresholdReads]: a ramp's steps, a per-element compare, an item stat gate's stat;
      *  - a required target row (`actual ≥ target` on the hard leg, the shortfall penalty on the soft one; a 0-target row
      *    is a floor) whose target is positive or whose stat a source can make negative — else every build meets it
      *    whatever its runes. Keyed per rune type: an "all resistances" row reads the four per-element resistances;
@@ -479,6 +485,8 @@ internal fun maxDamageRuneReads(
     params: WakfuBestBuildParams,
     sublimations: List<Sublimation>,
     percentSkillStats: Set<Characteristic>,
+    // The rune keys the pool's item stat gates read ([statGateRuneReads]).
+    gatedStats: Set<Characteristic> = emptySet(),
 ): MaxDamageRuneReads {
     if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return MaxDamageRuneReads.NONE
     val damageStats = scenarioMasteryStats(params.damageScenario).toSet()
@@ -502,6 +510,11 @@ internal fun maxDamageRuneReads(
         thresholds += Characteristic.HP
         thresholds += ELEMENTARY_RESISTANCES
     }
+    // An item stat gate reads its stat on the out-of-combat sheet, runes included, against a threshold (either side): it
+    // never prunes nor is pruned (a choice reading less of it can be what lets the gated item be worn), and a part-fill can
+    // be what meets it.
+    opaque += gatedStats
+    thresholds += gatedStats
     val (forced, choosable) = modelledSublimations(params, sublimations)
     for (sub in forced + choosable) {
         // A combat-conditional sub is never credited, so its condition is never reified (buildSublimationTerms).
@@ -564,7 +577,8 @@ internal fun negativeStatSources(
     }
     for (sub in sublimations) {
         for (effect in sub.effects.filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>()) {
-            if (effect.magnitudeAtLevel(characterLevel) < 0) out += negativeTargets(effect.characteristic)
+            // Any family level a stacked / forced-level sub can take (CERTIFIER_VERSION 61: its value is read per level).
+            if (effect.magnitudeAtLevel(characterLevel) < 0 || effect.valuesByLevel.any { it < 0 }) out += negativeTargets(effect.characteristic)
         }
     }
     return out
@@ -589,6 +603,14 @@ private fun negativeTargets(stat: Characteristic): Set<Characteristic> =
         -> ELEMENTARY_MASTERIES.toSet() + stat
         else -> setOf(stat.foldedToUsableStat())
     }
+
+/**
+ * The rune keys the item STAT GATES of [allEquips] read (`GetCharac("MASTERY_DISTANCE") <= 150`, lock / dodge bands, …;
+ * read on the out-of-combat sheet, runes included — [StatBuilder.outOfCombatStat]). Every gate counts, whether or not it can
+ * fail: a superset only keeps more choices and more count carriers, both exact.
+ */
+internal fun statGateRuneReads(allEquips: List<Equipment>): Set<Characteristic> =
+    allEquips.flatMapTo(LinkedHashSet()) { equip -> equip.statGates.flatMap { runeKeysOf(it.sheetCharacteristic) } }
 
 /** The rune types a target row on [stat] reads — the same keys as [relevantRuneStats]. */
 private fun runeKeysOf(stat: Characteristic): List<Characteristic> =

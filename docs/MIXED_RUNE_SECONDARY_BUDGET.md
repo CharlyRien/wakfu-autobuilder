@@ -1,8 +1,23 @@
 # Mixed runes under a secondary budget
 
-2026-10-06 · Wakfu data 1.93.1.62 · `CERTIFIER_VERSION` 57 / `ENGINE_RESULTS_VERSION` 2 — both unreleased when this landed
-(1.14.2 shipped 56 and no engine-results version), so this change extends their history entries instead of bumping
-them (AGENTS.md §4: at most one bump per release). "v56 fold" below = the all-or-nothing fold this replaces.
+2026-10-06 · Wakfu data 1.93.1.62 · written against `CERTIFIER_VERSION` 57 / `ENGINE_RESULTS_VERSION` 2 (PR #251). "v56
+fold" below = the all-or-nothing fold this replaces; the measurements below were taken on that code.
+
+**Ported onto main on 2026-10-11 as `CERTIFIER_VERSION` 62 / `ENGINE_RESULTS_VERSION` 7** (61 / 6 shipped with 1.18.0, so
+the change takes the next numbers, AGENTS.md §4). What the port changed:
+- **Item stat gates** (landed on main meanwhile, v57/v58) read the out-of-combat sheet, runes included, so they are rune
+  readers too: `statGateRuneReads` (RuneModelBuilder.kt) feeds every gated stat of the pool into `maxDamageRuneReads` as an
+  OPAQUE stat (never pruned, never pruning) and a threshold (`mixedStats`). Without it the choice collapse pruned the
+  elemental rune for the larger distance one on every carrier, so a distance-gated item could only be worn with a rune fill
+  that broke its gate: on `MixedRuneSecondaryBudgetTest`'s gate case (CRA 110, an amulet gated `distance mastery ≤ 20`) the
+  fold PROVED 178,265 against the count model's 302,495 — a wrong "proven optimal" that main had independently of this
+  change. With the gate as a threshold, caps 230 / 270 also need a part-filled item (fold 320,170 / 323,200, counts
+  320,675 / 323,705).
+- **Sublimation stacking** (#269, v60/v61): Neutralité III now reaches its family level 4 (+32 % DI instead of 24), so the
+  minimal repro below now reads fold 1,382,985 vs count model 1,408,170 (+1.82 %); the mechanism is unchanged.
+  `negativeStatSources` also reads a stacking sub's per-level values (`valuesByLevel`), not only its top value.
+- The cost measurements below were NOT re-run on main: the GUI-default regression is still OPEN
+  (`docs/perf-review-backlog.md` §E OPEN #2).
 
 ## The gap
 
@@ -109,6 +124,7 @@ berserk / rear / critical / healing masteries, the four resistances, HP, lock, d
 | a best-element concentration (per-element masteries; the generic rune shifts every element alike) | yes for the rune | (per-element keys) |
 | a conversion: crit → elemental at ≤ 100 % (Dénouement) | per-source ceiling, bounded | crit, when budgeted |
 | any other conversion (none in the catalog) | rounding step | always |
+| an item stat gate of the pool (`x_item ⇒ outOfCombatStat ⋚ value`: distance mastery, lock, dodge in the data; port, v62) | no | always (and opaque to the pruning) |
 
 A carrier is a count carrier as soon as ONE of its types is mixed; in the general fold every carrier offers every type,
 so one mixed type makes them all count carriers (that is why an HP row hides the three gaps above).

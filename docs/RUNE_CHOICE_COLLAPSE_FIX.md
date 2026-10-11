@@ -122,7 +122,7 @@ optimum).
 unsupported conditions) also make it null. The readers now come from the subs the model actually builds
 (`modelledSublimations`), so a forced-item request with no secondary cap keeps the compact collapse.
 
-### The fold under a positive secondary budget (✅ fixed in CERTIFIER_VERSION 57)
+### The fold under a positive secondary budget (✅ fixed in CERTIFIER_VERSION 62)
 
 The single-type fold (and the collapse built on it) was not exact when an item's NEGATIVE secondary line gives a
 `≤ 0` cap a positive budget: a mixed item can fill it exactly. Fixed by per-carrier rune counts — see

@@ -400,15 +400,19 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   flag is part of the certificate cache key (memory and disk); soft-leg and free results keep the target-blind ledger.
   Kill switch `WAKFU_MD_TARGET_AWARE=0`; locks in `MaxDamageTargetAwareCertificateTest` (oracle: the pinned hard-leg
   CP-SAT optimum per AP cell).
-- **Rune fold vs mixed items (CERTIFIER_VERSION 57).** Max-damage fills a socketed item with ONE rune type (a pick
+- **Rune fold vs mixed items (CERTIFIER_VERSION 62, ENGINE_RESULTS_VERSION 7).** Max-damage fills a socketed item with ONE rune type (a pick
   bool per type) — exact only while every reader of a rune is linear in its count. A threshold read breaks it: a
   `secondary ≤ 0` cap with a budget (an item's NEGATIVE line of that secondary), a forced condition, a required row or
   floor (keyed per rune type: an "all resistances" row reads the four resistance runes; a negative aggregate line lowers
-  all four), the survivability floor, a ramp (`MaxDamageRuneReads.mixedStats`; the full reader list is in
-  `docs/MIXED_RUNE_SECONDARY_BUDGET.md`). A carrier offering such a type keeps per-type COUNTS
+  all four), the survivability floor, a ramp, an item STAT GATE of the pool (`statGateRuneReads`: distance mastery,
+  lock and dodge gates read the out-of-combat sheet, runes included — also opaque to the collapse's Pareto pruning)
+  (`MaxDamageRuneReads.mixedStats`; the full reader list is in `docs/MIXED_RUNE_SECONDARY_BUDGET.md`). A carrier
+  offering such a type keeps per-type COUNTS
   (`RuneModel.countCarriers`); the certificate reads each of its types at its full-fill vertex, which bounds every mixed
   fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
-  `mixedStats`. Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat count model, `forceRuneCountModel`).
+  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The plain counts slow the search where every rune type is
+  a threshold read (the GUI default): OPEN, `docs/perf-review-backlog.md` §E OPEN #2. Locks: `MixedRuneSecondaryBudgetTest`
+  (reference: the per-stat count model, `forceRuneCountModel`).
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
   pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +

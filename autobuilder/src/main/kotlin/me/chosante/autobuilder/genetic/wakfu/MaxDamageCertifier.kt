@@ -1906,7 +1906,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     //    per-item OPTION (base + that pick's contribution on every certifier axis). A socket holding an HP /
     //    resistance / dodge rune is an option whose delta is ZERO on every axis — dominated by the best
     //    M-feeding option, which is exactly "credit the best damage rune instead": an over-count, so sound;
-    //  - a fold's COUNT CARRIER (CERTIFIER_VERSION 57, [RuneModel.countCarriers]: a carrier offering a type a threshold
+    //  - a fold's COUNT CARRIER (CERTIFIER_VERSION 62, [RuneModel.countCarriers]: a carrier offering a type a threshold
     //    reads with a budget — a part-fill can be optimal): its count vars (0..slots, `Σ = slots·equipped`) are handled
     //    like explicit picks, ONE option per type at its full-fill VERTEX (slots · value). That covers every mixed fill:
     //    with every other choice fixed, each pass's valuation of the carrier is CONVEX in its rune counts — linear sums
@@ -1918,7 +1918,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // No rune feeds AP / crit today; those axes are EXACT per-carrier sums, so a rune there bails.
     val generalRuneFold = runeModel.runeVars.isNotEmpty() && runeModel.singleTypePerItem && !runeModel.maxDamageChoiceCollapse
     // v54: a secondary-capped carrier can keep explicit choices beside other carriers' collapsed
-    // defaults. Only explicit picks (and a count carrier's counts, v57) leave the item base; an equip-var alias must keep
+    // defaults. Only explicit picks (and a count carrier's counts, v62) leave the item base; an equip-var alias must keep
     // its item stats.
     val explicitRunePickItems =
         if (runeModel.singleTypePerItem) {
@@ -2024,7 +2024,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
     // World N, per rune-only var (a general-fold pick, or the collapse's crit-mastery swap bool): the EXACT sum of its
     // coefficients in [terms] (a picked bool is 1).
-    // A pick (0..1) contributes its coefficient; a COUNT carrier's var (0..slots, v57) its full-fill VERTEX, coefficient ·
+    // A pick (0..1) contributes its coefficient; a COUNT carrier's var (0..slots, v62) its full-fill VERTEX, coefficient ·
     // slots — the option "every socket of this type" (see the rune-shape block: the mixed fills in between are bounded
     // by their vertices).
     fun perPickExact(terms: List<Term>): Map<IntVar, Long> {

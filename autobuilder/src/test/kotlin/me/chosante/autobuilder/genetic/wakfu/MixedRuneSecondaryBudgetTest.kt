@@ -11,8 +11,11 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
+import me.chosante.common.ItemEquipCriterion
+import me.chosante.common.ItemStatGate
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.Sublimation
@@ -23,10 +26,10 @@ import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * CERTIFIER_VERSION 57: the max-damage single-type rune fold under a positive secondary budget. A `≤ 0` cap (the
+ * CERTIFIER_VERSION 62: the max-damage single-type rune fold under a positive secondary budget. A `≤ 0` cap (the
  * Neutralité family holds EACH secondary mastery ≤ 0) does not rule out a part-filled item: an item's NEGATIVE line of a
  * capped secondary leaves that stat a budget a MIXED item fills — some sockets of the secondary rune, the rest elemental
- * — where no single type fits. The all-or-nothing fold (≤ v56) filled every item with one type, so it missed that optimum and CP-SAT's
+ * — where no single type fits. The all-or-nothing fold (≤ v61) filled every item with one type, so it missed that optimum and CP-SAT's
  * `OPTIMAL` over it was a wrong badge. The fold now keeps per-type COUNTS on the carriers that can need a mix
  * ([MaxDamageRuneReads.mixedStats], [RuneModel.countCarriers]); the per-stat COUNT model (`forceRuneCountModel`) is the
  * exact reference. The AP-cell certificate reads a count carrier's types at their full-fill vertices, which bound every
@@ -71,6 +74,7 @@ class MixedRuneSecondaryBudgetTest {
         level: Int,
         stats: Map<Characteristic, Int>,
         sockets: Int = 4,
+        gates: List<ItemStatGate> = emptyList(),
     ) = Equipment(
         equipmentId = id,
         guiId = id,
@@ -79,7 +83,8 @@ class MixedRuneSecondaryBudgetTest {
         rarity = Rarity.LEGENDARY,
         itemType = type,
         characteristics = stats,
-        maxShardSlots = sockets
+        maxShardSlots = sockets,
+        equipCriterion = if (gates.isEmpty()) null else ItemEquipCriterion(itemId = id, raw = "test gate", statGates = gates)
     )
 
     private fun solve(
@@ -110,7 +115,8 @@ class MixedRuneSecondaryBudgetTest {
      * rear budget of 214. Melee and rear runes are worth 3/2 of an elemental one (33 vs 22 at rune level 11) but come in
      * whole items of 4 × 33 = 132 under the fold: one item of each leaves 28 melee and 82 rear unspent (the skill points
      * absorb part of it, at the cost of what they buy elsewhere). The optimum fills the budgets with part-filled items.
-     * The all-or-nothing fold (≤ v56): 1,320,570. Count model and the fixed fold: 1,328,235 (+0.58 %).
+     * The all-or-nothing fold (≤ v61): 1,382,985. Count model and the fixed fold: 1,408,170 (+1.82 %). (Written against
+     * 1,320,570 / 1,328,235: since CERTIFIER_VERSION 61 Neutralité III stacks to its family level 4, +32 % DI instead of 24.)
      */
     private val reproLevel = 245
     private val reproScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.BACK)
@@ -134,8 +140,8 @@ class MixedRuneSecondaryBudgetTest {
             assertThat(outcome.isOptimal).describedAs("the %s proves its optimum", label).isTrue()
         }
         // The mechanism: the all-or-nothing fill proves a value below the real optimum (a wrong "Optimal proven").
-        assertThat(oldFold.objective).describedAs("the all-or-nothing fold (≤ v56) misses the part-filled optimum").isEqualTo(1_320_570L)
-        assertThat(count.objective).describedAs("the exact count-model optimum").isEqualTo(1_328_235L)
+        assertThat(oldFold.objective).describedAs("the all-or-nothing fold (≤ v61) misses the part-filled optimum").isEqualTo(1_382_985L)
+        assertThat(count.objective).describedAs("the exact count-model optimum").isEqualTo(1_408_170L)
         assertThat(fixed.objective).describedAs("the fold with count carriers reaches the count optimum").isEqualTo(count.objective)
 
         // The exported build takes Neutralité III and mixes rune types on at least one item, every secondary ≤ 0.
@@ -145,7 +151,12 @@ class MixedRuneSecondaryBudgetTest {
             }
         assertThat(result.isOptimal).isTrue()
         val build = result.individual
-        assertThat(build.sublimations.values.flatten()).contains(neutralite)
+        // Socketed shards carry their stack level (CERTIFIER_VERSION 61): compare the family.
+        assertThat(
+            build.sublimations.values
+                .flatten()
+                .map { it.stateId }
+        ).contains(neutralite.stateId)
         val mixedItems = build.runes.filterValues { r -> r.map { it.characteristic }.distinct().size > 1 }
         println("MIXED_REPRO runes=${build.runes.map { (e, r) -> e.itemType to r.map { it.characteristic } }}")
         assertThat(mixedItems).describedAs("some item carries more than one rune type").isNotEmpty
@@ -190,7 +201,7 @@ class MixedRuneSecondaryBudgetTest {
             val fixed = solve(p, pool, emptyList(), hard = hard)
             println("MIXED_HP hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
             for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).isTrue()
-            assertThat(oldFold.objective).describedAs("hard=%s: the all-or-nothing fold (≤ v56) misses the topped-up build", hard).isEqualTo(expectedV56)
+            assertThat(oldFold.objective).describedAs("hard=%s: the all-or-nothing fold (≤ v61) misses the topped-up build", hard).isEqualTo(expectedV56)
             assertThat(count.objective).describedAs("hard=%s: the count optimum", hard).isEqualTo(expected)
             assertThat(fixed.objective).describedAs("hard=%s: the fold with count carriers reaches it", hard).isEqualTo(expected)
         }
@@ -392,7 +403,7 @@ class MixedRuneSecondaryBudgetTest {
                 }
             }
         }
-        assertThat(diverged).describedAs("cases where the all-or-nothing fold (≤ v56) misses the mixed optimum (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
+        assertThat(diverged).describedAs("cases where the all-or-nothing fold (≤ v61) misses the mixed optimum (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
     }
 
     // ---- General fold: required rows, floors, the survivability floor ------------------------------------------------
@@ -555,5 +566,60 @@ class MixedRuneSecondaryBudgetTest {
             if (check("(c) survivability $floor", p, small)) survivabilityMissed++
         }
         assertThat(survivabilityMissed).describedAs("EHP floors where the all-or-nothing fold misses the optimum").isGreaterThan(0)
+    }
+
+    /**
+     * An item STAT GATE (AGENTS.md §4 "Item equip conditions", landed on main after the fold fix was written) reads the
+     * out-of-combat sheet, runes included: `x_item ⇒ distance mastery ≤ T` is a threshold on the distance rune exactly like
+     * a choosable cap — wearing the item takes it. CRA 110 fire / distance, no sublimation, a strong amulet gated on
+     * distance mastery and three 4-socket items: under the gate's budget a part-filled item (some distance runes, the
+     * rest elemental) can beat every whole-item fill. The fold must keep counts on the gated stat's carriers.
+     * Measured (2026-10-11, CERTIFIER_VERSION 62): caps 230 and 270 — all-or-nothing fold 320,170 / 323,200, count model and
+     * the fixed fold 320,675 / 323,705. Before the gate was a rune read at all, the choice collapse pruned the elemental
+     * rune for the (larger) distance one on every carrier, so a gated amulet could only be worn with no rune fill that met
+     * its gate: at cap 20 the fold, with or without count carriers, PROVED 178,265 against the count model's 302,495.
+     */
+    @Test
+    fun `an item stat gate on a rune stat is a threshold a part-filled item fills`() {
+        val level = 110
+        val distance = Characteristic.MASTERY_DISTANCE
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val p = params(level, scenario).copy(useSublimations = false)
+
+        fun pool(cap: Int) =
+            (
+                listOf(
+                    item(
+                        850_001,
+                        ItemType.AMULET,
+                        level,
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600),
+                        gates = listOf(ItemStatGate(distance, false, CriterionComparison.LE, cap))
+                    )
+                ) +
+                    listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                        .mapIndexed { i, type -> item(850_011 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)) }
+            ).groupBy { it.itemType }
+        // The pruning half: a gate the distance runes of one item already break must leave the elemental choice on the table.
+        val tight = pool(20)
+        val tightCount = solve(p, tight, emptyList(), count = true)
+        assertThat(tightCount.objective).describedAs("cap 20: the count-model optimum (the gated amulet worn, runes elemental)").isEqualTo(302_495L)
+        for (mixed in listOf(false, true)) {
+            val fold = solve(p, tight, emptyList(), mixed = mixed)
+            assertThat(fold.isOptimal).isTrue()
+            assertThat(fold.objective).describedAs("cap 20, count carriers %s: the fold keeps the elemental choice", mixed).isEqualTo(tightCount.objective)
+        }
+        var missed = 0
+        for (cap in (200..280 step 10)) {
+            val pool = pool(cap)
+            val oldFold = solve(p, pool, emptyList(), mixed = false)
+            val count = solve(p, pool, emptyList(), count = true)
+            val fixed = solve(p, pool, emptyList())
+            println("MIXED_GATE cap=$cap oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+            for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).describedAs("cap=%s", cap).isTrue()
+            assertThat(fixed.objective).describedAs("cap=%s: the fold with count carriers reaches the count optimum", cap).isEqualTo(count.objective)
+            if (oldFold.objective < count.objective) missed++
+        }
+        assertThat(missed).describedAs("gate caps where the all-or-nothing fold misses the optimum (the lock's sensitivity)").isGreaterThan(0)
     }
 }
