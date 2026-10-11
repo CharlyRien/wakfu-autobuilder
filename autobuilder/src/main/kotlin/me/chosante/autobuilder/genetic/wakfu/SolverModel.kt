@@ -86,6 +86,13 @@ internal class RuneModel(
     val countCarriers: Set<Equipment> = emptySet(),
     // Each [countCarriers] var → its carrier's socket count (a gated count is posted as `count ≤ slots·Σ subVar`).
     private val countVarSlots: Map<IntVar, Long> = emptyMap(),
+    /**
+     * The mixed-rune hybrid's FOLD stage only (`materializeCountCarriers = false` in [createRuneModel]): the carriers
+     * [MaxDamageRuneReads.mixedStats] would have made [countCarriers], left on single-type picks. Non-empty ⇒ this model
+     * is NOT exact (a part-filled item can beat its optimum), so its CP-SAT `OPTIMAL` proves nothing about the request —
+     * see [WakfuBuildSolver.mixedRuneHybrid]. Empty everywhere else.
+     */
+    val foldInexactCarriers: Set<Equipment> = emptySet(),
 ) {
     /** Whether [equip]'s rune vars are boolean single-type PICKS (else per-type counts 0..slots). */
     fun isPickCarrier(equip: Equipment): Boolean = singleTypePerItem && equip !in countCarriers
