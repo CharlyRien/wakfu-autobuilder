@@ -122,11 +122,11 @@ optimum).
 unsupported conditions) also make it null. The readers now come from the subs the model actually builds
 (`modelledSublimations`), so a forced-item request with no secondary cap keeps the compact collapse.
 
-### Not fixed here (OPEN): the fold under a positive secondary budget
+### The fold under a positive secondary budget (✅ fixed in CERTIFIER_VERSION 57)
 
-The single-type fold (and the collapse built on it) is not exact when an item's NEGATIVE secondary line gives a
-`≤ 0` cap a positive budget: a mixed item can fill it exactly. The per-stat count model beat the fold by
-0.03–0.48 % on 6 seeded pools of the review fuzz — recorded in `docs/perf-review-backlog.md` §E.
+The single-type fold (and the collapse built on it) was not exact when an item's NEGATIVE secondary line gives a
+`≤ 0` cap a positive budget: a mixed item can fill it exactly. Fixed by per-carrier rune counts — see
+[MIXED_RUNE_SECONDARY_BUDGET.md](MIXED_RUNE_SECONDARY_BUDGET.md).
 
 ## Per-stat secondary cap (2026-10-04, CERTIFIER_VERSION 56)
 
