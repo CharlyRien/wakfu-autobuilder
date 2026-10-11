@@ -5297,6 +5297,79 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * Cascade reconstruction lock: the post-search proof (cascade, the FINAL incumbent) arrives after the search-time
+     * warm-up's cascade (same shape, an earlier, weaker incumbent) and must read its ledger from the cache whenever the
+     * cascade would run no DP — and then report what a fresh cascade would: the same cells above the incumbent with the
+     * same values (exact confirms, fast bounds of the cells the cascade never reached) and the same verdict. Cells at or
+     * below the incumbent may carry a different sound tier-1.5 value (its segment skip is incumbent-relative), which
+     * never moves the verdict.
+     */
+    @Test
+    fun `cascade reconstruction from a weaker incumbent's cascade matches a fresh cascade`() {
+        val fixtures =
+            buildList {
+                add(couplingPanel())
+                for (iteration in 0 until 4) add(fuzzScenario(iteration))
+            }
+        var reconstructed = 0
+        try {
+            for ((i, fixture) in fixtures.withIndex()) {
+                val (params, pool, subs) = fixture
+                val reference =
+                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, forceTier2All = true)
+                val max = reference.maxCellObjective ?: continue
+                if (max <= 1L) continue
+                for ((weak, strong) in listOf(max * 8 / 10 to max * 9 / 10, max * 9 / 10 to max - 1, max * 9 / 10 to max)) {
+                    fun cached(incumbent: Long) =
+                        checkNotNull(
+                            MaxDamageCertificateCache.certificate(
+                                params,
+                                pool,
+                                emptyList(),
+                                subs,
+                                applyDomination = false,
+                                incumbentObjective = incumbent,
+                                threads = 1,
+                                cascadeTier15 = true
+                            )
+                        )
+                    MaxDamageCertificateCache.clear()
+                    cached(weak)
+                    val computes0 = MaxDamageCertificateCache.computeCountForTest.get()
+                    val recon = cached(strong)
+                    if (MaxDamageCertificateCache.computeCountForTest.get() == computes0) reconstructed++
+                    val fresh =
+                        checkNotNull(
+                            WakfuBuildSolver.maxDamageCertificate(
+                                params,
+                                pool,
+                                sublimations = subs,
+                                applyDomination = false,
+                                incumbentObjective = strong,
+                                threads = 1,
+                                cascadeTier15 = true
+                            )
+                        )
+                    val label = "fixture $i incumbents $weak -> $strong"
+                    assertThat(recon.cellObjectives.filterValues { it > strong })
+                        .describedAs("$label: the cells above the incumbent")
+                        .isEqualTo(fresh.cellObjectives.filterValues { it > strong })
+                    assertThat((recon.maxCellObjective ?: Long.MAX_VALUE) > strong)
+                        .describedAs("$label: the verdict")
+                        .isEqualTo((fresh.maxCellObjective ?: Long.MAX_VALUE) > strong)
+                    assertThat(recon.fastObjectives).describedAs("$label: the fast array").isEqualTo(fresh.fastObjectives)
+                    for ((cell, obj) in recon.cellObjectives) {
+                        assertThat(obj).describedAs("$label cell $cell: bound ≤ fast").isLessThanOrEqualTo(recon.fastObjectives.getValue(cell))
+                    }
+                }
+            }
+        } finally {
+            MaxDamageCertificateCache.clear()
+        }
+        assertThat(reconstructed).describedAs("the cascade reconstruction must actually serve a later proof somewhere").isGreaterThan(0)
+    }
+
+    /**
      * E10 single-flight lock: concurrent [MaxDamageCertificateCache.certificate] calls for the SAME shape run
      * exactly ONE compute — the rest wait on the in-flight latch and reconstruct from the merged entry. This is
      * what lets the post-search proof JOIN the search-time warm-up instead of duplicating a minutes-long DP.
