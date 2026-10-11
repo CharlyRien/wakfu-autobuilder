@@ -95,6 +95,12 @@ object MaxDamageSearch {
     internal fun certificateWarmupCancelledForTest(): Boolean? = activeWarmupCancelled.get()?.get()
 
     /**
+     * The certificate warm-up starts on the search's FIRST emission (the greedy warm start, no damage proxy) rather than
+     * CP-SAT's first solution. Kill switch (A/B only): `WAKFU_MD_WARMUP_FIRST_EMISSION=0`.
+     */
+    private val warmupOnFirstEmission = System.getenv("WAKFU_MD_WARMUP_FIRST_EMISSION") != "0"
+
+    /**
      * The params-only certificate-support gates, mirroring [proveOptimality]'s early returns (prefiltered
      * pool / forced runes / survivability floor / multi-element ⇒ the proof never consults the certificate,
      * so warming it would be wasted work). Keep in sync with [proveOptimality].
@@ -332,10 +338,21 @@ object MaxDamageSearch {
                 }
             }
 
+            // The live incumbent the warm-up eliminates against. Its tier-1 fast pass is incumbent-FREE, so the warm-up
+            // starts on the very first emission — the greedy warm start, which carries no damage proxy — instead of
+            // CP-SAT's first solution (~30 s into a level-245 search on 4 cores: the fast pass then trailed the search
+            // end). Elimination needs a feasible proxy, so this read WAITS for one; a search that ends without any
+            // cancels the warm-up instead (see its isCancelled), never certifying without an incumbent.
+            fun awaitWarmupIncumbent(): Long? {
+                while (latestProxy.get() == Long.MIN_VALUE && !searchDone.get() && !warmupCancelled.get()) Thread.sleep(50)
+                return latestProxy.get().takeIf { it != Long.MIN_VALUE }
+            }
+
             fun maybeStartCertificateWarmup(result: SolverResult<BuildCombination>) {
                 if (tuning != null || !certificateWarmupEligible(baseParams)) return
-                val proxy = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return
-                latestProxy.getAndUpdate { maxOf(it, proxy) }
+                val proxy = result.maxDamageRawProxy ?: result.maxDamageObjective
+                if (proxy == null && !warmupOnFirstEmission) return
+                if (proxy != null) latestProxy.getAndUpdate { maxOf(it, proxy) }
                 if (!warmupLaunched.compareAndSet(false, true)) return
                 warmupJobForTest.set(
                     warmupScope.launch {
@@ -361,12 +378,12 @@ object MaxDamageSearch {
                                             else -> WakfuBuildSolver.certifierDefaultThreads(baseParams.computeBudget)
                                         }
                                     },
-                                    incumbentProvider = { latestProxy.get().takeIf { it != Long.MIN_VALUE } },
+                                    incumbentProvider = ::awaitWarmupIncumbent,
                                     // Cascade (short-search rescue): confirm survivors one cell at a time so a
                                     // WEAK incumbent does not pay a tier-1.5 pass for every survivor; the
                                     // construct below finishes the job (or the full fallback does).
                                     cascadeTier15 = true,
-                                    isCancelled = { warmupCancelled.get() },
+                                    isCancelled = { warmupCancelled.get() || (searchDone.get() && latestProxy.get() == Long.MIN_VALUE) },
                                     targetAware = warmupTargetAware
                                 )
                             if (ledger != null) {
