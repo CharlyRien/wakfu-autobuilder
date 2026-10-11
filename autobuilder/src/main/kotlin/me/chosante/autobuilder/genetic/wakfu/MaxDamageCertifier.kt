@@ -163,6 +163,15 @@ internal object CertifierTuning {
         java.util.concurrent.atomic
             .AtomicLong()
 
+    /** Cross-world exact prune ([worldPruneOrder] + `cPruneFloor`). On in production; tests / A/B harnesses may disable. */
+    @Volatile
+    var crossWorldPruneEnabled = true
+
+    /** Crit-steps skipped by the CROSS-WORLD floor (`cPruneFloor` of [certifyMaxPerHitAtApPass]; tests assert > 0). */
+    val cPruneCrossWorldSkippedForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+
     /** Tier-1.5 segment skip below the incumbent (see [certifyCellsTier15]). On in production; tests may disable. */
     @Volatile
     var tier15SegmentSkipEnabled = true
@@ -460,8 +469,16 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
     var best = 0L
     var bestWorld = -1
     var bestC = -1
-    for ((wi, w) in worlds.withIndex()) {
+    // Cross-world prune: with tier-1.5 rows, run the worlds by DESCENDING bound so the likely winner sets [best] first;
+    // every later world then skips the crit steps its row puts below [best] ([cPruneFloor]). Value and provenance are
+    // order-independent: ties still resolve to the lowest-index argmax world (the update below), and a world that can
+    // reach the cell max is never pruned below it. Without rows the order is the plain ascending one.
+    val worldTimingEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1"
+    for (wi in worldPruneOrder(worlds.size, ubByWorld)) {
+        val w = worlds[wi]
+        val tw = if (worldTimingEnabled) System.nanoTime() else 0L
         val cOut = if (provOut != null) IntArray(1) { -1 } else null
+        val ub = ubByWorld?.getOrNull(wi)
         val v =
             certifyMaxPerHitAtApPass(
                 scenario,
@@ -472,10 +489,14 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
                 weaponsRestricted = w.wr,
                 requirementBundle = w.bundle,
                 winningCOut = cOut,
-                cPruneUbIn = ubByWorld?.getOrNull(wi)
+                cPruneUbIn = ub,
+                cPruneFloor = if (ub != null && bestWorld != -1 && CertifierTuning.crossWorldPruneEnabled) ({ best }) else null
             )
+        if (worldTimingEnabled) {
+            System.err.println("CERT_EXACT_WORLD_TIMING cell=$apTarget world=$wi/${worlds.size} value=$v ms=${(System.nanoTime() - tw) / 1_000_000}")
+        }
         if (v == Long.MAX_VALUE) return Long.MAX_VALUE
-        if (bestWorld == -1 || v > best) {
+        if (bestWorld == -1 || v > best || (v == best && wi < bestWorld)) {
             best = v
             bestWorld = wi
             bestC = cOut?.get(0) ?: -1
@@ -489,6 +510,21 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
         it[1] = bestC
     }
     return floored
+}
+
+/**
+ * The order the exact tier runs one cell's worlds in: worlds WITHOUT a tier-1.5 row first (nothing can prune them, and
+ * their value seeds the cross-world floor), then by descending row maximum (the likeliest winner first), index order on
+ * ties. Without rows: plain ascending index order.
+ */
+internal fun worldPruneOrder(
+    worldCount: Int,
+    ubByWorld: Array<LongArray?>?,
+): List<Int> {
+    if (ubByWorld == null || !CertifierTuning.cLoopPruneEnabled || !CertifierTuning.crossWorldPruneEnabled) return (0 until worldCount).toList()
+
+    fun rowMax(wi: Int): Long = ubByWorld.getOrNull(wi)?.maxOrNull() ?: Long.MAX_VALUE
+    return (0 until worldCount).sortedWith(compareByDescending<Int> { rowMax(it) }.thenBy { it })
 }
 
 /**
@@ -1092,7 +1128,16 @@ internal fun StatBuilder.exactForCells(
         val value: Long,
         val winningC: Int,
     )
-    val tasks = cells.flatMap { a -> worlds.withIndex().map { (wi, w) -> Task(a, wi, w) } }
+    // Cross-world prune ([worldPruneOrder], [certifyMaxPerHitAtApPass]'s `cPruneFloor`): each cell's worlds are queued by
+    // descending tier-1.5 bound, and every finished world raises the cell's floor, which the still-running and later
+    // worlds of that cell skip crit steps below. Scheduling-independent results: the floor is always a value some world
+    // of the cell reached (≤ the cell max), so the max and its lowest-index argmax world/crit step never move.
+    val floors =
+        cells.associateWith {
+            java.util.concurrent.atomic
+                .AtomicLong(Long.MIN_VALUE)
+        }
+    val tasks = cells.flatMap { a -> worldPruneOrder(worlds.size, ubByWorldCell?.get(a)).map { wi -> Task(a, wi, worlds[wi]) } }
     val pool = Executors.newFixedThreadPool(min(threads, tasks.size))
     val results: List<TaskResult> =
         try {
@@ -1101,6 +1146,8 @@ internal fun StatBuilder.exactForCells(
                     tasks.map { t ->
                         Callable {
                             val cOut = if (provOut != null) IntArray(1) { -1 } else null
+                            val ub = ubByWorldCell?.get(t.cell)?.getOrNull(t.worldIndex)
+                            val floor = floors.getValue(t.cell)
                             val v =
                                 certifyMaxPerHitAtApPass(
                                     scenario,
@@ -1111,8 +1158,10 @@ internal fun StatBuilder.exactForCells(
                                     weaponsRestricted = t.world.wr,
                                     requirementBundle = t.world.bundle,
                                     winningCOut = cOut,
-                                    cPruneUbIn = ubByWorldCell?.get(t.cell)?.getOrNull(t.worldIndex)
+                                    cPruneUbIn = ub,
+                                    cPruneFloor = if (ub != null && CertifierTuning.crossWorldPruneEnabled) ({ floor.get() }) else null
                                 )
+                            if (v != Long.MAX_VALUE) floor.accumulateAndGet(v, ::maxOf)
                             TaskResult(t.cell, t.worldIndex, v, cOut?.get(0) ?: -1)
                         }
                     }
@@ -1129,10 +1178,10 @@ internal fun StatBuilder.exactForCells(
     val nonBailed = results.filter { it.cell !in bailedCells }
     for (r in nonBailed) out[r.cell] = maxOf(out.getValue(r.cell), r.value)
     if (provOut != null) {
-        // Per cell, the (world, c) of the argmax over worlds. groupBy + maxByOrNull preserve task order, so ties
-        // resolve to the FIRST (lowest-index) argmax world — deterministic, matching the serial path.
+        // Per cell, the (world, c) of the argmax over worlds. Sorted by world index (the queue runs them by bound), so
+        // maxByOrNull resolves ties to the FIRST (lowest-index) argmax world — deterministic, matching the serial path.
         for ((cell, group) in nonBailed.groupBy { it.cell }) {
-            val argmax = group.maxByOrNull { it.value } ?: continue
+            val argmax = group.sortedBy { it.worldIndex }.maxByOrNull { it.value } ?: continue
             if (argmax.worldIndex >= 0) provOut[cell] = CellProvenance(argmax.worldIndex, argmax.winningC)
         }
     }
@@ -1201,6 +1250,12 @@ internal fun StatBuilder.certifyCellsTier15(
                 fastSegmentSkipUb = if (skipEnabled) skipUbByWorld?.getOrNull(wi)?.getOrNull(cell) else null,
                 fastSkipBelowRaw = if (skipEnabled) (skipBelowRawByCell?.get(cell) ?: Long.MIN_VALUE) else Long.MIN_VALUE
             )
+        if (System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1") {
+            System.err.println(
+                "CERT_T15_WORLD cell=$cell world=$wi tier1RowMax=${skipUbByWorld?.getOrNull(wi)?.getOrNull(cell)?.maxOrNull()} " +
+                    "skipBelow=${skipBelowRawByCell?.get(cell)} value=${if (r == Long.MAX_VALUE) "bail" else out[cell]} rowMax=${perCHolder[0]?.maxOrNull()}"
+            )
+        }
         return if (r == Long.MAX_VALUE) Long.MAX_VALUE to null else out[cell] to perCHolder[0]
     }
 
@@ -1789,6 +1844,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // Alignment is the caller's contract: the bound must come from a step-1 fast pass with IDENTICAL
     // (apTarget, world) args, else it is not a sound bound for this pass. Null ⇒ the plain ascending loop.
     cPruneUbIn: LongArray? = null,
+    // Cross-world prune (exact mode, only alongside [cPruneUbIn]): a live read of a value some OTHER world of the SAME
+    // cell already reached. The cell's exact bound is the max over its worlds, so a crit step with `ub[c] < floor` can
+    // never raise it (`dp(c) ≤ ub[c] < floor ≤ max`) and is skipped like a step below this pass's own best — the seed
+    // included. Value- and provenance-identical for the cell: a world whose own max reaches the cell max never has its
+    // max-achieving steps skipped (the floor never exceeds the cell max); only worlds that cannot win report less.
+    cPruneFloor: (() -> Long)? = null,
     // Floor speed (fast mode, ALL-cells tier-1 run): when non-null (a size-1 holder), the pass allocates
     // `Array(fastCellCount) { LongArray(cEnumMax + 1) }` into `holder[0]` and harvests the per-(cell,
     // crit-step) maximum for EVERY cell — each entry is a sound `≥ dp_exact(cell, c)` (graw folded at the
@@ -4148,6 +4209,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         if (cPruneUb != null && c != cSeed && cPruneUb[c] < best) {
             CertifierTuning.cPruneSkippedForTest.incrementAndGet()
             continue // ub[c] < best ⇒ dp(c) ≤ ub[c] < best — this crit step can never raise the max
+        }
+        if (cPruneUb != null && cPruneFloor != null && cPruneUb[c] < cPruneFloor()) {
+            CertifierTuning.cPruneCrossWorldSkippedForTest.incrementAndGet()
+            continue // ub[c] < another world's value ⇒ this step can never raise the CELL's max
         }
         // c is the ARITHMETIC crit total (bands, budget gaps and conditions use it exactly); the
         // VALUE uses the capped effective rate — over-cap cells price their crit at critCap.

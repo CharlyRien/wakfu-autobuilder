@@ -5102,7 +5102,10 @@ class WakfuBuildSolverTest {
      * (world, crit-step) provenance — pruning may only ever change how many DPs run. Each fixture is driven at
      * `incumbent = argmax − 1` (the rescue shape: the argmax survivor cannot be cleared by tier-1.5, so its
      * exact pass runs WITH the free bounds). Locked over the coupling panel (conversion / Critical-Secret /
-     * budget-sub worlds) plus seeded fuzz shapes, and the pruning must actually FIRE.
+     * budget-sub worlds) plus seeded fuzz shapes, and the pruning must actually FIRE. The CROSS-WORLD floor (a world
+     * skips the steps its row puts below a value another world of the cell reached; worlds queued by descending bound)
+     * rides the same switch and is locked the same way — serial and parallel exact tier, at the rescue incumbent and a
+     * weak one — and must fire too.
      */
     @Test
     fun `exact c-loop pruning is value- and provenance-identical to the unpruned loop`() {
@@ -5112,6 +5115,7 @@ class WakfuBuildSolverTest {
                 for (iteration in 0 until 4) add(fuzzScenario(iteration))
             }
         CertifierTuning.cPruneSkippedForTest.set(0)
+        CertifierTuning.cPruneCrossWorldSkippedForTest.set(0)
         try {
             for ((i, fixture) in fixtures.withIndex()) {
                 val (params, pool, subs) = fixture
@@ -5120,23 +5124,49 @@ class WakfuBuildSolverTest {
                     WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, forceTier2All = true)
                 val max = reference.maxCellObjective ?: continue
                 if (max <= 1L) continue // degenerate fixture — no exact work to prune
-                val incumbent = max - 1 // the rescue shape: the argmax survivor must be confirmed exactly
-                CertifierTuning.cLoopPruneEnabled = true
-                val pruned =
-                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, incumbentObjective = incumbent)
-                CertifierTuning.cLoopPruneEnabled = false
-                val plain =
-                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, incumbentObjective = incumbent)
-                // CertLedger is a value type: this compares every cell bound, tier sets AND cellProvenance
-                // (the winning world/crit-step per exact cell) in one shot.
-                assertThat(pruned).describedAs("fixture $i: the pruned ledger is byte-identical to the plain one").isEqualTo(plain)
-                assertThat(pruned.tier2Cells).describedAs("fixture $i: the rescue shape exercises the exact tier").isNotEmpty
+                // The rescue shape (max − 1: the argmax survivor must be confirmed exactly) and a weak incumbent (more
+                // survivors, so the exact tier runs several cells — in parallel too).
+                for (incumbent in listOf(max - 1, max * 9 / 10)) {
+                    // threads = 1: the serial per-cell world loop; threads = 4: the parallel (cell × world) queue, whose
+                    // cross-world floor is shared live between running worlds.
+                    for (threads in listOf(1, 4)) {
+                        CertifierTuning.cLoopPruneEnabled = true
+                        val pruned =
+                            WakfuBuildSolver.certifyLedgerForTest(
+                                params,
+                                pool,
+                                sublimations = subs,
+                                applyDomination = false,
+                                incumbentObjective = incumbent,
+                                threads = threads
+                            )
+                        CertifierTuning.cLoopPruneEnabled = false
+                        val plain =
+                            WakfuBuildSolver.certifyLedgerForTest(
+                                params,
+                                pool,
+                                sublimations = subs,
+                                applyDomination = false,
+                                incumbentObjective = incumbent,
+                                threads = threads
+                            )
+                        // CertLedger is a value type: this compares every cell bound, tier sets AND cellProvenance
+                        // (the winning world/crit-step per exact cell) in one shot.
+                        assertThat(pruned)
+                            .describedAs("fixture $i incumbent $incumbent threads $threads: the pruned ledger is byte-identical to the plain one")
+                            .isEqualTo(plain)
+                        assertThat(pruned.tier2Cells).describedAs("fixture $i: the rescue shape exercises the exact tier").isNotEmpty
+                    }
+                }
             }
         } finally {
             CertifierTuning.cLoopPruneEnabled = true
         }
         assertThat(CertifierTuning.cPruneSkippedForTest.get())
             .describedAs("the pruning must actually skip crit steps somewhere across the fixtures (else this lock is vacuous)")
+            .isGreaterThan(0L)
+        assertThat(CertifierTuning.cPruneCrossWorldSkippedForTest.get())
+            .describedAs("the cross-world floor must actually skip crit steps somewhere across the fixtures (else this lock is vacuous)")
             .isGreaterThan(0L)
     }
 
