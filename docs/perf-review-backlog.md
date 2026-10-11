@@ -15,6 +15,12 @@ behavioral issues (A3–A8, **all shipped 2026-07-06**), the **certifier perf ba
 2026-07-06/07)**, the **solver perf backlog (C1–C8, all code-verified 2026-07-07 — the remaining open work,
 with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `✅ DONE` / `VERIFIED` block.
 
+> **Status 2026-10-11 (audit against the code at `6f0c6d2b`, CERTIFIER_VERSION 61, ENGINE_RESULTS_VERSION 6).**
+> A, B, C and D are all closed: C6 was measured and removed (2026-07-08), C7 was closed measured-inert (stays OFF),
+> C8(2) was measured NO, and C8(3), the greedy warm start, shipped (`677cee0a`, `MostMasteriesWarmStart.kt`). **All
+> the open work in this file is now in §E.** See the "Status 2026-10-11" block at the top of §E for what is done,
+> open or obsolete there.
+
 ---
 
 ## 0. How to use this file (read this first)
@@ -82,7 +88,10 @@ with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `
   `detectLinearizedProduct` (det 981 vs 460 baseline), both together, division-floor removal,
   dGrawCutoff, per-probe read-set domination.
 - Expecting the hard-constraint solve to prove **range-binding** shapes (`--po` targets): measured
-  stuck; that shape needs C6 or the (deprioritized, high-risk) range certifier.
+  stuck; that shape needs C6 or the (deprioritized, high-risk) range certifier. *(2026-10-11: C6 was measured and
+  removed on 2026-07-08, see §C6. Since CERTIFIER_VERSION 52 the target-aware AP-cell ledger, which reads RANGE as a
+  saturating key digit, gives a hard-leg result of these shapes a badge that respects the targets, see §E. CP-SAT's
+  own dual gap on them is still open.)*
 
 ### Suggested execution order
 
@@ -93,12 +102,12 @@ with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `
 | — | ~~B1–B8~~ | ✅ ALL DONE (2026-07-06/07). See each B item's `✅ DONE` block. |
 | — | ~~D2~~ | ✅ DONE (shipped with A8.3). |
 | — | ~~C1, C2, C3~~ | ✅ DONE 2026-07-07 (committed `8eb21d7c`) — reachableSumDomain aggregation, hard-leg pre-screen, per-element domination memo. |
-| — | ~~C4~~ | ✅ HARNESS DONE (committed `26a3f0e8`); measurement deferred to a quiet machine. C5 DROPPED. |
+| — | ~~C4~~ | ✅ HARNESS DONE (committed `26a3f0e8`). *(2026-10-11: the measurement is done too: C4 SETTLED, ship NO knob, see §C4.)* C5 DROPPED. |
 | — | ~~C8 (1)~~ | ✅ DONE — most-masteries reachable objective-product bound (sound, ~10³–10⁵× box tightening). |
-| Deferred | C6, C7, C8(2)/(3) | **C7 ✅ CLOSED 2026-07-09: re-implemented from the staged derivation (sound, guards green, fires on the engineered pool) — MEASURED-INERT on the flagship shapes (self-disables; byte-identical A/B), stays OFF.** C6 not started (run C4 screen first). C8(2) measured-NO / (3) blocked. See each item's block in §C. |
+| — | ~~C6, C7, C8(2)/(3)~~ | **All closed (status 2026-10-11).** C7 ✅ CLOSED 2026-07-09: re-implemented from the staged derivation (sound, guards green, fires on the engineered pool), MEASURED-INERT on the flagship shapes (self-disables; byte-identical A/B), stays OFF. C6 ⛔ MEASURED → REMOVED 2026-07-08 (`docs/SOLVER_PERFORMANCE.md` §7 "E0 — C6 required-target Lagrangian"). C8(2) measured-NO. C8(3) ✅ SHIPPED 2026-07-09 (`677cee0a`, greedy warm start). See each item's block in §C. |
 | Anytime | D1, D3, D4 | Tiny hygiene — D1 CLI wording, D3 nightly-test flake, D4 doc note. |
-| Next | E0 → E1 | **TODO (opened 2026-10-02):** measure-first perf pass on the current engine — baseline the user-visible timings on 4 cores, then check the leads in §E. |
-| Later | The October 2026 follow-ups (end of §E) | **OPEN, decided "later" (recorded 2026-10-05):** eight leftovers of the per-element random-roll work (#237, #238) — the max-damage hard-leg proof time, the unweighted precision primary and the priority that never reaches the assignment, `assignMaxMin`'s cost, the EHP proxy, the two reads of precision's halving, the placement search's node budget, one re-measure — plus the PLANNED background full-catalog proof for multi-element requests. |
+| — | ~~E0 → E1~~ | **Mostly DONE (status 2026-10-11).** E0 was measured on v38 and v50 (`docs/perf-next-steps-2026-10.md` §1 and §8), and most E1 leads shipped (CERTIFIER_VERSION 39–52). Some residuals are still open; see the §E status block. |
+| Later | The open §E items (status block at the top of §E) | *(2026-10-11: one of the eight follow-ups is closed (the two reads of precision's halving). The two precision weight items are likely unreachable since #238, by a code read. The compute-settings part of the background-proof plan shipped. Also still open: the rune choice collapse's search cost and the single-type rune fold soundness gap.)* **OPEN, decided "later" (recorded 2026-10-05):** eight leftovers of the per-element random-roll work (#237, #238) — the max-damage hard-leg proof time, the unweighted precision primary and the priority that never reaches the assignment, `assignMaxMin`'s cost, the EHP proxy, the two reads of precision's halving, the placement search's node budget, one re-measure — plus the PLANNED background full-catalog proof for multi-element requests. |
 
 ---
 
@@ -737,11 +746,11 @@ Headline corrections vs the original specs:
 | **C4** | ✅ SETTLED (`26a3f0e8`+) | 5-run A/B incl. deterministic-interleave closer; **verdict: ship NO knob.** 1-worker (reproducible) is byte-identical; multi-worker "wins" flip sign across modes (faster async, same/worse interleave) = worker-race noise. Only 1-worker proof-time A/B is trustworthy here. Full arc in §6. |
 | **C5** | ⛔ DROPPED | Superseded by shipped A3 + C2 — see below. |
 | **C8 (1)** | ✅ DONE (`d5f220cf`) | Most-masteries reachable objective-product bound (~10³–10⁵× box tightening, sound). |
-| **C7** | ⏸️ ATTEMPTED & REVERTED | The exhaustive guard caught an under-count in the crit-clamp AM-GM bound; reverted, deferred. |
-| **C6** | ⏸️ DEFERRED | NOT obviated (the `probing3` obviation claim was retracted — worker-race noise); but not worth chasing for one narrow shape the certificate already backstops. |
-| **C8 (2)/(3)** | ⏸️ DEFERRED | Param A/B (measurement) / greedy warm-start (blocked). |
+| **C7** | ⏸️ ATTEMPTED & REVERTED → ✅ CLOSED 2026-07-09 | The exhaustive guard caught an under-count in the crit-clamp AM-GM bound; reverted, deferred. *(Later re-implemented sound, measured inert on the flagship, stays OFF. See §C7.)* |
+| **C6** | ⏸️ DEFERRED → ⛔ MEASURED → REMOVED 2026-07-08 | NOT obviated (the `probing3` obviation claim was retracted — worker-race noise); but not worth chasing for one narrow shape the certificate already backstops. *(Built on the branch `perf/c6-lagrangian-hardleg-bound` (`b84a2363`, unmerged): the cut fires but tightens the perHit box by only 0.34 %. See §C6.)* |
+| **C8 (2)/(3)** | ⏸️ DEFERRED → closed | Param A/B (measurement) / greedy warm-start (blocked). *((2) MEASURED-NO 2026-07-08. (3) SHIPPED 2026-07-09, `677cee0a`. See §C8.)* |
 
-C1–C4 delivered the clear, testable wins. C6/C7/C8 are the remaining medium-risk / separate-mode / measurement
+C1–C4 delivered the clear, testable wins. *(2026-10-11: C6/C7/C8 are now all closed too, see the table above.)* C6/C7/C8 are the remaining medium-risk / separate-mode / measurement
 work — each block below keeps its full verified approach for a focused follow-up. The original suggested order
 was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinear-bound cuts need a rigorously-derived bound
 + a cut-firing exhaustive fixture before they can ship (even OFF).
@@ -941,7 +950,26 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
   off. (Concurrency invariant, if ever revived: `concurrency × workersPerProbe ≤ host`, enforced in `probePlan`
   `MaxDamageSearch.kt:641-651`, locked by `MaxDamageSearchTest.kt:130-142`.)
 
-### C6 — ⏸️ DEFERRED (2026-07-07): Target-aware (Lagrangian) joint bounds for the hard leg
+### C6 — ⛔ CLOSED (measured → removed 2026-07-08; was ⏸️ DEFERRED 2026-07-07): Target-aware (Lagrangian) joint bounds for the hard leg
+
+> **Status 2026-10-11 — CLOSED.** C6 was built and measured with the canonical protocol (1 worker + interleave)
+> on F4 (`--pa 11 --pm 4 --po 4`, runes + subs, level 110), then REMOVED. On the real catalog the cut fires but
+> tightens the perHit product box by only **0.34 %**. The bound oscillates by ±5 % in both directions, which is
+> search-perturbation noise. perHit is not the binding face: the ~31 % dual gap lives in the crit×diff /
+> sub-relaxation layers. Source: `docs/SOLVER_PERFORMANCE.md` §7 "E0 — C6 required-target Lagrangian: MEASURED →
+> REMOVED". The branch `perf/c6-lagrangian-hardleg-bound` (`b84a2363`) was left unmerged. No Lagrangian
+> required-target cut exists in `DamageObjective.kt` today.
+>
+> **What the target-aware ledger (CERTIFIER_VERSION 52, §E) covers, and what it does not.** It covers the
+> *user-facing* goal: a hard-leg result with an AP / MP / CC / RANGE row is now compared with a ledger that
+> respects those rows. GUI-default badges went 7.83 → 2.71 % at 110, 13.05 → 7.03 % at 200 and 8.15 → 3.70 % at
+> 245. It does NOT give what C6 aimed at:
+>
+> - CP-SAT's own dual bound is unchanged. These searches still run their whole budget, and a badge reads ProvenOptimal
+>   only when the incumbent reaches the target-aware ledger. The E8 construct is gated off by required rows.
+> - HP / resistance / dodge rows stay target-blind in the ledger. C6 would have bailed on HP too.
+>
+> Do not revive C6. Its lever is spent. The residual is tracked in §E (E1 leads; `perf-next-steps-2026-10.md` §8.6).
 
 > **Status: not started. (Earlier "obviated by `probing3`" claim RETRACTED — that rested on a single 8-worker run
 > that turned out to be worker-race noise.)** The reproducible **1-worker det-sweep** (`SOLVER_PERFORMANCE.md` §6)
@@ -1070,7 +1098,15 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
 
 </details>
 
-### C8 — ✅ SUB-STEP (1) DONE (2026-07-07); (2)/(3) deferred: Most-masteries speedups
+### C8 — ✅ CLOSED: (1) DONE (2026-07-07); (2) MEASURED-NO (2026-07-08); (3) SHIPPED (2026-07-09): Most-masteries speedups
+
+> **Status 2026-10-11:** the "(3) deferred (blocked)" bullet below is STALE. The penalty-aware whole-build greedy
+> was written from scratch and shipped as `MostMasteriesWarmStart` (`677cee0a`, *feat: most-masteries shows its first
+> build instantly (greedy warm start)*; `docs/SOLVER_PERFORMANCE.md` "Most-masteries production profile → greedy
+> warm start SHIPPED"). It has two uses: (a) an instant first emission, ~0.15 s instead of 24–28 s; (b) a CP-SAT
+> `addHint` on the equipment layer. Time-to-optimal is a wash (−19 % / +13 %), so the case for shipping it is the
+> trajectory, not the proof. It is gated by `SolverTuning.greedyWarmStart`. A max-damage twin (`greedyMaxDamageBuild`)
+> and the equip-condition-aware swaps came later.
 
 - **(1) Reachable objective-product bound — SHIPPED.** `diAdjustedPerElementMasteryScore` now returns a **sound,
   generous reachable ceiling `coreHi`** alongside the score var and declares the score var on `[0, coreHi]` (was
@@ -1096,7 +1132,7 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
   ticket flagged. Production keeps 1/1 for the non-max-damage modes. The A/B seams stay
   (`SolverTuning.maxPresolveIterationsOverride` / `linearizationLevelOverride` + the `manual most-masteries param
   ab` harness) for future param screens.
-- **(3) Greedy warm-start — DEFERRED (blocked).** No whole-build greedy exists; needs a from-scratch penalty-aware
+- **(3) Greedy warm-start — DEFERRED (blocked).** *(→ ✅ SHIPPED 2026-07-09, `677cee0a`, `MostMasteriesWarmStart.kt`. See the status note at the top of C8.)* No whole-build greedy exists; needs a from-scratch penalty-aware
   constructor, gated OFF under `SolverTuning`, proven by a measured time-to-OPTIMAL A/B. Speculative/last.
 
 <details><summary>Verified analysis (pre-implementation)</summary>
@@ -1149,27 +1185,115 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
 
 ---
 
-## E. Next perf pass (opened 2026-10-02, after the 1.11 release) — TODO, not started
+## E. Next perf pass (opened 2026-10-02, after the 1.11 release) — IN PROGRESS: most leads shipped (CERTIFIER_VERSION 39–56); open items listed below
+
+### Status 2026-10-11 (audit of this section against the code at `6f0c6d2b`)
+
+Engine today: **CERTIFIER_VERSION 61** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 6**
+(`domain/EngineResultsVersion.kt`). The body below was written for v38–v56. Bumps since then that this section does not
+describe: v57 for equip conditions and exclusivity groups (`0d20246f`, `81621547`); v58 for domination ignoring gates
+that cannot fail (`b2295eca`); v59 for spell costs from the client (`77f9a393`); v61 for sublimation stacking to the
+level cap (`6f0c6d2b`, #269). Statuses come from the code, `git log` and the docs cited. "Unverified" means no evidence
+either way was found in the repo.
+
+**DONE**
+- **E0 baseline**: measured on v38 (`docs/perf-next-steps-2026-10.md` §1, `830bfeef`) and re-baselined on v50 (§8,
+  `fc04e73d`). Residuals are listed under OPEN.
+- **E1 leads that shipped**:
+  - the MM certificate ~7.5× faster: v40, `e6571bc4`, `MOST_MASTERIES_PERF_PLAN.md` §8.17;
+  - the MM badge computed in the search's tail: `d22d9239`, §8.19;
+  - MM tightening: v41→43, `332b2016`, §8.18;
+  - the MD GUI-default badge: v44 + v48, `9eecbf73` / `27fc907e`, `CERTIFICATE_PROD_PLAN.md` P5.4 / P5.4b;
+  - the target-aware AP-cell ledger: v52, `379830da`, P5.6;
+  - the MM GUI-default badge: v45→47, `aa38b70d`, §8.20;
+  - the soft-penalty floor: v39, `c367d1c4`.
+- **E8 construct gate**: `644f3ef6`.
+- **Soundness bugs B1 / A1** and their review follow-ups: v49 / v50 / v51, `a8528ec7`, `ec86d462`, `8386091a`.
+- **Domination contract**: v53, `7e0f51f8`.
+- **The prefilter "proven optimal" leak**: `d4f69bbb`, #227.
+- **Rune choice collapse (the soundness bug)**: v54, `8df87864` + `f81b8b41`.
+- **Neutralité family read per stat**: v56, `e0751351`.
+- **Precision 0-target row with two reads**: closed 2026-10-05/06 (`25b4f317`, `b445e9ac`).
+- **E1 "4-core production re-run" of the MM GUI default (from the §8.20 bullet)**: done in `perf-next-steps-2026-10.md`
+  §8.5. MM245 on 4 cores: proven in 1 of 4 runs, the other three ProvenWithin 10.7–11.8 %.
+- **Background-proof plan, its "compute-settings panel" step**: shipped. It is the Settings screen with Maximum /
+  Balanced / Low / Custom CPU presets and the proof switch (`72bf1503`, `bfe8d5cb`; `docs/SETTINGS_PANEL.md`,
+  `docs/COMPUTE_BUDGET.md`).
+- **"The library cards and the compare view still read the stored entry"** (Neutralité item): fixed by
+  `BuildSearchModel.rescoreLibrary` (`f7ec4e1b`, #245).
+
+**OBSOLETE**
+- **E1 "sacrieur 230: 19.6 min to ProvenOptimal"**: in production this request now ends on the hard leg (ProvenWithin
+  13.40 %, `perf-next-steps-2026-10.md` §8.4). Only the routed soft-leg path still refines for more than 25 min, and
+  production reaches it only for unreachable targets (OPEN, low priority).
+- **E1 "the M3-v2 coarse-grid low-core backup is measured but not wired"**: already stale when written. It shipped on
+  2026-07-13 as `MostMasteriesCertificate`, the MM badge (`MOST_MASTERIES_PERF_PLAN.md` §8.11).
+- **Precision `assignMaxCapped` unweighted primary, and the per-row priority never reaching the assignment**: by a code
+  read, likely unreachable with unequal weights since #238 (`ee8559dc`). `readsJointPerElementRows`
+  (`ElementRowAssignment.kt`) routes every precision family with two or more wanted elements and a positive row (or a
+  0-valued mastery row) to `ElementRowObjective`. What still reaches `assignMaxCapped` is one wanted element (a single
+  placement) or the aggregate row alone (four equal weights). **No confirming test was added**, so the guard is
+  unverified.
+
+**OPEN**
+1. **Background full-catalog proof for multi-element (prefiltered) requests**: PLANNED, not started. No full-catalog
+   proof code exists. `Tr.NO_PROOF_BODY` still says "can't be proven, even with more time", and `BuildSearchModel`
+   still skips the post-search check when `prefilteredRequest` is set. Phase 0 numbers are single samples. AGENTS.md
+   ("The multi-element item pre-filter") points here.
+2. **Single-type rune fold under a positive secondary budget**: soundness gap, not started. The KNOWN GAP comment is
+   still at `WakfuBuildSolver.buildModel` (`allowRuneFold`), and `RUNE_CHOICE_COLLAPSE_FIX.md` says "Not fixed here
+   (OPEN)". It has not been re-measured under the per-stat (v56) reading.
+3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
+   `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
+4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does
+   not close the dual gap, E8 is gated off by required rows, and HP / resistance / dodge rows stay target-blind
+   (`perf-next-steps-2026-10.md` §8.6 #1–#2). Also open: the target-aware exact pass under the range digit dominates
+   the 245 cost (P5.6).
+5. **Low-core most-masteries**: on 1 worker the 120 s answer is about half the optimum (§8.6 #3). The badge reports
+   this, but no lever improves the build. MM certificate P3 (ring / weapon pair options built once per proof) is
+   prototyped but not measured (`MOST_MASTERIES_PERF_PLAN.md` §8.20).
+6. **Free max-damage at level 110**: "within 0.89 %" never closes, and E8 spends its 60 s cap (§8.6 #5). Unverified
+   since v50.
+7. **E0 residuals**: the cold re-baseline of the badge-tightness matrix and level 200 were never measured (§8.7). The
+   v50 baseline also predates v51–v61, which add stat gates, exclusivity groups and sublimation stacking. Not re-baselined.
+8. **Slow-suite hot spots** (E1 first lead): the level-245 free full-pool proof test now takes 541 s wall with
+   domination on, det ~445 (`96b090ec`). New since this section was written: the item stat gates (#255) took that
+   solve from det 23.5 to 1 558 on the undominated pool. `b2295eca` brought it back to 445, and the rest comes from six
+   genuinely non-dominated gated items.
+9. **Neutralité per-stat certificate tightenings** (world N's λ_K = 0, per-stat negative lines): not built. They move
+   no production badge today.
+10. **October follow-ups still open**: the max-damage hard-leg slowdown with several resistance rows (relax-then-check
+    shipped for the most-masteries floors only, see AGENTS.md); `assignMaxMin`'s cost (its prune is unchanged); the EHP
+    proxy's per-element folds (kept on purpose, see the `StatBuilder.effectiveHpVar` KDoc); the placement
+    `NODE_BUDGET` (still 2 000 000) hard-leg "met" flip; the `x9prec245` re-measure (no record found, unverified).
+
+#### Original §E body (2026-10-02 → 2026-10-06; inline *(2026-10-11)* markers give the current status)
 
 Goal: find what still costs users time, starting from MEASUREMENTS of the current engine (CERTIFIER_VERSION 38,
 data 1.93), not from a technique. Most solver-side ideas are settled: read §0's REJECTED list,
 `docs/SOLVER_PERFORMANCE.md` §4 and `docs/MOST_MASTERIES_PERF_PLAN.md` §7–§8 first (no solver knobs; the whole
 DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dead).
 
-- **E0 — Baseline first.** Time the user-visible milestones on a 4-core profile (`solverWorkers = 3`: the
+- **E0 — Baseline first.** *(✅ DONE on v38 and v50. Open residuals: the badge-tightness matrix and level 200, and
+  no re-baseline since v51–v61. See the §E status block.)* Time the user-visible milestones on a 4-core profile (`solverWorkers = 3`: the
   common laptop, and the CI runner): first build, first badge, ProvenOptimal after the silent refinement, GUI
   warm-up — for the default requests at levels 110 / 200 / 245, most-masteries and max-damage, with and without
   runes + subs. A/B comparisons on the deterministic protocol (1 worker + interleave); multi-worker wall times
   only for end-to-end numbers (race noise otherwise). Re-baseline the badge-tightness matrix cold while at it
   (pending since the 2026-07-20 soundness wave). Measured: v38 = `docs/perf-next-steps-2026-10.md` §1, v50 = its §8.
 - **E1 — Leads to check against that baseline** (verify, then decide):
-  - the slow-suite hot spots, which double as proxies for the end-game proof times (single local runs,
+  - *(OPEN, informational. 2026-10-11: the level-245 free full-pool proof test now runs with domination on and takes
+    541 s wall, `96b090ec`.)* the slow-suite hot spots, which double as proxies for the end-game proof times (single local runs,
     1.92 → 1.93 data): `max-damage AP-cell certifier does not bail on the shipped sublimation catalog`
     464 s → 675 s, the lvl-245 free solve ~420 s, the lvl-245 runes+subs search + certificate 334 s → 429 s;
-  - max-damage shapes that still need minutes to reach ProvenOptimal after the soft-leg refinement
+  - *(OBSOLETE for the production path: sacrieur 230 now ends on the hard leg, ProvenWithin 13.40 %,
+    `perf-next-steps-2026-10.md` §8.4. Still OPEN: the "proven within X%" shapes, see the status block, OPEN #4 / #6.)*
+    max-damage shapes that still need minutes to reach ProvenOptimal after the soft-leg refinement
     (sacrieur 230: 19.6 min), and the shapes that stay at a "proven within X%" badge;
   - most-masteries on low core counts: the 1-worker proof takes 15–20 min where the certificate's full tier
-    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired; — the certificate
+    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired *(STALE: it shipped on
+    2026-07-13 as `MostMasteriesCertificate`, `MOST_MASTERIES_PERF_PLAN.md` §8.11. The 1-worker build quality is still
+    OPEN, see the status block, OPEN #5)*; — the certificate
     itself got ~7.5× faster on 2026-10-02 (exact stage-option pruning + primitive DP maps, CERTIFIER_VERSION
     40, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17: S2 full tier 66 s → 9 s, bit-identical), and the badge is now
     ONE full-tier pass computed in the search's tail (§8.19, E10-for-MM: on the 4-core profile the S2 badge
@@ -1209,7 +1333,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     sub (−15 % on the repro). Cost (4-core): proof wall −7 % / +25 % / +42 % at 110 / 200 / 245 after a value-identical
     widest-stage-first order of the fast pass under the range digit (+98 % at 245 without it); on the production
     path the 245 badge lands ~35 s after a 120 s search (18 s target-blind), the 110 one at once. Open: the exact pass
-    under the range digit dominates what is left at 245 (its stage order was A/B'd — no gain).
+    under the range digit dominates what is left at 245 (its stage order was A/B'd — no gain). *(Still OPEN 2026-10-11.)*
   - ~~the most-masteries GUI-default request gets NO badge on low-core machines~~ — FIXED 2026-10-02 (CERTIFIER_VERSION
     45 → 47, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.20): the MM certificate bailed on the GUI's RANGE 4 row and on its
     0-valued wind-resistance / dodge rows (all eight default rows reach the engine). 0-valued rows of any stat are now an
@@ -1218,6 +1342,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     the range-free S3 bound, 8.6 s / 94 896 states on 10 cores) ⇒ ≈ "within 12.1 %" against E0's 4-core incumbent where
     it read Unavailable; at 110 it bounds too (1.1 s). Also: late-staged sub HP now takes the %HP scaling (latent under-count,
     no catalog sub carries HP). Open: the 4-core production re-run, P3 (pair options once per proof).
+    *(2026-10-11: the 4-core re-run is DONE in `perf-next-steps-2026-10.md` §8.5. P3 is still OPEN: prototyped, not measured.)*
   - ~~the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers)~~ — FIXED
     2026-10-02: the power-table multiplier is floored at 1 (`penaltyMultiplier`, shared by the solver and both
     soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's
@@ -1385,7 +1510,8 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     melee, 230 distance) stay unproven at 120 s — the fix opens the Neutralité world, which at 80 melee face holds a better
     build than main's "proven" 796,125 (797,775 — the pruned model reaches it in 121 s on 10 cores); with the four caps
     excluded the pruned model proves all three at main's values and speed (15 / 36 / 49 s), and the v54 certificate bounds
-    those shapes 4–5 % above the best builds. **OPEN follow-up:** a tighter world-N (capped-world) bound, or a cap-free /
+    those shapes 4–5 % above the best builds. **OPEN follow-up** *(still OPEN 2026-10-11: no world split in the search,
+    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` still 20)*: a tighter world-N (capped-world) bound, or a cap-free /
     capped world split of the search — the split would also give short searches their badge back (next bullet): its
     cap-free world is the old compact collapse, whose first solution lands at det ≈ 2.
   - **Its first-solution cost (measured 2026-10-05, when the nightly broke).** The explicit picks also delay CP-SAT's
@@ -1423,6 +1549,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     the gates' sub sets, forced / opaque readers; pruned + gated == full-choice == general fold on 24 seeded pools,
     mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
 - **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — OPEN (soundness; found 2026-10-04 by the #226 review).**
+  *(Still OPEN 2026-10-11: the KNOWN GAP comment beside `allowRuneFold` in `WakfuBuildSolver.buildModel` is unchanged.)*
   The max-damage fold (and the collapse built on it) fills each item with ONE rune type, on the premise (comment in
   `WakfuBuildSolver.buildModel`) that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE
   secondary line gives the cap a positive budget, which a mixed item (part secondary, part elemental) can fill exactly
@@ -1466,7 +1593,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     `secondaryMasteriesSumBound` (6·t for t ≥ 0, t below; the raw t would be stricter than the rule for t > 0 — no shipped
     sub has t ≠ 0). One per-stat tightening shipped: the MM world-B M-cap is also bounded by Σ over the requested
     masteries of (t + what lands outside the first-turn read). The inputs changed (the rune pick set), hence v56.
-  - **Open (per-stat tightenings not built).** World N could drop the read crit-mastery credit (K ≤ 0 on its own: λ_K = 0
+  - **Open (per-stat tightenings not built)** *(still OPEN 2026-10-11)*. World N could drop the read crit-mastery credit (K ≤ 0 on its own: λ_K = 0
     — needs a bail on negative crit-mastery sub lines for Dénouement's conversion) and price a negative line of one
     secondary at nothing for the others (only valid per stat; not uniformly tighter on sources with negative elemental and
     positive scenario secondary). The capped world sits ~30 % below the normal worlds on real shapes, so neither moves a
@@ -1500,14 +1627,18 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     build is re-scored under the current rules, in every mode (`loadBuild` → `rescored()`: the search's own request
     mapping and stats grid, scored by `WakfuBestBuildFinderAlgorithm.rescore`; no solver), so an old save shows the
     corrected stats and score, and a stored "proven optimal" flag is dropped when the score moved. The library cards and
-    the compare view still read the stored entry, until the build is re-saved.
+    the compare view still read the stored entry, until the build is re-saved. *(STALE: since `f7ec4e1b` (#245) the
+    library cards and the compare view are re-scored too, by `BuildSearchModel.rescoreLibrary`.)*
 - **OCTOBER 2026 FOLLOW-UPS — leftovers of the per-element random-roll work (#237, #238) — all OPEN, decided "later"
-  (recorded 2026-10-05).** #237 (`0e6ed868`) made the scorer keep every random-element roll once the targets are met;
+  (recorded 2026-10-05).** *(2026-10-11: #238 merged as `ee8559dc` and `ElementRowAssignment.kt` is on main. One item is
+  CLOSED (the precision 0-target row), two are likely unreachable (the precision weights, see below), and the rest are
+  still OPEN.)* #237 (`0e6ed868`) made the scorer keep every random-element roll once the targets are met;
   #238 makes a family read through several per-element rows fold each roll ONCE, jointly (still open when this was
   written: `ElementRowAssignment.kt` and the joint fold live on its branch until it merges). Both left the points
   below; none is started.
   - **MAX-DAMAGE HARD LEG WITH SEVERAL PER-ELEMENT RESISTANCE ROWS: SLOWER SINCE THE JOINT FOLD — OPEN (perf; found by
-    #238's A/B and its review).** The joint fold adds choices (where each roll lands) and the hard leg pays for them.
+    #238's A/B and its review).** *(Still OPEN 2026-10-11. The relax-then-check that shipped (`15f134f6`, `53f8a728`) covers
+    only the most-masteries legs with floors. Max-damage keeps its direct solve, see AGENTS.md.)* The joint fold adds choices (where each roll lands) and the hard leg pays for them.
     Fixture `maxdmg200res` (max-damage, fire + water resistance rows), 1 worker, seeds 1–3, 120 det-s: the mean final
     build is about −0.2 % against main (66 438.7 on main; 66 320.7 and 66 424.8 in two runs with the fold), and the
     proof takes about 3× longer (OPTIMAL at 290.6 det-s against main's 94.8–115.8). The old builds were truly feasible —
@@ -1518,7 +1649,10 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
       superset of the new model's builds. If its optimum meets the rows under the exact placement, it is the proven
       optimum of the new model too.
   - **PRECISION RANDOM-ELEMENT ASSIGNMENT: THE PRIMARY IS THE UNWEIGHTED CAPPED SUM — OPEN (scorer consistency; found
-    during #237).** `assignMaxCapped` (`FindClosestBuildFromInputScoring.kt`) maximizes `Σ min(value_e, target_e)` first
+    during #237).** *(2026-10-11, code read: likely UNREACHABLE with unequal weights. `readsJointPerElementRows` sends every
+    precision family with ≥ 2 wanted elements and a positive row to `ElementRowObjective`. What reaches `assignMaxCapped`
+    is one element (a unique placement) or the aggregate alone (four equal weights). No confirming test yet, so this is
+    unverified. Close after adding one.)* `assignMaxCapped` (`FindClosestBuildFromInputScoring.kt`) maximizes `Σ min(value_e, target_e)` first
     and breaks only its ties by the weighted sum, while the score and the solver weight every row (`TargetStats.weight`
     = `100 / target` × the row's priority). The two rank placements alike only when the unmet rows share a weight.
     - Re-check first: #238 routes every family it reads jointly through its own weighted assignment
@@ -1528,16 +1662,18 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
       weigh nothing) — so this item and the next may be unreachable once #238 lands. Confirm, then close both or keep
       them as a guard.
   - **THE USER'S PER-ROW PRIORITY NEVER REACHES THE RANDOM-ELEMENT ASSIGNMENT — OPEN (scorer consistency; found during
-    #237).** The assignments receive the targets only, so `precisionRowWeight` weighs a row as a default-priority row
+    #237).** *(2026-10-11: same verdict as the previous item, likely unreachable, unverified.)* The assignments receive the targets only, so `precisionRowWeight` weighs a row as a default-priority row
     of its target: with non-default priorities the assignment's tie-break reads default weights. Same re-check as the
     previous item, which is its other half (the primary ignores weights altogether).
-  - **`assignMaxMin` IS A NEAR-EXHAUSTIVE ENUMERATION — OPEN (perf; found during #237).** The exact max-min
+  - **`assignMaxMin` IS A NEAR-EXHAUSTIVE ENUMERATION — OPEN (perf; found during #237).** *(Still OPEN 2026-10-11: same
+    average-bound prune.)* The exact max-min
     assignment of most-masteries (`FindClosestBuildFromInputScoring.kt`; the aggregate resistance row uses it too)
     tries every way to put each roll on its elements. Its only prune is the average bound
     `(Σ subset + mass left) / |subset| ≤ best minimum`, which bites only at perfect balance (and the weighted
     per-element-DI fold has no bound at all). About 40 ms on a real 10-line aggregate build; 1.5–5 s on synthetic
     4-element / 12-mixed-line instances.
   - **THE EHP SURVIVABILITY PROXY STILL FOLDS PER-ELEMENT ROWS ONE AT A TIME — OPEN (model-only; found during #238).**
+    *(Still OPEN 2026-10-11, kept on purpose: see the `effectiveHpVar` KDoc.)*
     `StatBuilder.effectiveHpVar`, the proxy of the opt-in survivability soft floor, reads each of the four resistances
     through its own single-element fold, so a positive random-element roll counts in full on every element — the
     over-count #238 removes from the target rows (a negative one counts nowhere since #242: every resistance fold leaves it
@@ -1554,7 +1690,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     sides; a 0-valued row beside a row that targets the same element ("all resistances" + the default air 0) is left to that
     row. `precisionModelObjective` and the score share `precisionHalves`. Locked by `ZeroTargetRowsTest`'s seeded fuzzes.
   - **THE PER-ELEMENT-ROW PLACEMENT SEARCH CAN FLIP A HARD-LEG "MET" STATUS WHEN ITS NODE BUDGET BINDS — OPEN (hard-leg
-    status; found by #238's review; documented in the `NODE_BUDGET` KDoc).** `ElementRowAssignment` places a jointly
+    status; found by #238's review; documented in the `NODE_BUDGET` KDoc).** *(Still OPEN 2026-10-11: `NODE_BUDGET` = 2 000 000.)* `ElementRowAssignment` places a jointly
     read family's rolls with an exact branch and bound under a deterministic 2M-node budget. Within the budget the
     solver's hard leg and the scorer's placement agree on "met"; when the budget binds, the placement kept is complete
     but can read a row as missed (one point short) that the hard leg meets. Seen on synthetic aggregate + per-element
@@ -1562,11 +1698,13 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     case 593k nodes / 65 ms. Follow-up: a feasibility-first repair when the budget binds — #238 expects no clear gain,
     since its pass 1 already looks for the all-met completions first.
   - **PRECISION OBJECTIVE VS DISPLAYED SCORE MISMATCH ON `x9prec245` — OPEN (measurement: re-measure after #237 and
-    #238).** Seen with the full pool: solver objective +2.7 % vs displayed −21 %. Very likely explained by the two bugs
+    #238).** *(2026-10-11: #237 and #238 are both on main. No re-measure is recorded anywhere in the repo, so this is
+    unverified and still to do.)* Seen with the full pool: solver objective +2.7 % vs displayed −21 %. Very likely explained by the two bugs
     fixed in #237 (rolls dropped once the targets are met) and #238 (the per-element over-count). Re-measure once both
     are on main; a gap that survives needs its own diagnosis.
 - **BACKGROUND FULL-CATALOG PROOF FOR MULTI-ELEMENT (PREFILTERED) REQUESTS — PLANNED, "later" (a feature, not a defect;
-  Phase 0 measured; recorded 2026-10-05).** A request on several elements of one family — two specific ones, or an
+  Phase 0 measured; recorded 2026-10-05).** *(Still OPEN 2026-10-11: there is no full-catalog proof code, and the
+  interim GUI message and gate are unchanged. Its compute-settings step has SHIPPED, see below.)* A request on several elements of one family — two specific ones, or an
   aggregate "all masteries" / "all resistances" row — searches a prefiltered pool (`needsItemPrefilter`: a heuristic
   top-N per stat; see "The multi-element item pre-filter" in `AGENTS.md`, and `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`
   §7b–§7c for its origin), so CP-SAT's `OPTIMAL` proves nothing global and the request never earns an optimality badge
@@ -1586,7 +1724,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   - **Then a compute-settings panel:** cores used (and why), a simple priority / mode choice, and an on/off for the
     optimality badge, each with a clear explanation in Settings. Today the "Check optimality after the search" switch
     (`UiState.verifyOptimality`, persisted by `LibraryPreferences`) and the `proofState` pipeline exist; there is no
-    Settings screen yet.
+    Settings screen yet. *(✅ DONE: the Settings screen shipped with Maximum / Balanced / Low / Custom CPU presets, the
+    cores used and the proof switch (`72bf1503` `ComputeBudget`, `bfe8d5cb`; `docs/SETTINGS_PANEL.md`,
+    `docs/COMPUTE_BUDGET.md`).)*
   - Open question: what the GUI shows when the full-catalog solve finds a BETTER build than the prefiltered one.
 
 ---
@@ -1622,6 +1762,8 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   green; ktlint clean. Since then: the B certifier backlog shipped in full (B1–B8), the D hygiene items all
   shipped (2026-07-08), and C closed in full — C7 re-implemented sound + measured-inert 2026-07-09 (stays OFF),
   C8(2) measured-NO. Only C8(3) (blocked on a from-scratch greedy warm-start) remains open in this file.
+  *(2026-10-11: STALE. C8(3) shipped on 2026-07-09 (`677cee0a`) and C6 was measured and removed on 2026-07-08. §E was
+  opened on 2026-10-02 and now holds all the open work: see its status block.)*
 - Background docs: `docs/max-damage-subs-provability-investigation.md` (the log behind the two
   commits), `docs/CERTIFICATE_PROD_PLAN.md` (certifier architecture + P-phase history),
   `docs/SOLVER_PERFORMANCE.md` (measurement protocol + rejected list),
