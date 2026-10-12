@@ -410,13 +410,23 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   offering such a type keeps per-type COUNTS
   (`RuneModel.countCarriers`); the certificate reads each of its types at its full-fill vertex, which bounds every mixed
   fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
-  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The plain counts slowed the search where every rune type
-  is a threshold read (the GUI default), so the search runs the HYBRID (`WakfuBuildSolver.mixedRuneHybrid`, kill switch
-  `WAKFU_MD_MIXED_HYBRID=0`, tuned opt-in `SolverTuning.mixedRuneHybrid`). The fold searches (its would-be count carriers
-  recorded in `RuneModel.foldInexactCarriers`). The count model re-solves the fold's final items (sublimations pinned, then
-  free), and verifies a PROVEN fold optimum on the full pool. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where
-  `foldInexactCarriers` is non-empty: only the count model stamps `isOptimal`. Wall-clock A/B still to run (OPEN #2). Locks: `MixedRuneSecondaryBudgetTest`
-  (reference: the per-stat count model, `forceRuneCountModel`).
+  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0` (everything on the inexact fold). The plain per-carrier
+  counts slowed the search where every rune type is a threshold read (the GUI default); two exact remedies work together
+  (`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "Integration"):
+  - **Count CLASSES** (`RuneCountClass`): every COUNT model the search builds aggregates interchangeable count carriers
+    (same item type, socket count and rune choices) into one count per type per class — exact, every rune reader reads class
+    sums; `RuneCountClass.distribute` splits them back per worn carrier in `solutionToBuild`. ~6× smaller model at the GUI
+    default. The certificates never see a class: a model built for one keeps per-carrier counts, and the certifier bails on a
+    model with classes. Kill switch `WAKFU_MD_RUNE_CLASSES=0`, tuned seam `SolverTuning.runeCountClasses`.
+  - **The HYBRID** (`WakfuBuildSolver.mixedRuneHybrid`, kill switch `WAKFU_MD_MIXED_HYBRID=0` = the count model searched
+    directly, tuned opt-in `SolverTuning.mixedRuneHybrid`). The plain fold searches (its would-be count carriers recorded in
+    `RuneModel.foldInexactCarriers`; never aggregated). The count model — with classes — re-solves the fold's final items
+    (sublimations pinned, then free), verifies a PROVEN fold optimum on the full pool, and takes over a fold proven
+    INFEASIBLE. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where `foldInexactCarriers` is non-empty: only the count model
+    stamps `isOptimal`.
+  Wall-clock A/B still to run (OPEN #2). Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat count model,
+  `forceRuneCountModel`; the hybrid's count stages on classes), `RuneCountClassTest` (classes = per-carrier = count model;
+  identical domains).
 - **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
   skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,
   `worldPruneOrder`); the production cascade first probes the top world's exact pass on tier-1's step-8 rows and skips

@@ -265,6 +265,10 @@ internal class StatBuilder(
             val runeHi = runeModel.runeVarHi(equip)
             perStat.forEach { (stat, v) -> tracker.seed(v, 0L..runeHi, "rune_${equip.equipmentId}_${stat.name}") }
         }
+        // A count class's var holds the runes of every carrier of the class the build wears ([RuneCountClass.hi]).
+        runeModel.countClasses.forEach { rc ->
+            rc.vars.forEach { (stat, v) -> tracker.seed(v, 0L..rc.hi, "runeClass_${rc.carriers.first().equipmentId}_${stat.name}") }
+        }
         subModel.subVars.forEach { (sub, v) -> tracker.seed(v, 0L..1L, "sub_${sub.stateId}") }
     }
 
@@ -299,6 +303,18 @@ internal class StatBuilder(
         val rangesByCarrier = LinkedHashMap<Equipment, LongRange>()
         val rangesBySub = LinkedHashMap<Sublimation, LongRange>()
         for (term in terms) {
+            val runeClass = runeModel.countClassByVar[term.variable]
+            if (runeClass != null) {
+                // A count class's var: each worn carrier of the class holds at most `slots` of its runes, so its share
+                // rides that carrier's range exactly like a per-carrier count var (sound: the class splits into
+                // per-carrier fills, [RuneCountClass]).
+                val perCarrier = term.scaledRange(0L..runeClass.slots.toLong())
+                for (equip in runeClass.carriers) {
+                    val current = rangesByCarrier[equip] ?: (0L..0L)
+                    rangesByCarrier[equip] = current.first + perCarrier.first..current.last + perCarrier.last
+                }
+                continue
+            }
             val equip = carrierByVar[term.variable]
             if (equip != null) {
                 val d = tracker.of(term.variable)
@@ -2519,6 +2535,12 @@ internal class StatBuilder(
             }
         }
         terms.addAll(runeModel.extraTerms[char].orEmpty())
+        // Count classes ([RuneCountClass]): one count per type for the whole class, coeff each (a class shares its values).
+        for (rc in runeModel.countClasses) {
+            val classVar = rc.vars[char] ?: continue
+            val coefficient = rc.coefficients[char] ?: 0L
+            if (coefficient != 0L) terms.add(Term(classVar, coefficient))
+        }
 
         terms.addAll(skillTerms.fixed[char].orEmpty())
         val base = baseValues[char]?.toLong() ?: 0L

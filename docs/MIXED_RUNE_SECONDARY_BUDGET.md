@@ -16,10 +16,11 @@ the change takes the next numbers, AGENTS.md §4). What the port changed:
 - **Sublimation stacking** (#269, v60/v61): Neutralité III now reaches its family level 4 (+32 % DI instead of 24), so the
   minimal repro below now reads fold 1,382,985 vs count model 1,408,170 (+1.82 %); the mechanism is unchanged.
   `negativeStatSources` also reads a stacking sub's per-level values (`valuesByLevel`), not only its top value.
-- The cost measurements below were NOT re-run on main. The GUI-default regression they show is addressed by the HYBRID
-  (2026-10-12, section "The hybrid" below): the search runs on the fold again, and the count model polishes its final build and
-  is the only source of an optimality proof. The wall-clock A/B on a calm machine is still to be run
-  (`docs/perf-review-backlog.md` §E OPEN #2).
+- The cost measurements below were NOT re-run on main. The GUI-default regression they show is addressed by two exact
+  remedies, built in parallel and integrated on `perf/mixed-runes-integrated` (section "Integration" below): the HYBRID
+  ("The hybrid": the search runs on the fold again, the count model polishes its final build and is the only source of an
+  optimality proof) and the count CLASSES ("Count classes": the count model made ~6× smaller), which every count stage of
+  the hybrid uses. The wall-clock A/B on a calm machine is still to be run (`docs/perf-review-backlog.md` §E OPEN #2).
 
 ## The gap
 
@@ -313,6 +314,150 @@ Not done: polishing the INTERMEDIATE fold incumbents during the search (only the
 mid-search are fold builds). It would need a second solver beside CP-SAT's workers, and the sublimation pinning read back
 from a streamed build.
 
+## Count classes (2026-10-12): the exact count model made fast
+
+`perf/mixed-counts-speed`, on top of the v62 port. Deterministic harness `MixedRuneCountsPerfHarnessTest` (manual,
+`WAKFU_MIXED_PERF=shape|run`): 1 worker, interleave, a fixed seed, a det budget; production pool (domination on), the
+production experiment config (`MaxDamageExperimentConfig.DEFAULT` — the bare `SolverTuning()` default is NOT production),
+presolve 3 as in production, the greedy warm start hinted as in production; the GUI-default rows on the HARD leg (what
+production runs first), the free request as a plain solve. Search logs through `SolverTuning.searchLogSink`. Arms: **fold**
+(`runeMixedCarriers = false`, the v61 all-or-nothing fill — inexact), **counts** (the v62 per-carrier counts),
+**classes** (this change).
+
+### Diagnosis: the per-carrier counts copy one decision onto thousands of interchangeable carriers
+
+`WAKFU_MIXED_PERF=shape` on the GUI-default requests: EVERY rune type except the generic elemental one is in `mixedStats`
+(HP: the 2000 row; wind resistance and dodge: 0-rows with negative lines in the pool; distance and rear: the Neutralité
+budget, plus the distance-mastery gates from level 200; crit mastery: its budget / Dénouement), so every carrier offering
+two types — all of them — is a count carrier: 2,004 carriers × 7 types at level 110, 6,727 × 7 at 245.
+
+- The LP relaxations of the fold and the counts are the SAME polytope (`x_t = slots·p_t`, `p ∈ [0, 1]` ⇔ `x ∈ [0, slots]`)
+  and the variable count is the same (16,566 at level 110: a pick became a count). What differs is structure: the fold's
+  `Σ picks = x_c` presolves into 2,024 exactly-one constraints (clauses: SAT propagation), the counts' `Σ n_t = slots·x_c`
+  stay 2,063 linear constraints over 41,710 terms. At det 60 (MD110, one trajectory each) the counts searched 6,950 branches
+  against the fold's 14,199–35,105, with 28× fewer boolean propagations, and spent more of the budget in the LP (41k LP
+  iterations against 14k in the bare-config pair).
+- Presolve is most of the first solution: ~12 s wall / det 10–18 for both per-carrier models at level 110, det 31–48 at
+  245 — and the det-60 budget OVERSHOOTS to det 63–72 there, presolve not being interruptible. The first CP-SAT solution
+  is the greedy hint's completion in both.
+- Every later improvement comes from LNS (`rnd_cst_lns`, `graph_arc_lns`, `graph_dec_lns`) and `quick_restart_no_lp`, in
+  both arms; the dual bound stays at 4–6 M against a ~1.2–1.4 M incumbent. It is a primal (search) problem, not a bound
+  problem.
+- The mechanism: a build wears ~12 carriers, but the counts give each of the thousands of candidate carriers its own
+  copy of the rune decision. The rune readers never tell two carriers apart when they have the same item type, socket count
+  and per-socket values: the 2,004 carriers of MD110 fall into **60 classes** (110 at level 245). An LNS move that swaps a
+  helmet for another one must also move its seven counts — in the fold that is one pick, with counts it is a vector the
+  neighbourhood rarely repairs.
+
+### The fix: one count per type per CLASS (exact, search model only)
+
+`RuneCountClass` (SolverModel.kt), built by `createRuneModel(aggregateCountClasses = true)`: count carriers sharing their
+item type, socket count and rune choices (same rune, same per-socket value — and therefore the same choice gates) hold ONE
+count per type for the class, `m_t ∈ 0..slots·maxWorn` (two rings, else one), with `Σ_t m_t = slots · Σ_{c ∈ class} x_c`.
+
+- **Exact.** Every reader of a rune reads it through `StatBuilder.baseTermsFor` — `Σ_c Σ_t coeff_t · n_{c,t}` — and a
+  class's carriers share `coeff_t`: the stat totals depend on the per-carrier counts only through the class sums. Per-carrier
+  → class: summing gives the class constraint and the same totals; a choice gate `n_{c,t} ≤ slots·Σ subVar` implies
+  `m_t ≤ hi·Σ subVar`. Class → per-carrier: `N` worn carriers and `Σ_t m_t = slots·N` split into N fills of exactly `slots`
+  runes (`RuneCountClass.distribute`, used by `solutionToBuild`), and a type with `m_t > 0` has a taken gate sub. Item
+  stats, sockets and sublimation carriers ride the equip vars, untouched; forced runes keep the per-stat count model (no
+  fold, no class). Same optimum, same objective per build.
+- **Domains.** `reachableSumDomain` bounds every objective-chain var per item slot; a class var's share rides each of its
+  carriers at `0..slots`, exactly like that carrier's own count, so the declared domains are IDENTICAL to the per-carrier
+  model's (locked on the GUI-default and free requests at levels 110 and 245, both legs). An under-estimate would cut the
+  optimum.
+- **Certificates: untouched.** The AP-cell certifier mirrors per-carrier vars, so every model that feeds a certificate
+  (`certifyLedgerForTest`, `certifyAllApForTest`, the explain, the fast-only audit, the `certifierCellCap` experiment) is
+  built WITHOUT classes, and `certifyMaxPerHitAtApPass` bails (sound) on a model with classes should one ever reach it. The
+  certifier's input is byte-identical: no `CERTIFIER_VERSION` change, the vertex lock holds as is. The E8 construct re-solves
+  through `optimize` (classes on): it only ever sees real builds.
+- Model size (GUI default, production pool): level 110 16,566 vars / 2,415 constraints → 2,958 / 471 (420 class counts);
+  200 43,612 / 6,016 → 6,855 / 765; 245 54,681 / 7,464 → 8,362 / 847; free 245 31,049 / 16,087 → 7,843 / 949.
+- Seams: `SolverTuning.runeCountClasses` (default true), kill switch `WAKFU_MD_RUNE_CLASSES=0` (per-carrier counts),
+  `maxDamageSolveForTest(runeCountClasses)`.
+
+### Deterministic A/B (seed 1)
+
+| Request | first solution det: fold / counts / classes | det 60: fold / counts / classes | det 120: fold / counts / classes |
+|---|---|---|---|
+| GUI default 110 (MD110) | 17.69 / 10.04 / **1.59** | 1,239,270 / 1,183,245 / **1,419,050** | 1,244,320 / 1,183,245 / **1,425,110** |
+| GUI default 200 (MD200) | none by det 402 / 85.86 / **27.58** | none / none (det 71) / **5,664,800** | none (det 223) / 5,061,270 / **7,391,400** |
+| GUI default 245 (MD245) | 48.46 / 31.04 / **10.69** | 8,532,240 (det 72) / 9,927,270 (det 63) / **15,251,160** | 15,461,400 / **15,577,470** / 15,411,375 |
+| free 245 (MD245F) | 17.73 / 17.52 / **8.08** | 13,406,120 (det 65) / 16,070,220 (det 71) / **19,396,625** | 19,358,625 / 19,382,375 / **19,501,125** |
+
+(A "(det N)" is a budget the per-carrier model's presolve overshot.) The classes reach their first solution 2–11× sooner
+and lead at det 60 everywhere (+14.5 % / from nothing / +79 % / +45 % over the fold); at det 120 they lead on three of four,
+and the fold catches up on GUI default 245 (−0.3 %, one trajectory). Multi-seed:
+
+| Request | seeds | fold (per seed) | classes (per seed) | median fold → classes |
+|---|---|---|---|---|
+| MD110, det 60 | 1–3 | 1,239,270 / 1,202,345 / 1,185,740 | 1,419,050 / 1,324,110 / 1,427,130 | 1,202,345 → 1,419,050 (+18.0 %) |
+| MD110, det 120 | 1–3 | 1,244,320 / 1,273,610 / 1,224,120 | 1,425,110 / 1,348,350 / 1,427,130 | 1,244,320 → 1,425,110 (+14.5 %) |
+| MD200, det 60 | 1–3 | none ×3 | 5,664,800 / 4,052,745 / 7,265,610 | none → 5,664,800 |
+| MD200, det 120 | 1–3 | none / none / 4,856,175 | 7,391,400 / 7,754,625 / 7,539,480 | none → 7,539,480 |
+| MD245, det 60 | 1–3 | 8,532,240 ×3 (presolve overshoots to det 72–90; the hint's completion) | 15,251,160 / 14,094,840 / 14,576,640 | 8,532,240 → 14,576,640 (+70.8 %) |
+| MD245, det 120 | 1–7 | 15,461,400 / 13,941,540 / 14,885,430 / 8,536,620 / 13,115,910 / 13,895,550 / 14,784,690 | 15,411,375 / 14,574,450 / 15,608,130 / 14,964,270 / 14,896,380 / 14,835,060 / 16,166,625 | 13,941,540 → 14,964,270 (+7.3 %; 6 of 7 seeds) |
+| MD245F, det 60 | 1–3 | 13,406,120 / 18,392,000 / 19,254,125 | 19,396,625 / 18,634,250 / 19,178,125 | 18,392,000 → 19,178,125 (+4.3 %) |
+| MD245F, det 120 | 1–7 | 19,358,625 / 19,517,750 / 19,296,875 / 19,263,625 / 19,460,750 / 19,249,375 / 19,877,670 | 19,501,125 / 19,073,625 / 19,242,250 / 19,401,375 / 19,688,750 / 20,226,270 / 19,458,375 | 19,358,625 → 19,458,375 (+0.5 %; 4 of 7) |
+
+On this deterministic one-worker protocol the classes' median is ahead of the (inexact) fold's at every budget on all four
+requests, and their first solution comes sooner everywhere — but see the next section: production's multi-worker portfolio
+ranks them differently. Free 245 is the closest: its optimum (20,328,360, proven by the E8 construct) is within ~5 % of both,
+and the best seed of all (20,226,270) is a classes run. The dual bound is also tighter with the classes (GUI default 110:
+3.08 M against the fold's 4.16–4.41 M at det 60–120).
+
+### Production's portfolio ranks them differently (3 workers, wall clock)
+
+The interleaved one-worker search is NOT production's portfolio. With 3 workers and no interleave (the GUI's 4-core search:
+`default_lp` + `fixed` full workers, `fj` first solution, then feasibility pump, RINS/RENS and the graph / random LNS
+interleaved on the helper threads), 60 s wall, `-XX:ActiveProcessorCount=4`, the same harness (`WAKFU_MIXED_WORKERS=3
+WAKFU_MIXED_INTERLEAVE=0`, budget `w60`, one solve at a time; wall clock, so on a shared PC):
+
+| Request | fold | counts | classes | median fold / counts / classes |
+|---|---|---|---|---|
+| GUI default 110 (seeds 1–8; counts 3–5) | 1,440,260 / 1,443,290 / 1,282,380 / 1,427,130 / 1,447,330 / 1,442,280 / 1,446,320 / 1,447,330 | 1,330,315 / 1,091,565 / 1,244,365 | 1,418,175 / 1,331,100 / 1,340,670 / 1,318,920 / 1,411,490 / 1,334,135 / 1,301,520 / 1,329,360 | 1,442,785 / 1,244,365 / 1,332,618 (−7.6 % vs the fold, +7.1 % vs the counts) |
+| free 245 (seeds 1–5; counts 3–5) | 19,648,375 / 19,745,750 / 19,460,750 / 19,078,375 / 19,389,500 | 19,244,625 / 18,843,250 / 19,273,125 | 18,437,125 / 19,517,750 / 19,432,250 / 19,881,125 / 19,097,375 | 19,460,750 / 19,244,625 / 19,432,250 (−0.1 %) |
+
+`PerfBaselineE0Test` (the production path: hard leg, proof chain; 60 s, 4 cores, MD110 then MD245F per JVM, arms
+alternating, 2 runs): fold MD110 1,427,130 / 1,427,130 (first CP-SAT solution 13.0 / 12.1 s, badge within 5.1 %),
+classes 1,340,670 / 1,273,030 (first 4.6 / 4.1 s, within 11.8 / 17.8 %); MD245F fold 19,296,875 / 19,353,875 (first
+19.3 / 19.6 s), classes 17,147,500 / 17,301,875 (first 15.6 s ×2), no badge either way. (For reference, the plain counts'
+E0 runs of PR #251 read MD110 1.18–1.22 M, within 26–30 %.)
+
+So on production's portfolio the classes recover about half of the GUI-default-110 regression (counts −14 % → classes −8 %
+against the inexact fold; first solution ~3× sooner) and reach parity on free 245 in the harness (the two E0 runs of free
+245 were low; too few to conclude). The fold's 3-worker search converges on GUI default 110 almost every time (1.44 M in 7
+of 8 runs): its whole-item fills are a much smaller space for the pump / RINS / LNS neighbourhoods. With 8 workers the
+classes reach the same 1,447,330 in 38 s (one 300 s run) — the GUI-default-110 optimum needs no mixed fill, so the exact
+model's extra space only costs search there.
+
+Tried on top of the classes and dropped:
+- **Deviation form** (keep the fold's per-carrier picks and give each class signed deviations `d_t`, `Σ_t d_t = 0`,
+  `slots·Σ_c p_{c,t} + d_t ≥ 0` — exact, same domains): det one-worker it is the fold again (presolve-bound: first solution
+  det 13.4 / 73.8 / 42.5 / 26.4 on the four requests, det 120 1,183,245 / 4,223,380 / 15,483,300 / 19,536,750); 3 workers it
+  is the most erratic arm (GUI default 110: 1,420,060 / 1,064,880 / 1,079,150 / 1,409,960 / 1,208,075; free 245 median
+  19,330,125). Reverted.
+- **Linearization level 1** for the class model (3 workers, GUI default 110, seeds 6–8): 1,321,720 / 1,403,850 / 1,317,180
+  against 1,334,135 / 1,301,520 / 1,329,360 — no change.
+
+### The other levers (2026-10-12)
+
+- **Fewer threshold reads (static analysis): no gain on these requests.** Every type the shape run lists in `mixedStats`
+  can bind: HP 2000 is above level 110's base 1,150 and, at 245 (base 2,500), items with negative HP lines survive
+  domination; the wind-resistance and dodge 0-rows have negative lines in the pool; distance / rear have the Neutralité
+  budget (and distance-mastery gates from 200); crit has its budget / Dénouement. Even dropping one would leave every
+  carrier a count carrier (one mixed type beside another is enough).
+- **Fewer count vars per carrier (merge the non-threshold types): nothing to merge** — the generic elemental rune is the
+  only non-mixed type on the GUI default. The classes make the count-var count small anyway (420 at level 110).
+- **Dominance cuts** (e.g. never overshoot a `≥` row by a whole rune of a type nothing else reads): not tried. An exact
+  version needs, per type, every reader of its stat (HP feeds `%HP` and the survivability floor; dodge is read by Furie's
+  `dodge < level` and by gates; resistances by the random-roll folds), and the measured gap it would close is gone.
+- **Search guidance** (decision strategy, rune hints, CP-SAT parameters): not needed after the classes; the per-carrier
+  models' main cost was presolve and LP size, which no parameter fixes.
+- **Next, if wanted:** aggregate the fold's PICK carriers the same way (`p_{k,t} ∈ 0..maxWorn`, `Σ_t p = Σ x_c`, also
+  exact) — requests whose carriers stay picks (no threshold read) would get the same model shrink; the certificates would
+  again read the per-carrier model.
+
 ## Tests
 
 `MixedRuneSecondaryBudgetTest`:
@@ -335,6 +480,19 @@ from a streamed build.
   rows); the fold alone proves less on 13 of them. A fold proven INFEASIBLE (lock and dodge rows on one 4-socket helmet,
   each needing part of it) hands the hard leg to the count model, which meets both. Mutations checked: stamping the
   fold's OPTIMAL fails the first test, and trusting the fold's INFEASIBLE fails the last.
+
+`RuneCountClassTest` (the count classes):
+- seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under the
+  three threshold shapes that make count carriers (an HP row + dodge floor, an "all resistances" floor with negative lines,
+  the Neutralité budget with its choice gates), both legs: classes = per-carrier counts = the per-stat count model, all
+  proven; every shape has a class of ≥ 2 carriers. Mutation-checked: a class top of ONE ring fails it (and the next test);
+- the production solve path (`optimize`): a build from the class model fills every socket of every worn carrier, wears two
+  rings of one class, and reaches the per-carrier optimum;
+- the declared reachable domains of every tracked objective-chain var are IDENTICAL with and without classes on the
+  GUI-default and free requests (levels 110 / 245, production pool, both legs).
+
+`MaxDamageFirstSolutionLatencyTest` reads det 2.48 with the classes (10.30 with the per-carrier counts); its budget went
+from 20 to 6.
 
 Without the fix (count carriers disabled in production) the repro and the seeded lock fail (1,320,570 vs 1,328,235;
 seed 9: 2,212,350 vs 2,275,560). Without the certifier's vertex scaling the vertex lock fails (the repro's capped world

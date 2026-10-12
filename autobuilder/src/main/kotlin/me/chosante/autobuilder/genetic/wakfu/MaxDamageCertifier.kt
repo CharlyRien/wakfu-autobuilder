@@ -1979,6 +1979,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     fastSegmentSkipUb: LongArray? = null,
     fastSkipBelowRaw: Long = Long.MIN_VALUE,
 ): Long {
+    // A search model's count classes ([RuneModel.countClasses]) are not mirrored per carrier: never certify one (the
+    // certificates build their own per-carrier model; this guard only keeps a misuse sound).
+    if (runeModel.countClasses.isNotEmpty()) return Long.MAX_VALUE
     val mastery = damagePreMasteryTerms(scenario) ?: return Long.MAX_VALUE
     if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return Long.MAX_VALUE
     if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return Long.MAX_VALUE
