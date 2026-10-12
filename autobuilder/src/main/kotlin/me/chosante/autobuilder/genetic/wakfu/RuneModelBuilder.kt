@@ -45,6 +45,10 @@ internal fun CpModel.createRuneModel(
     // The rune types a single-type fill cannot represent exactly ([MaxDamageRuneReads.mixedStats]): a fold carrier
     // offering one of them beside another type gets per-type COUNTS instead of picks. Empty ⇒ the pure fold.
     mixedStats: Set<Characteristic> = emptySet(),
+    // The mixed-rune HYBRID's fold stage ([WakfuBuildSolver.mixedRuneHybrid]): false keeps every carrier [mixedStats] would
+    // make a count carrier on its single-type picks, and only RECORDS it ([RuneModel.foldInexactCarriers]) — the fast fold,
+    // which knows it is not exact.
+    materializeCountCarriers: Boolean = true,
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -123,6 +127,8 @@ internal fun CpModel.createRuneModel(
     val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
     // The fold carriers modelled with per-type counts (0..slots each, Σ = slots·selected) instead of picks.
     val countCarriers = LinkedHashSet<Equipment>()
+    // The carriers [mixedStats] would make count carriers, kept on picks ([materializeCountCarriers] false).
+    val foldInexactCarriers = LinkedHashSet<Equipment>()
     val maxDamageMasteryRuneStats =
         if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             buildSet {
@@ -176,7 +182,9 @@ internal fun CpModel.createRuneModel(
             // A carrier whose choices include a type a single-type fill cannot represent exactly ([mixedStats]: a
             // threshold read with a budget) keeps per-type COUNTS over its kept types: the per-socket Pareto argument
             // and the gates hold rune by rune, so pruning stays exact; only the all-or-nothing fill goes.
-            val mixed = choices.size >= 2 && choices.keys.any { it in mixedStats }
+            val inexact = choices.size >= 2 && choices.keys.any { it in mixedStats }
+            if (inexact && !materializeCountCarriers) foldInexactCarriers += equip
+            val mixed = inexact && materializeCountCarriers
             val perStat =
                 if (mixed) {
                     countCarriers += equip
@@ -229,7 +237,8 @@ internal fun CpModel.createRuneModel(
                 }
             }
             runeVars[equip] = perStat
-        } else if (singleTypePerItem && !(runeStats.size >= 2 && runeStats.any { it in mixedStats })) {
+        } else if (singleTypePerItem && !(materializeCountCarriers && runeStats.size >= 2 && runeStats.any { it in mixedStats })) {
+            if (runeStats.size >= 2 && runeStats.any { it in mixedStats }) foldInexactCarriers += equip
             // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
             val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
             val pickExpr = LinearExpr.newBuilder()
@@ -292,7 +301,8 @@ internal fun CpModel.createRuneModel(
         maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse,
         choiceGates = choiceGates,
         countCarriers = countCarriers,
-        countVarSlots = countVarSlots
+        countVarSlots = countVarSlots,
+        foldInexactCarriers = foldInexactCarriers
     )
 }
 

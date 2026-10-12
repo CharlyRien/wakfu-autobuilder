@@ -410,8 +410,12 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   offering such a type keeps per-type COUNTS
   (`RuneModel.countCarriers`); the certificate reads each of its types at its full-fill vertex, which bounds every mixed
   fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
-  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The plain counts slow the search where every rune type is
-  a threshold read (the GUI default): OPEN, `docs/perf-review-backlog.md` §E OPEN #2. Locks: `MixedRuneSecondaryBudgetTest`
+  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The plain counts slowed the search where every rune type
+  is a threshold read (the GUI default), so the search runs the HYBRID (`WakfuBuildSolver.mixedRuneHybrid`, kill switch
+  `WAKFU_MD_MIXED_HYBRID=0`, tuned opt-in `SolverTuning.mixedRuneHybrid`). The fold searches (its would-be count carriers
+  recorded in `RuneModel.foldInexactCarriers`). The count model re-solves the fold's final items (sublimations pinned, then
+  free), and verifies a PROVEN fold optimum on the full pool. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where
+  `foldInexactCarriers` is non-empty: only the count model stamps `isOptimal`. Wall-clock A/B still to run (OPEN #2). Locks: `MixedRuneSecondaryBudgetTest`
   (reference: the per-stat count model, `forceRuneCountModel`).
 - **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
   skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,

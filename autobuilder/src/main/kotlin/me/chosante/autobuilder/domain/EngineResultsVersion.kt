@@ -22,6 +22,8 @@ package me.chosante.autobuilder.domain
  * 7: CERTIFIER_VERSION 62 — max-damage runes can MIX on an item: a carrier offering a rune type a threshold reads (a
  * secondary cap with a budget, a required row or floor, the survivability floor, an item stat gate) keeps per-type counts
  * instead of one type per item, and an item stat gate's stat no longer lets the rune choice collapse prune the choice the
- * gated item needs. A re-run may find a better build.
+ * gated item needs. The search itself runs on the fast single-type fold where it is inexact, then re-solves the count
+ * model on the fold's items (and verifies a proven fold optimum on the full count model): a build is proven optimal only by
+ * the count model. A re-run may find a better build.
  */
 const val ENGINE_RESULTS_VERSION: Int = 7

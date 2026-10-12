@@ -459,6 +459,13 @@ object WakfuBuildSolver {
      */
     internal val mixedRuneCarriersEnabled: Boolean = System.getenv("WAKFU_MD_MIXED_RUNES") != "0"
 
+    /**
+     * A/B kill switch of the mixed-rune HYBRID on the production path (`WAKFU_MD_MIXED_HYBRID=0` ⇒ the plain count model
+     * searched directly, as v62 first shipped it): see [mixedRuneHybrid]. No effect under `WAKFU_MD_MIXED_RUNES=0` (no count
+     * carrier to hybridise). The tuned path opts in through [SolverTuning.mixedRuneHybrid] instead.
+     */
+    internal val mixedRuneHybridEnabled: Boolean = System.getenv("WAKFU_MD_MIXED_HYBRID") != "0"
+
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
     // cycles from search/proof. Intermediate snapshots are pure progress — re-rendering the in-flight build
@@ -789,6 +796,12 @@ object WakfuBuildSolver {
         // A/B seam (CERTIFIER_VERSION 62): false gives the max-damage rune fold no count carrier — the ≤ v61 all-or-nothing
         // fill, which can miss a part-filled optimum. Production keeps it on.
         val runeMixedCarriers: Boolean = true,
+        // The mixed-rune hybrid ([mixedRuneHybrid]) on the TUNED path: production (tuning == null) always runs it where the
+        // fold is inexact (kill switch [mixedRuneHybridEnabled]); a deterministic solve opts in here, so every existing tuned
+        // test keeps the plain count model.
+        val mixedRuneHybrid: Boolean = false,
+        // Test seam (the hybrid's lock): false skips its VERIFY stage, so a fold proven OPTIMAL must still end unproven.
+        val mixedRuneHybridVerify: Boolean = true,
         // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
         // receive CP-SAT's own search log lines (dual-bound trajectory + per-subsolver attribution) —
         // the standard solve path otherwise hardcodes the log off. A Java-side callback, NOT stdout:
@@ -992,6 +1005,8 @@ object WakfuBuildSolver {
                         close()
                         return@launch
                     }
+                    // The mixed-rune hybrid: the search runs on the fast FOLD, the count model polishes and verifies ([mixedRuneHybrid]).
+                    val hybridFold = mixedRuneHybridApplies(params, tuning, maxDamageRawFloor)
                     val built =
                         buildModel(
                             params,
@@ -1001,6 +1016,7 @@ object WakfuBuildSolver {
                             applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
                             maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
                             runeMixedCarriers = tuning?.runeMixedCarriers ?: true,
+                            runeMixedHybridFold = hybridFold,
                             hardConstraints = hardConstraints,
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
@@ -1044,6 +1060,26 @@ object WakfuBuildSolver {
                     // optimality-neutral; requires greedyWarmStart = false so no var is hinted twice).
                     tuning?.assignmentHint?.let { hint ->
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
+                    }
+                    // An inexact fold (a carrier the count model would mix on): its OPTIMAL proves nothing, so the hybrid owns
+                    // the leg — polish, verify, and the only optimality stamp. An exact fold (no such carrier) IS the count model.
+                    if (hybridFold && built.runeModel.foldInexactCarriers.isNotEmpty()) {
+                        val outcome =
+                            mixedRuneHybrid(
+                                this@callbackFlow,
+                                params,
+                                equipmentsByItemType,
+                                runes,
+                                sublimations,
+                                tuning,
+                                hardConstraints,
+                                built,
+                                warmScore,
+                                solverHandle
+                            )
+                        onTermination?.invoke(outcome)
+                        close()
+                        return@launch
                     }
                     val outcome =
                         executeSolverAndEmitResults(
@@ -1555,6 +1591,421 @@ object WakfuBuildSolver {
         return flooredOutcome ?: relaxedOutcome
     }
 
+    /**
+     * Whether [optimize] solves this leg with [mixedRuneHybrid]: a max-damage leg whose rune model would carry count carriers
+     * ([SolverTuning.runeMixedCarriers] and `WAKFU_MD_MIXED_RUNES` on), in production (kill switch [mixedRuneHybridEnabled]) or on
+     * a tuned solve that opts in ([SolverTuning.mixedRuneHybrid]). Not the E8 fallback's feasibility search
+     * ([maxDamageRawFloor]: any solution of it sits at its floor, it needs no optimum), a solve stopped at its first solution, nor
+     * the measurement seams that replace the searched model or hint it by name.
+     */
+    private fun mixedRuneHybridApplies(
+        params: WakfuBestBuildParams,
+        tuning: SolverTuning?,
+        maxDamageRawFloor: Long?,
+    ): Boolean =
+        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
+            mixedRuneCarriersEnabled &&
+            (tuning?.runeMixedCarriers ?: true) &&
+            (if (tuning == null) mixedRuneHybridEnabled else tuning.mixedRuneHybrid) &&
+            maxDamageRawFloor == null &&
+            tuning?.stopAtFirstSolution != true &&
+            tuning?.assignmentHint == null &&
+            tuning?.mmPenaltyBucketInterval == null
+
+    // Diagnostics (WAKFU_MD_HYBRID_DEBUG=1): one stderr line per hybrid leg — each stage's objective, the verify status, the cost.
+    private val HYBRID_DEBUG = System.getenv("WAKFU_MD_HYBRID_DEBUG") == "1"
+
+    /** The share of a hybrid leg's budget kept back from its fold stage for the polish ([mixedRuneHybrid]), at most [HYBRID_POLISH_RESERVE_MAX]. */
+    internal const val HYBRID_POLISH_RESERVE_SHARE = 0.1
+
+    /** The most a hybrid leg keeps back for its polish (seconds, or deterministic units on a tuned solve). */
+    internal const val HYBRID_POLISH_RESERVE_MAX = 6.0
+
+    /** The most the polish may run once the fold proved early (it is a tiny model; the verify stage gets the rest). */
+    private const val HYBRID_POLISH_CAP = 10.0
+
+    /** The fold stage's budget of a hybrid leg of [total] (seconds or deterministic units): the polish reserve kept back. */
+    internal fun hybridFoldStageBudget(total: Double): Double = (total - minOf(total * HYBRID_POLISH_RESERVE_SHARE, HYBRID_POLISH_RESERVE_MAX)).coerceAtLeast(MIN_STAGE_BUDGET)
+
+    /** A polish step's budget in a hybrid leg of [total] with [spent] used: what is left (the reserve, after an unproven fold), at most [HYBRID_POLISH_CAP]. */
+    internal fun hybridPolishStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = (total - spent).coerceIn(MIN_STAGE_BUDGET, HYBRID_POLISH_CAP)
+
+    /** One build of a hybrid leg: what it shows and how it compares (the EXACT objective, read off the variable). */
+    private class HybridPoint(
+        val build: BuildCombination,
+        val score: BigDecimal,
+        val objective: Long,
+        val rawProxy: Long?,
+        // Every equipment / skill / sublimation decision by var name (the rune vars are read off [build]'s runes instead:
+        // their names and meaning differ between a pick and a count carrier).
+        val decisions: Map<String, Long>,
+    )
+
+    private fun hybridPoint(
+        built: BuiltModel,
+        solver: CpSolver,
+        build: BuildCombination,
+        score: BigDecimal,
+    ): HybridPoint =
+        HybridPoint(
+            build,
+            score,
+            solver.value(built.objective),
+            built.maxDamageRawScore?.let { solver.value(it) },
+            (
+                built.equipVars.values + built.skillVars.values + built.subModel.subVars.values +
+                    built.subModel.copyVars.values
+                        .flatten()
+            ).associate { it.name to solver.value(it) }
+        )
+
+    /**
+     * Hints [point] onto [target] — any max-damage model of the same params (fold or count, full or restricted pool): equipment by
+     * id (a non-worn item 0), skills and sublimations by name, each rune var from the build's own rune FILL — a count carrier its
+     * sockets of that type, a pick its `fill > 0` (a mixed fill on a pick carrier hints nothing consistent: hints are advisory).
+     * Each var once (a single-choice carrier's rune var IS its equipment var).
+     */
+    private fun hintPoint(
+        target: BuiltModel,
+        point: HybridPoint,
+    ) {
+        val hinted = HashSet<Int>()
+
+        fun hint(
+            v: IntVar,
+            value: Long,
+        ) {
+            if (hinted.add(v.index)) target.model.addHint(v, value)
+        }
+        val worn = point.build.equipments.mapTo(HashSet()) { it.equipmentId }
+        for ((equip, v) in target.equipVars) hint(v, if (equip.equipmentId in worn) 1L else 0L)
+        val fill = HashMap<Pair<Int, Characteristic>, Long>()
+        for ((equip, socketed) in point.build.runes) {
+            for (rune in socketed) fill.merge(equip.equipmentId to rune.characteristic, 1L, Long::plus)
+        }
+        for ((equip, perStat) in target.runeModel.runeVars) {
+            val equipVar = target.equipVars[equip]
+            for ((stat, v) in perStat) {
+                if (equipVar != null && v.index == equipVar.index) continue
+                val sockets = fill[equip.equipmentId to stat] ?: 0L
+                hint(v, if (target.runeModel.isPickCarrier(equip)) (if (sockets > 0L) 1L else 0L) else sockets)
+            }
+        }
+        for (
+        v in target.skillVars.values + target.subModel.subVars.values +
+            target.subModel.copyVars.values
+                .flatten()
+        ) {
+            point.decisions[v.name]?.let { hint(v, it) }
+        }
+    }
+
+    /**
+     * MIXED-RUNE HYBRID — how [optimize] solves a max-damage leg whose rune FOLD is inexact: a carrier offers a rune type a
+     * threshold reads ([MaxDamageRuneReads.mixedStats]: a required row like HP 2000, a floor with negative lines, a budgeted
+     * Neutralité cap, an item stat gate…), so a part-filled item can beat every single-type fill. The exact model gives such
+     * carriers per-type COUNTS ([RuneModel.countCarriers]), and searching it directly is slow where every rune type is a
+     * threshold read (the GUI default: every carrier becomes a count carrier). So, against ONE budget from the solve's start:
+     *
+     *  1. the FOLD stage searches [fold] — the v61 fast model, its would-be count carriers left on picks and recorded
+     *     ([RuneModel.foldInexactCarriers]) — on the budget minus the polish reserve ([hybridFoldStageBudget]), streaming its
+     *     improving builds as the direct solve does. Every fold build is a build of the count model (a full single-type fill is a
+     *     count fill), so everything it shows is real; but its `OPTIMAL` only proves the fold's optimum, which a mixed item can
+     *     beat — it never stamps anything;
+     *  2. the POLISH re-solves the COUNT model on the fold's final ITEMS only (the pool restricted to them: runes and skills free,
+     *     an item may still be dropped), cut at `objective ≥` the best objective so far and hinted with that build — first with
+     *     the sublimations pinned (near-instant: it takes most of the gain), then with them free too (what is left of the
+     *     reserve). Its build is a build of the request worth at least the fold's: the leg can never end below the fold;
+     *  3. the VERIFY stage — only when the fold PROVED its optimum with budget left: the full count model, cut at `objective ≥ p`
+     *     (p the polished objective) and hinted with the polished build, on what is left. Its OPTIMAL is the count model's own
+     *     proof of the request's optimum (the leg's only `OPTIMAL`), worth p or more; out of time ⇒ the best build so far,
+     *     unproven. (After an unproven fold the only leftover is the polish reserve; handing the count model a larger share
+     *     of the budget instead measured worse than leaving it to the fold — docs/MIXED_RUNE_SECONDARY_BUDGET.md.)
+     *
+     * A fold proven INFEASIBLE proves nothing either (two rows on one item's runes may need a mix to meet both): the count model
+     * then searches what is left of the budget directly, its INFEASIBLE the leg's. A fold with no solution at all ends the leg
+     * without one (UNKNOWN), as the direct solve would. The post-search certificate is unaffected: it bounds the count model
+     * (every pass is convex in a carrier's counts, the vertex argument of CERTIFIER_VERSION 62), so it bounds every build this
+     * leg can return. Returns the leg's outcome: OPTIMAL only when step 3 proved it, INFEASIBLE only from the count model.
+     */
+    private suspend fun mixedRuneHybrid(
+        scope: ProducerScope<SolverResult<BuildCombination>>,
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        tuning: SolverTuning?,
+        hardConstraints: Boolean,
+        fold: BuiltModel,
+        warmScore: BigDecimal?,
+        solverHandle: java.util.concurrent.atomic.AtomicReference<CpSolver?>,
+    ): SolveOutcome? {
+        val legStartMs = System.currentTimeMillis()
+        val totalWall = params.searchDuration.inWholeMilliseconds / 1000.0
+        val totalDet = tuning?.maxDeterministicTime ?: 0.0
+
+        fun elapsedWall() = (System.currentTimeMillis() - legStartMs) / 1000.0
+        var spentDet = 0.0
+        var branches = 0L
+        var conflicts = 0L
+
+        fun account(outcome: SolveOutcome?) {
+            if (outcome == null) return
+            spentDet += outcome.deterministicTime
+            branches += outcome.branches
+            conflicts += outcome.conflicts
+        }
+
+        fun countModel(
+            pool: Map<ItemType, List<Equipment>>,
+            restricted: Boolean,
+        ) = buildModel(
+            params,
+            pool,
+            runes,
+            sublimations,
+            forceFullPool = restricted,
+            applyDomination = !restricted && (tuning?.applyDominationOverride ?: (tuning == null)),
+            maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
+            hardConstraints = hardConstraints
+        )
+
+        // ---- 1. The FOLD stage.
+        var foldSolver: CpSolver? = null
+        val foldOutcome =
+            executeSolverAndEmitResults(
+                fold.model,
+                params,
+                fold.allEquips,
+                fold.equipVars,
+                fold.skillVars,
+                fold.runeModel,
+                fold.subModel,
+                fold.maxDamageRawScore,
+                scope,
+                tuning,
+                onSolverReady = {
+                    solverHandle.set(it)
+                    foldSolver = it
+                },
+                suppressBelowScore = warmScore,
+                maxWallSecondsOverride = hybridFoldStageBudget(totalWall),
+                maxDeterministicTimeOverride = tuning?.let { hybridFoldStageBudget(totalDet) },
+                sendFinal = false,
+                progressStartMs = legStartMs
+            ) ?: return null
+        account(foldOutcome)
+        if (!scope.isActive) return foldOutcome
+        val foldStatus = foldOutcome.status
+        if (foldStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+            // The fold forbids every mixed item, so its INFEASIBLE says nothing about the request: the count model decides, directly.
+            val leftWall = totalWall - elapsedWall()
+            val leftDet = totalDet - spentDet
+            if (if (tuning == null) leftWall < MIN_STAGE_BUDGET else leftDet < MIN_STAGE_BUDGET) {
+                return SolveOutcome(com.google.ortools.sat.CpSolverStatus.UNKNOWN, null, Long.MAX_VALUE, spentDet, branches, conflicts)
+            }
+            val count = countModel(equipmentsByItemType, restricted = false)
+            if (count.maxDamageStaticallyInfeasible || !scope.isActive) return foldOutcome
+            if (HYBRID_DEBUG) System.err.println("MD_HYBRID hard=$hardConstraints fold=INFEASIBLE det=${"%.2f".format(spentDet)} — the count model decides")
+            return executeSolverAndEmitResults(
+                count.model,
+                params,
+                count.allEquips,
+                count.equipVars,
+                count.skillVars,
+                count.runeModel,
+                count.subModel,
+                count.maxDamageRawScore,
+                scope,
+                tuning,
+                onSolverReady = { solverHandle.set(it) },
+                suppressBelowScore = warmScore,
+                maxWallSecondsOverride = leftWall.coerceAtLeast(MIN_STAGE_BUDGET),
+                maxDeterministicTimeOverride = tuning?.let { leftDet.coerceAtLeast(MIN_STAGE_BUDGET) },
+                progressStartMs = legStartMs
+            )
+        }
+        val foldSolved =
+            foldStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                foldStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        val foldBuild = foldOutcome.finalBuild
+        val foldScore = foldOutcome.finalScore
+        val solver = foldSolver
+        // No fold solution: the leg ends without one, as the direct solve would (UNKNOWN — the hard leg's soft fallback runs).
+        if (!foldSolved || foldBuild == null || foldScore == null || solver == null) return foldOutcome
+        var best = hybridPoint(fold, solver, foldBuild, foldScore)
+        val foldDet = spentDet
+        val foldWall = elapsedWall()
+        val foldObjective = best.objective
+
+        // ---- 2. The POLISH: the count model on the fold's items, cut at the best objective so far, hinted with its build — first
+        // with the sublimations pinned (a near-instant solve that takes most of the gain), then with them free.
+        val worn = foldBuild.equipments.mapTo(HashSet()) { it.equipmentId }
+        val restrictedPool =
+            equipmentsByItemType
+                .mapValues { (_, items) -> items.filter { it.equipmentId in worn } }
+                .filterValues { it.isNotEmpty() }
+        val polishStatuses = ArrayList<String>()
+
+        suspend fun polish(pinSublimations: Boolean) {
+            if (restrictedPool.isEmpty() || !scope.isActive) return
+            val model = countModel(restrictedPool, restricted = true)
+            if (model.maxDamageStaticallyInfeasible || !scope.isActive) return
+            model.model.addGreaterOrEqual(model.objective, best.objective)
+            hintPoint(model, best)
+            if (pinSublimations) {
+                for (
+                v in model.subModel.subVars.values +
+                    model.subModel.copyVars.values
+                        .flatten()
+                ) {
+                    model.model.addEquality(v, best.decisions[v.name] ?: 0L)
+                }
+            }
+            var polishSolver: CpSolver? = null
+            val outcome =
+                executeSolverAndEmitResults(
+                    model.model,
+                    params,
+                    model.allEquips,
+                    model.equipVars,
+                    model.skillVars,
+                    model.runeModel,
+                    model.subModel,
+                    model.maxDamageRawScore,
+                    scope,
+                    tuning,
+                    onSolverReady = {
+                        solverHandle.set(it)
+                        polishSolver = it
+                    },
+                    maxWallSecondsOverride = hybridPolishStageBudget(totalWall, elapsedWall()),
+                    maxDeterministicTimeOverride = tuning?.let { hybridPolishStageBudget(totalDet, spentDet) },
+                    emitFilter = { _, _ -> false },
+                    sendFinal = false,
+                    progressStartMs = legStartMs
+                )
+            account(outcome)
+            polishStatuses += "${if (pinSublimations) "pinned" else "free"}:${outcome?.status}"
+            val build = outcome?.finalBuild
+            val score = outcome?.finalScore
+            val ps = polishSolver
+            if (build != null && score != null && ps != null) {
+                val polished = hybridPoint(model, ps, build, score)
+                if (polished.objective > best.objective) {
+                    best = polished
+                    // Shown at once: the next stages may run for the rest of the budget.
+                    val progress = (elapsedWall() / totalWall.coerceAtLeast(MIN_STAGE_BUDGET) * 100).toInt().coerceIn(0, 100)
+                    scope.trySend(SolverResult(best.build, best.score, progress, maxDamageObjective = best.objective, maxDamageRawProxy = best.rawProxy))
+                }
+            }
+        }
+        polish(pinSublimations = true)
+        polish(pinSublimations = false)
+        val polishDet = spentDet - foldDet
+        val polishWall = elapsedWall() - foldWall
+        val polishedObjective = best.objective
+
+        // ---- 3. The VERIFY stage — only after a PROVEN fold optimum, the one case a count proof is within reach: the full count
+        // model, hinted with the polished build and cut at its objective, on what is left. Its OPTIMAL proves the request's optimum.
+        // (After an unproven fold the leftover is the polish reserve: a full count model built and hinted there found nothing in
+        // the measurements, and handing the count model a larger share of the budget lost to the fold — see the doc.)
+        var proven = false
+        var countStatus: com.google.ortools.sat.CpSolverStatus? = null
+        val left = if (tuning == null) totalWall - elapsedWall() else totalDet - spentDet
+        val countStageRuns =
+            foldStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL &&
+                (tuning?.mixedRuneHybridVerify ?: true) &&
+                left >= MIN_STAGE_BUDGET &&
+                scope.isActive
+        if (countStageRuns) {
+            val count = countModel(equipmentsByItemType, restricted = false)
+            if (!count.maxDamageStaticallyInfeasible && scope.isActive) {
+                count.model.addGreaterOrEqual(count.objective, best.objective)
+                hintPoint(count, best)
+                var countSolver: CpSolver? = null
+                val countOutcome =
+                    executeSolverAndEmitResults(
+                        count.model,
+                        params,
+                        count.allEquips,
+                        count.equipVars,
+                        count.skillVars,
+                        count.runeModel,
+                        count.subModel,
+                        count.maxDamageRawScore,
+                        scope,
+                        tuning,
+                        onSolverReady = {
+                            solverHandle.set(it)
+                            countSolver = it
+                        },
+                        suppressBelowScore = best.score,
+                        maxWallSecondsOverride = (totalWall - elapsedWall()).coerceAtLeast(MIN_STAGE_BUDGET),
+                        maxDeterministicTimeOverride = tuning?.let { (totalDet - spentDet).coerceAtLeast(MIN_STAGE_BUDGET) },
+                        sendFinal = false,
+                        progressStartMs = legStartMs
+                    )
+                account(countOutcome)
+                countStatus = countOutcome?.status
+                val cs = countSolver
+                val cb = countOutcome?.finalBuild
+                val csc = countOutcome?.finalScore
+                if ((countStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL || countStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE) &&
+                    cb != null &&
+                    csc != null &&
+                    cs != null
+                ) {
+                    val found = hybridPoint(count, cs, cb, csc)
+                    if (found.objective >= best.objective) best = found
+                    // The count model's own proof: its optimum is the request's (the cut `objective ≥ best` keeps every build
+                    // worth more, and the polished build itself).
+                    proven = countStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+                } else if (countStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                    // Nothing reaches the polished objective — impossible (the polished build does); never a proof.
+                    logger.warn { "Mixed-rune hybrid: the count model rejected the polished build's objective ${best.objective}." }
+                }
+            }
+        }
+
+        if (HYBRID_DEBUG) {
+            System.err.println(
+                "MD_HYBRID hard=$hardConstraints fold=$foldStatus/$foldObjective polished=$polishStatuses/$polishedObjective count=$countStatus " +
+                    "final=${best.objective} raw=${best.rawProxy} proven=$proven det=${"%.2f".format(foldDet)}+${"%.2f".format(polishDet)}+${"%.2f".format(
+                        spentDet - foldDet - polishDet
+                    )} " +
+                    "wallS=${"%.2f".format(foldWall)}+${"%.2f".format(polishWall)}+${"%.2f".format(elapsedWall() - foldWall - polishWall)} " +
+                    "inexactCarriers=${fold.runeModel.foldInexactCarriers.size}"
+            )
+        }
+        if (scope.isActive) {
+            scope.send(
+                SolverResult(
+                    individual = best.build,
+                    matchPercentage = best.score,
+                    progressPercentage = 100,
+                    // The count model's proof only (step 3); the prefilter's reduced pool proves nothing global, as everywhere.
+                    isOptimal = proven && !needsItemPrefilter(params.targetStats),
+                    maxDamageObjective = best.objective,
+                    maxDamageRawProxy = best.rawProxy
+                )
+            )
+        }
+        return SolveOutcome(
+            status = if (proven) com.google.ortools.sat.CpSolverStatus.OPTIMAL else com.google.ortools.sat.CpSolverStatus.FEASIBLE,
+            objectiveValue = best.objective,
+            bestObjectiveBound = if (proven) best.objective else Long.MAX_VALUE,
+            deterministicTime = spentDet,
+            branches = branches,
+            conflicts = conflicts,
+            finalBuild = best.build,
+            finalScore = best.score
+        )
+    }
+
     private class BuiltModel(
         val model: CpModel,
         val objective: IntVar,
@@ -1694,6 +2145,10 @@ object WakfuBuildSolver {
         // Test seam (the mixed-rune lock): false gives the fold no count carrier ([RuneModel.countCarriers]) — the
         // all-or-nothing fill of CERTIFIER_VERSION ≤ 61, which misses a part-filled optimum. Production keeps it on.
         runeMixedCarriers: Boolean = true,
+        // The mixed-rune hybrid's FOLD stage ([mixedRuneHybrid]): the carriers [runeMixedCarriers] would make count carriers
+        // keep their single-type picks and are only recorded ([RuneModel.foldInexactCarriers]). No effect without
+        // [runeMixedCarriers] (nothing to record) or outside max-damage.
+        runeMixedHybridFold: Boolean = false,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -1841,7 +2296,8 @@ object WakfuBuildSolver {
                         runeReads.mixedStats(negativeStatSources(allEquips, sublimations, params.character.level))
                     } else {
                         emptySet()
-                    }
+                    },
+                materializeCountCarriers = !runeMixedHybridFold
             )
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)

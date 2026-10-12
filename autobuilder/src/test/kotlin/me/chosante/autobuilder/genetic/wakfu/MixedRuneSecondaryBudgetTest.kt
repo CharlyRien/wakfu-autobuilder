@@ -622,4 +622,160 @@ class MixedRuneSecondaryBudgetTest {
         }
         assertThat(missed).describedAs("gate caps where the all-or-nothing fold misses the optimum (the lock's sensitivity)").isGreaterThan(0)
     }
+
+    // ---- The hybrid: the search on the fold, the count model polishes and verifies ----------------------------------
+
+    private val hybridTuning = tuning.copy(mixedRuneHybrid = true)
+
+    /** The production leg ([WakfuBuildSolver.optimize]) under [t]: its final emission (the leg's result). */
+    private fun leg(
+        p: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        subs: List<Sublimation>,
+        t: WakfuBuildSolver.SolverTuning,
+        hard: Boolean = false,
+    ) = runBlocking { WakfuBuildSolver.optimize(p, pool, runes, subs, t, hardConstraints = hard).toList() }.lastOrNull { !it.greedyWarmStartEmission }
+
+    /**
+     * [WakfuBuildSolver.mixedRuneHybrid] on the minimal repro and the HP-row case: the fold alone PROVES a value below the
+     * request's optimum (the wrong badge the hybrid exists to avoid), the hybrid's leg ends on the count optimum — polished
+     * from the fold's items, then VERIFIED by the count model under `objective ≥ p + 1` — and stamps it proven. With the verify
+     * stage off, the fold's OPTIMAL must NOT become a proof: the leg ends unproven, never below the fold.
+     */
+    @Test
+    fun `the hybrid ends on the count optimum and never stamps the fold's OPTIMAL`() {
+        val p = params(reproLevel, reproScenario)
+        val subs = listOf(neutralite)
+        val fold = leg(p, reproPool, subs, tuning.copy(runeMixedCarriers = false))!!
+        assertThat(fold.isOptimal).describedAs("the all-or-nothing fold proves its own optimum").isTrue()
+        assertThat(fold.maxDamageObjective).isEqualTo(1_382_985L)
+        val hybrid = leg(p, reproPool, subs, hybridTuning)!!
+        println("MIXED_HYBRID repro fold=${fold.maxDamageObjective} hybrid=${hybrid.maxDamageObjective}/${hybrid.isOptimal}")
+        assertThat(hybrid.maxDamageObjective).describedAs("the hybrid reaches the count optimum").isEqualTo(1_408_170L)
+        assertThat(hybrid.isOptimal).describedAs("the count model's verify stage proves it").isTrue()
+        val unverified = leg(p, reproPool, subs, hybridTuning.copy(mixedRuneHybridVerify = false))!!
+        assertThat(unverified.isOptimal).describedAs("a fold OPTIMAL is never a proof of the request").isFalse()
+        assertThat(unverified.maxDamageObjective!!).describedAs("the polish never ends below the fold").isGreaterThanOrEqualTo(fold.maxDamageObjective!!)
+
+        // The HP row (no sublimation): both legs.
+        val level = 50
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val pool =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(820_001 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)) }
+                .groupBy { it.itemType }
+        val hp =
+            params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
+                .copy(useSublimations = false)
+        for ((hard, expectedFold, expected) in listOf(Triple(true, 117_000L, 117_500L), Triple(false, 117_000_000_000L, 117_500_000_000L))) {
+            val foldHp = leg(hp, pool, emptyList(), tuning.copy(runeMixedCarriers = false), hard)!!
+            val hybridHp = leg(hp, pool, emptyList(), hybridTuning, hard)!!
+            val unverifiedHp = leg(hp, pool, emptyList(), hybridTuning.copy(mixedRuneHybridVerify = false), hard)!!
+            println("MIXED_HYBRID hp hard=$hard fold=${foldHp.maxDamageObjective}/${foldHp.isOptimal} hybrid=${hybridHp.maxDamageObjective}/${hybridHp.isOptimal}")
+            assertThat(foldHp.maxDamageObjective).describedAs("hard=%s: the fold", hard).isEqualTo(expectedFold)
+            assertThat(foldHp.isOptimal).isTrue()
+            assertThat(hybridHp.maxDamageObjective).describedAs("hard=%s: the hybrid reaches the count optimum", hard).isEqualTo(expected)
+            assertThat(hybridHp.isOptimal).describedAs("hard=%s: proven by the count model", hard).isTrue()
+            assertThat(unverifiedHp.isOptimal).describedAs("hard=%s: the fold's OPTIMAL alone proves nothing", hard).isFalse()
+            assertThat(unverifiedHp.maxDamageObjective).describedAs("hard=%s: the polish tops the row up on the fold's items", hard).isEqualTo(expected)
+        }
+    }
+
+    /**
+     * The seeded lock's pools (secondary budgets: free, forced, rowed hard leg), the general fold's (rows, floors, the
+     * survivability floor; both legs) and the stat-gate caps, through the hybrid's production leg: it ends on the count
+     * model's optimum, proven, on every case the count model proves — where the all-or-nothing fold alone proves less on many.
+     */
+    @Test
+    fun `the hybrid proves the count optimum on the seeded, general-fold and gate pools`() {
+        val cases = ArrayList<Pair<Case, Boolean>>()
+        for (seed in listOf(1L, 2L, 9L, 18L, 23L, 30L, 38L)) {
+            for ((forced, rows) in listOf(false to false, true to false, false to true)) cases += case(seed, forced, rows) to rows
+        }
+        for (seed in 0L until 10L) {
+            val c = generalCase(seed)
+            cases += c to false
+            cases += c to true
+        }
+        var foldBelow = 0
+        var checked = 0
+        for ((c, hard) in cases) {
+            val count = solve(c.params, c.pool, c.subs, count = true, hard = hard)
+            if (!count.hasSolution || !count.isOptimal) continue
+            val hybrid = leg(c.params, c.pool, c.subs, hybridTuning, hard)
+            println("MIXED_HYBRID ${c.label} hard=$hard count=${count.objective} hybrid=${hybrid?.maxDamageObjective}/${hybrid?.isOptimal}")
+            assertThat(hybrid).describedAs("%s hard=%s: a build", c.label, hard).isNotNull
+            assertThat(hybrid!!.maxDamageObjective).describedAs("%s hard=%s: the count optimum", c.label, hard).isEqualTo(count.objective)
+            // A prefiltered request (a positive "all resistances" row wants every element) is never badged, whatever proves it.
+            assertThat(hybrid.isOptimal).describedAs("%s hard=%s: proven", c.label, hard).isEqualTo(!WakfuBuildSolver.needsItemPrefilter(c.params.targetStats))
+            val fold = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
+            if (fold.isOptimal && fold.objective < count.objective) foldBelow++
+            checked++
+        }
+        println("MIXED_HYBRID checked=$checked foldBelow=$foldBelow")
+        assertThat(foldBelow).describedAs("cases where the fold alone proves less (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
+
+        val level = 110
+        val gateParams = params(level, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)).copy(useSublimations = false)
+        for (cap in listOf(20, 230, 270)) {
+            val pool =
+                (
+                    listOf(
+                        item(
+                            850_001,
+                            ItemType.AMULET,
+                            level,
+                            mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600),
+                            gates = listOf(ItemStatGate(Characteristic.MASTERY_DISTANCE, false, CriterionComparison.LE, cap))
+                        )
+                    ) +
+                        listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                            .mapIndexed { i, type -> item(850_011 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)) }
+                ).groupBy { it.itemType }
+            val count = solve(gateParams, pool, emptyList(), count = true)
+            val hybrid = leg(gateParams, pool, emptyList(), hybridTuning)!!
+            assertThat(hybrid.maxDamageObjective).describedAs("gate cap %s: the count optimum", cap).isEqualTo(count.objective)
+            assertThat(hybrid.isOptimal).describedAs("gate cap %s: proven", cap).isTrue()
+        }
+    }
+
+    /**
+     * A fold proven INFEASIBLE proves nothing: two rows read two rune types of ONE item (lock and dodge, CRA 50, one 4-socket
+     * helmet), each needing part of its sockets — no single-type fill meets both, a mixed fill does. The hard leg
+     * must find that build (the count model decides once the fold is infeasible), not fall back to the soft leg.
+     */
+    @Test
+    fun `a fold proven infeasible hands the hard leg to the count model`() {
+        val level = 50
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val pool = listOf(item(860_001, ItemType.HELMET, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200))).groupBy { it.itemType }
+        val lock = Characteristic.LOCK
+        val dodge = Characteristic.DODGE
+
+        fun rows(t: Int) =
+            params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(lock, t), TargetStat(dodge, t))).copy(useSublimations = false)
+        // The largest common target the count model meets (both stats ≥ t): a mixed fill.
+        var lo = 0
+        var hi = 4_000
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (solve(rows(mid), pool, emptyList(), count = true, hard = true).hasSolution) lo = mid else hi = mid - 1
+        }
+        val p = rows(lo)
+        val fold = solve(p, pool, emptyList(), mixed = false, hard = true)
+        println("MIXED_HYBRID infeasible-fold t=$lo foldHasSolution=${fold.hasSolution}")
+        assertThat(fold.hasSolution).describedAs("t=%s: no single-type fill meets both rows", lo).isFalse()
+        val result =
+            runBlocking { MaxDamageSearch.optimizeHardThenSoft(p, pool, runes, emptyList(), hybridTuning).toList() }
+                .last { !it.greedyWarmStartEmission }
+        assertThat(result.maxDamageHardConstraintsMet).describedAs("the hard leg's build, not the soft fallback's").isTrue()
+        println("MIXED_HYBRID infeasible-fold result=${result.maxDamageObjective}/${result.isOptimal} hard=${result.maxDamageHardConstraintsMet}")
+        assertThat(result.isOptimal).isTrue()
+        val runesWorn =
+            result.individual.runes.values
+                .flatten()
+                .map { it.characteristic }
+                .toSet()
+        assertThat(runesWorn).contains(lock, dodge)
+    }
 }

@@ -1247,7 +1247,10 @@ either way was found in the repo.
    `MixedRuneSecondaryBudgetTest`). Its SEARCH COST is open: requests whose rows make every rune type a threshold read
    (the GUI default: HP 2000, 0-rows with negative lines, the Neutralité budget) turn every socketed carrier into integer
    counts, and the GUI-default level-110 search ends ~15 % lower at 60 s with a looser badge (same doc, "Production
-   path"). Kill switch for A/B: `WAKFU_MD_MIXED_RUNES=0`.
+   path"). Kill switch for A/B: `WAKFU_MD_MIXED_RUNES=0`. *(2026-10-12: addressed by the HYBRID, `perf/mixed-hybrid`. The
+   search runs on the fold, the count model polishes the final build and alone proves optimality (same doc, "The hybrid").
+   Deterministic A/B: hybrid ≥ fold on MD110 / MD200 / MD245 / MD245F (+1.3 / +0.02 / +2.1 / +2.4 %), with the fold's first
+   solution. Kill switch `WAKFU_MD_MIXED_HYBRID=0`. Still open: the wall-clock E0 A/B on a calm machine.)*
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does
@@ -1576,7 +1579,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     threshold read. On the production path (`PerfBaselineE0Test`, 4 cores, 60 s) the GUI-default level-110 request ended
     ~15 % lower at the deadline (mean 1,195,395 vs 1,403,563) and its badge went from "within ~10 %" to "within ~29 %";
     the first CP-SAT solution comes 1–6 s later on the measured shapes. A gated encoding (per-carrier `mixed` bool, hinted
-    off) was tried and reverted as worse (`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The gated encoding"). Not solved.
+    off) was tried and reverted as worse (`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The gated encoding"). 2026-10-12: the
+    HYBRID (search on the fold; polish and verify on the count model; same doc, "The hybrid") ends at or above the fold on
+    every deterministic A/B request. The wall-clock confirmation is pending.
 - **NEUTRALITÉ FAMILY READ AS A SUM — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 56).** The engine credited Neutralité,
   Ambition, Inflexibilité and Prétention whenever the SUM of the six secondary masteries was ≤ 0; the game requires EACH
   of them to be ≤ 0, so a positive secondary could be offset by a negative one of another stat — bonuses the game never
