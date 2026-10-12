@@ -1635,8 +1635,13 @@ object WakfuBuildSolver {
     /** The share of a hybrid leg's budget kept back from its fold stage for the polish ([mixedRuneHybrid]), at most [HYBRID_POLISH_RESERVE_MAX]. */
     internal const val HYBRID_POLISH_RESERVE_SHARE = 0.1
 
-    /** The most a hybrid leg keeps back for its polish (seconds, or deterministic units on a tuned solve). */
-    internal const val HYBRID_POLISH_RESERVE_MAX = 6.0
+    /**
+     * The most a hybrid leg keeps back for its polish (seconds, or deterministic units on a tuned solve). The pinned polish
+     * takes most of the gain in under 0.3 s; the free one is capped by what is left. 6 s cost the fold stage late
+     * improvements a 60 s production search (whose CP-SAT budget runs from the solve start, like the direct solve's) can
+     * not afford: 2 s measured at or above 6 s on all four E0 fixtures (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Wall clock").
+     */
+    internal const val HYBRID_POLISH_RESERVE_MAX = 2.0
 
     /** The most the polish may run once the fold proved early (it is a tiny model; the verify stage gets the rest). */
     private const val HYBRID_POLISH_CAP = 10.0
@@ -1734,10 +1739,12 @@ object WakfuBuildSolver {
      * threshold read (the GUI default: every carrier becomes a count carrier). So, against ONE budget from the solve's start:
      *
      *  1. the FOLD stage searches [fold] — the v61 fast model, its would-be count carriers left on picks and recorded
-     *     ([RuneModel.foldInexactCarriers]) — on the budget minus the polish reserve ([hybridFoldStageBudget]), streaming its
-     *     improving builds as the direct solve does. Every fold build is a build of the count model (a full single-type fill is a
-     *     count fill), so everything it shows is real; but its `OPTIMAL` only proves the fold's optimum, which a mixed item can
-     *     beat — it never stamps anything;
+     *     ([RuneModel.foldInexactCarriers]), its choice collapse pruned WITHOUT the item stat gates as v61 did (every carrier
+     *     that changes is recorded too; the gates themselves stay posted) — on the budget minus the polish reserve
+     *     ([hybridFoldStageBudget]), streaming its improving builds as the direct solve does. Every fold build is a build of the
+     *     count model (a full single-type fill is a count fill, and every constraint of the request is posted), so everything
+     *     it shows is real; but its `OPTIMAL` only proves the fold's optimum, which a mixed item or a pruned choice can beat —
+     *     it never stamps anything;
      *  2. the POLISH re-solves the COUNT model on the fold's final ITEMS only (the pool restricted to them: runes and skills free,
      *     an item may still be dropped), cut at `objective ≥` the best objective so far and hinted with that build — first with
      *     the sublimations pinned (near-instant: it takes most of the gain), then with them free too (what is left of the
@@ -2331,6 +2338,14 @@ object WakfuBuildSolver {
                         emptySet()
                     },
                 materializeCountCarriers = !runeMixedHybridFold,
+                // The hybrid's fold stage prunes the collapse without the item stat gates (the ≤ v61 collapse, a smaller
+                // search model); every carrier that changes is fold-inexact, so the exact count stages decide (see the param).
+                foldSearchReads =
+                    if (runeMixedHybridFold) {
+                        maxDamageRuneReads(params, sublimations, buildSkillTerms(skillVars).percent.keys)
+                    } else {
+                        null
+                    },
                 aggregateCountClasses =
                     runeCountClasses &&
                         runeCountClassesEnabled &&

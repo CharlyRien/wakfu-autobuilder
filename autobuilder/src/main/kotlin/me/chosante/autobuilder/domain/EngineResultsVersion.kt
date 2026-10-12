@@ -25,6 +25,8 @@ package me.chosante.autobuilder.domain
  * gated item needs. The search itself runs on the fast single-type fold where it is inexact, then re-solves the count
  * model on the fold's items (and verifies a proven fold optimum on the full count model): a build is proven optimal only by
  * the count model. Every count model the search builds groups interchangeable carriers into exact count classes (one count
- * per rune type per class; the certificates keep per-carrier counts). A re-run may find a better build.
+ * per rune type per class; the certificates keep per-carrier counts). The fold the search runs prunes its rune choices without
+ * the item stat gates, as v61 did (the count model decides every carrier that changes), and keeps 2 s of the budget for the
+ * polish instead of 6. A re-run may find a better build.
  */
 const val ENGINE_RESULTS_VERSION: Int = 7

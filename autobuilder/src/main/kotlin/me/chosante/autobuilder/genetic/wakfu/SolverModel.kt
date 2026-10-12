@@ -88,8 +88,9 @@ internal class RuneModel(
     private val countVarSlots: Map<IntVar, Long> = emptyMap(),
     /**
      * The mixed-rune hybrid's FOLD stage only (`materializeCountCarriers = false` in [createRuneModel]): the carriers
-     * [MaxDamageRuneReads.mixedStats] would have made [countCarriers], left on single-type picks. Non-empty ⇒ this model
-     * is NOT exact (a part-filled item can beat its optimum), so its CP-SAT `OPTIMAL` proves nothing about the request —
+     * [MaxDamageRuneReads.mixedStats] would have made [countCarriers], left on single-type picks, and the carriers whose
+     * choices or choice gates the stage's lean pruning (no item stat gate read) changed. Non-empty ⇒ this model is NOT exact
+     * (a part-filled item or a pruned choice can beat its optimum), so its CP-SAT `OPTIMAL` proves nothing about the request —
      * see [WakfuBuildSolver.mixedRuneHybrid]. Empty everywhere else.
      */
     val foldInexactCarriers: Set<Equipment> = emptySet(),

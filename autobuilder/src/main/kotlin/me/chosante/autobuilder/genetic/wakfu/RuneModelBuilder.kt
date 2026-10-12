@@ -50,6 +50,11 @@ internal fun CpModel.createRuneModel(
     // make a count carrier on its single-type picks, and only RECORDS it ([RuneModel.foldInexactCarriers]) — the fast fold,
     // which knows it is not exact. (No count carrier then, so [aggregateCountClasses] has nothing to aggregate.)
     materializeCountCarriers: Boolean = true,
+    // The hybrid's fold stage only (with [materializeCountCarriers] false): the reads its choice collapse prunes with — the
+    // request's reads WITHOUT the item stat gates ([statGateRuneReads]), i.e. the ≤ v61 collapse. Every carrier whose kept
+    // choices or choice gates differ from [reads]' is recorded in [RuneModel.foldInexactCarriers]: the stage is a search
+    // heuristic whose builds are all real (every gate is still posted), never a proof. Null = prune with [reads].
+    foldSearchReads: MaxDamageRuneReads? = null,
     // The SEARCH model: count carriers that share an item type, a socket count and their choices (same values) hold one
     // count per type for the whole class ([RuneCountClass], exact). Never in a model a certificate reads.
     aggregateCountClasses: Boolean = false,
@@ -187,20 +192,34 @@ internal fun CpModel.createRuneModel(
                 (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
                     runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
                 }
-            val kept = if (choicePruning) reads.paretoChoices(candidates) else candidates
-            if (kept.isEmpty()) continue
+            val exactKept = if (choicePruning) reads.paretoChoices(candidates) else candidates
+            if (exactKept.isEmpty()) continue
+            val exactGates = if (choiceGating) reads.choiceGates(exactKept) else emptyMap()
+            // The hybrid's fold stage prunes with [foldSearchReads] (no item stat gate) instead: a carrier whose choices or
+            // choice gates that changes is recorded as fold-inexact, so the stage's OPTIMAL / INFEASIBLE is never trusted.
+            val searchReads = foldSearchReads?.takeIf { !materializeCountCarriers && choicePruning }
+            val kept = searchReads?.paretoChoices(candidates) ?: exactKept
+            val choiceGatesOfKept =
+                if (searchReads == null) {
+                    exactGates
+                } else if (choiceGating) {
+                    searchReads.choiceGates(kept)
+                } else {
+                    emptyMap()
+                }
+            val narrowed = kept.map { it.stat } != exactKept.map { it.stat } || choiceGatesOfKept != exactGates
             val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
             kept.forEach { choices[it.stat] = it.rune to it.value }
 
             // A carrier whose choices include a type a single-type fill cannot represent exactly ([mixedStats]: a
             // threshold read with a budget) keeps per-type COUNTS over its kept types: the per-socket Pareto argument
             // and the gates hold rune by rune, so pruning stays exact; only the all-or-nothing fill goes.
-            val inexact = choices.size >= 2 && choices.keys.any { it in mixedStats }
-            if (inexact && !materializeCountCarriers) foldInexactCarriers += equip
+            val inexact = exactKept.size >= 2 && exactKept.any { it.stat in mixedStats }
+            if ((inexact || narrowed) && !materializeCountCarriers) foldInexactCarriers += equip
             val mixed = inexact && materializeCountCarriers
             if (mixed && aggregateCountClasses) {
                 countCarriers += equip
-                pendingCounts += PendingCount(equip, LinkedHashMap(choices), if (choiceGating) reads.choiceGates(kept) else emptyMap())
+                pendingCounts += PendingCount(equip, LinkedHashMap(choices), choiceGatesOfKept)
                 continue
             }
             val perStat =
@@ -248,11 +267,9 @@ internal fun CpModel.createRuneModel(
             // A choice kept only because a CHOOSABLE conditional sub reads it (the elemental rune on a
             // secondary-best carrier: only a secondary cap prefers it) is useless while none of those subs is
             // taken — gate it on them (posted once the sub model exists, see [RuneModel.choiceGates]).
-            if (choiceGating) {
-                for ((stat, subs) in reads.choiceGates(kept)) {
-                    val v = perStat.getValue(stat)
-                    if (v != equipVars.getValue(equip)) choiceGates[v] = subs
-                }
+            for ((stat, subs) in choiceGatesOfKept) {
+                val v = perStat.getValue(stat)
+                if (v != equipVars.getValue(equip)) choiceGates[v] = subs
             }
             runeVars[equip] = perStat
         } else if (singleTypePerItem && !(materializeCountCarriers && runeStats.size >= 2 && runeStats.any { it in mixedStats })) {
@@ -684,7 +701,16 @@ private fun negativeTargets(stat: Characteristic): Set<Characteristic> =
 /**
  * The rune keys the item STAT GATES of [allEquips] read (`GetCharac("MASTERY_DISTANCE") <= 150`, lock / dodge bands, …;
  * read on the out-of-combat sheet, runes included — [StatBuilder.outOfCombatStat]). Every gate counts, whether or not it can
- * fail: a superset only keeps more choices and more count carriers, both exact.
+ * fail: a superset only keeps more choices and more count carriers, both exact. [allEquips] is the model's own pool (after the
+ * prefilter and domination: an evicted gated item reads nothing).
+ *
+ * Narrowing it to the gates that can fail was measured and changes nothing (2026-10-12): every catalog gate on a rune stat
+ * (distance mastery ≥ 400 / ≤ 500, lock ≥ 400 / ≥ 500 / ≤ 500 / ≤ 600, dodge ≥ 500 / ≤ 600) is posted by the model on the
+ * level-200 / 245 pools that hold it (its reach crosses the value: [StatBuilder.applyItemStatGates]), and the gates that can
+ * never fail (the 89 `critical hit > −10`) read no rune type. Both sides of the distance band are in those pools, so a side-aware
+ * read would be the same as opaque. On requests with non-damage rune rows (the GUI default) the general fold offers every
+ * type on every carrier and reads nothing here; the only model it grows is the free collapse (MD245F: 28,107 → 31,049 vars),
+ * and the hybrid's fold stage prunes without it ([createRuneModel]'s `foldSearchReads`).
  */
 internal fun statGateRuneReads(allEquips: List<Equipment>): Set<Characteristic> =
     allEquips.flatMapTo(LinkedHashSet()) { equip -> equip.statGates.flatMap { runeKeysOf(it.sheetCharacteristic) } }

@@ -740,6 +740,59 @@ class MixedRuneSecondaryBudgetTest {
     }
 
     /**
+     * The hybrid's fold stage prunes the choice collapse WITHOUT the item stat gates (the ≤ v61 collapse: a smaller search
+     * model), so on the gate pool (cap 20, where main proved 178,265) it drops the elemental choice for the larger distance
+     * one — exactly the fill the gate forbids. That is sound only because every carrier the lean pruning changes is
+     * recorded fold-inexact: the stage's OPTIMAL proves nothing, and the verify stage (the exact count model, which keeps the
+     * elemental choice) proves the real optimum, 302,495.
+     */
+    @Test
+    fun `the hybrid's fold stage prunes without the stat gates and records every carrier it changes`() {
+        val level = 110
+        val gateParams = params(level, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)).copy(useSublimations = false)
+        val pool =
+            (
+                listOf(
+                    item(
+                        850_001,
+                        ItemType.AMULET,
+                        level,
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600),
+                        gates = listOf(ItemStatGate(Characteristic.MASTERY_DISTANCE, false, CriterionComparison.LE, 20))
+                    )
+                ) +
+                    listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                        .mapIndexed { i, type -> item(850_011 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)) }
+            ).groupBy { it.itemType }
+        val stages = ArrayList<Pair<String, RuneModel>>()
+        val t = hybridTuning.copy(runeCountClasses = false, mixedRuneHybridStageObserverForTest = { stage, rm -> stages += stage to rm })
+        val result = leg(gateParams, pool, emptyList(), t)!!
+        println("MIXED_HYBRID_LEAN stages=${stages.map { it.first }} hybrid=${result.maxDamageObjective}/${result.isOptimal}")
+        val fold = stages.single { it.first == "fold" }.second
+        val verify = stages.single { it.first == "verify" }.second
+        var changed = 0
+        for ((equip, exact) in verify.runeVars) {
+            val searched = fold.runeVars.getValue(equip).keys
+            println("MIXED_HYBRID_LEAN ${equip.equipmentId} ${equip.itemType} exact=${exact.keys} fold=$searched")
+            // The gate makes distance mastery opaque: the exact model keeps the distance AND the elemental choice on every
+            // carrier (and crit beside them); without the gate read the larger of the M-feeding runes dominates the rest.
+            assertThat(
+                exact.keys
+            ).describedAs("%s: the exact model keeps both choices", equip.equipmentId).contains(Characteristic.MASTERY_ELEMENTARY, Characteristic.MASTERY_DISTANCE)
+            assertThat(searched).describedAs("%s: the fold stage keeps one (no gate read)", equip.equipmentId).hasSize(1)
+            if (searched != exact.keys) {
+                changed++
+                assertThat(fold.foldInexactCarriers).describedAs("%s: a changed carrier is fold-inexact", equip.equipmentId).contains(equip)
+            }
+        }
+        assertThat(changed).describedAs("carriers the lean pruning changed").isEqualTo(4)
+        // The elemental choice the gated amulet's wearer needs is gone from at least one fold-stage carrier.
+        assertThat(fold.runeVars.values.count { Characteristic.MASTERY_ELEMENTARY !in it.keys }).isGreaterThan(0)
+        assertThat(result.maxDamageObjective).describedAs("the count optimum (the gated amulet worn, runes elemental)").isEqualTo(302_495L)
+        assertThat(result.isOptimal).describedAs("proven by the verify stage").isTrue()
+    }
+
+    /**
      * A fold proven INFEASIBLE proves nothing: two rows read two rune types of ONE item (lock and dodge, CRA 50, one 4-socket
      * helmet), each needing part of its sockets — no single-type fill meets both, a mixed fill does. The hard leg
      * must find that build (the count model decides once the fold is infeasible), not fall back to the soft leg.
