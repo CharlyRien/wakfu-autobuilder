@@ -469,6 +469,17 @@ object WakfuBuildSolver {
     /** A/B kill switch of the search model's rune count classes ([RuneCountClass]): `WAKFU_MD_RUNE_CLASSES=0` = per-carrier counts. */
     internal val runeCountClassesEnabled: Boolean = System.getenv("WAKFU_MD_RUNE_CLASSES") != "0"
 
+    /** A/B kill switch of the search model's rune PICK classes ([RuneCountClass] with `unit = slots`): `WAKFU_MD_RUNE_PICK_CLASSES=0` = per-carrier picks. */
+    internal val runePickClassesEnabled: Boolean = System.getenv("WAKFU_MD_RUNE_PICK_CLASSES") != "0"
+
+    /**
+     * Production aggregates the fold's pick carriers into pick classes only when the per-carrier fold would hold at least this
+     * many such pick vars. Measured on production's 4-core portfolio (E0 / 3-worker harness, GUI-default rows): 14,028 (level
+     * 110) per-carrier ahead (−8 % with classes), 21,007 (140) and 20,632 (free 245) even, 28,287 (170) +6.5 %, 37,457 (200)
+     * +97 %, 47,089 (245) +11 % — docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes".
+     */
+    internal const val PICK_CLASS_MIN_PICK_VARS: Int = 24_000
+
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
     // cycles from search/proof. Intermediate snapshots are pure progress — re-rendering the in-flight build
@@ -810,6 +821,11 @@ object WakfuBuildSolver {
         val mixedRuneHybridStageObserverForTest: ((String, RuneModel) -> Unit)? = null,
         // A/B seam: false gives the search model per-carrier rune counts instead of count classes ([RuneCountClass]).
         val runeCountClasses: Boolean = true,
+        // A/B seam: true gives the search model's fold pick carriers PICK classes ([RuneCountClass] with `unit = slots`) — on
+        // any fold of at least [runePickClassMinPickVars] pick vars (0 = always). Production (tuning == null) has them on folds
+        // of [PICK_CLASS_MIN_PICK_VARS] or more; a tuned solve opts in.
+        val runePickClasses: Boolean = false,
+        val runePickClassMinPickVars: Int = 0,
         // Measurement seam (manual harnesses): a WALL-clock limit on top of the det budget, to run production's multi-worker
         // portfolio (non-deterministic: `interleaveSearch` off, several workers). Null = none.
         val maxWallSecondsForTest: Double? = null,
@@ -1032,6 +1048,8 @@ object WakfuBuildSolver {
                             // of the leg — the direct solve, or the hybrid's polish / verify / INFEASIBLE fallback — uses
                             // the classes ([RuneCountClass]) unless switched off.
                             runeCountClasses = !hybridFold && (tuning?.runeCountClasses ?: true),
+                            runePickClasses = tuning?.runePickClasses ?: true,
+                            runePickClassMinPickVars = tuning?.runePickClassMinPickVars ?: PICK_CLASS_MIN_PICK_VARS,
                             hardConstraints = hardConstraints,
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
@@ -1718,9 +1736,10 @@ object WakfuBuildSolver {
             }
         }
         // A count class ([RuneCountClass]) holds one count per type for all its carriers: the sockets of that type over the
-        // class's worn carriers (an unworn carrier holds none, so the hint meets `Σ_t m_t = slots · Σ_c x_c`).
+        // class's worn carriers (an unworn carrier holds none, so the hint meets `Σ_t m_t = slots · Σ_c x_c`); a pick class
+        // counts the worn carriers filled with that type (its unit is a whole carrier).
         for (rc in target.runeModel.countClasses) {
-            for ((stat, v) in rc.vars) hint(v, rc.carriers.sumOf { fill[it.equipmentId to stat] ?: 0L })
+            for ((stat, v) in rc.vars) hint(v, rc.carriers.sumOf { fill[it.equipmentId to stat] ?: 0L } / rc.unit)
         }
         for (
         v in target.skillVars.values + target.subModel.subVars.values +
@@ -1803,6 +1822,8 @@ object WakfuBuildSolver {
             // Every count stage (polish, verify, the INFEASIBLE fallback) searches the count CLASSES ([RuneCountClass],
             // exact): on the restricted pool they collapse to the worn carriers, on the full pool they shrink the model ~6×.
             runeCountClasses = tuning?.runeCountClasses ?: true,
+            runePickClasses = tuning?.runePickClasses ?: true,
+            runePickClassMinPickVars = tuning?.runePickClassMinPickVars ?: PICK_CLASS_MIN_PICK_VARS,
             hardConstraints = hardConstraints
         )
 
@@ -2189,6 +2210,10 @@ object WakfuBuildSolver {
         // The SEARCH model's count classes ([RuneCountClass], exact): interchangeable count carriers share one count per
         // rune type. Forced off whenever this build feeds a certificate (the AP-cell certifier mirrors per-carrier vars).
         runeCountClasses: Boolean = false,
+        // The SEARCH model's pick classes ([RuneCountClass] with `unit = slots`, exact): interchangeable fold PICK carriers share
+        // one var per rune type. Forced off whenever this build feeds a certificate, like [runeCountClasses].
+        runePickClasses: Boolean = false,
+        runePickClassMinPickVars: Int = 0,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -2353,7 +2378,16 @@ object WakfuBuildSolver {
                         certifyExplainCellForTest == null &&
                         !certifyLedgerForTest &&
                         !certifyFastOnlyForTest &&
-                        !maxDamageExperiment.certifierCellCap
+                        !maxDamageExperiment.certifierCellCap,
+                aggregatePickClasses =
+                    runePickClasses &&
+                        runePickClassesEnabled &&
+                        !certifyAllApForTest &&
+                        certifyExplainCellForTest == null &&
+                        !certifyLedgerForTest &&
+                        !certifyFastOnlyForTest &&
+                        !maxDamageExperiment.certifierCellCap,
+                pickClassMinPickVars = runePickClassMinPickVars
             )
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
@@ -4385,6 +4419,7 @@ object WakfuBuildSolver {
         // The mixed-rune lock: see [buildModel].
         runeMixedCarriers: Boolean = true,
         runeCountClasses: Boolean = true,
+        runePickClasses: Boolean = false,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -4400,6 +4435,7 @@ object WakfuBuildSolver {
                 runeChoiceGating = runeChoiceGating,
                 runeMixedCarriers = runeMixedCarriers,
                 runeCountClasses = runeCountClasses,
+                runePickClasses = runePickClasses,
                 hardConstraints = hardConstraints,
                 forceFullPool = forceFullPool,
                 maxDamageExperiment = tuning.maxDamageExperiment
@@ -4827,6 +4863,8 @@ object WakfuBuildSolver {
         hardConstraints: Boolean,
         runeCountClasses: Boolean,
         applyDomination: Boolean = true,
+        runePickClasses: Boolean = false,
+        runeMixedHybridFold: Boolean = false,
     ): List<Pair<String, LongRange>> =
         buildModel(
             params,
@@ -4836,6 +4874,8 @@ object WakfuBuildSolver {
             applyDomination = applyDomination,
             hardConstraints = hardConstraints,
             runeCountClasses = runeCountClasses,
+            runePickClasses = runePickClasses,
+            runeMixedHybridFold = runeMixedHybridFold,
             maxDamageExperiment = MaxDamageExperimentConfig.DEFAULT
         ).maxDamageTracked.map { (_, name, range) -> name to range }
 
@@ -4850,6 +4890,47 @@ object WakfuBuildSolver {
         buildModel(params, equipmentsByItemType, runes, sublimations, hardConstraints = hardConstraints, runeCountClasses = true)
             .runeModel.countClasses
             .map { it.carriers.size }
+
+    /** Test-only: the carrier count of each PICK class ([RuneCountClass] with `unit = slots`) of the v61 fold of [params] (no domination). */
+    internal fun runePickClassSizesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+    ): List<Int> =
+        buildModel(params, equipmentsByItemType, runes, sublimations, hardConstraints = hardConstraints, runeMixedCarriers = false, runePickClasses = true)
+            .runeModel.countClasses
+            .filter { it.unit > 1 }
+            .map { it.carriers.size }
+
+    /**
+     * Test-only: the hybrid fold stage of [params] as production builds it (domination on) — (pick carriers aggregated into pick
+     * classes, their per-carrier pick vars, classes, class vars), with pick classes on folds of [minPickVars] pick vars or more.
+     */
+    internal fun foldPickClassShapeForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+        minPickVars: Int = 0,
+    ): List<Int> {
+        val classes =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = true,
+                hardConstraints = hardConstraints,
+                runeMixedHybridFold = true,
+                runePickClasses = true,
+                runePickClassMinPickVars = minPickVars
+            ).runeModel.countClasses
+                .filter { it.unit > 1 }
+        return listOf(classes.sumOf { it.carriers.size }, classes.sumOf { it.carriers.size * it.vars.size }, classes.size, classes.sumOf { it.vars.size })
+    }
 
     /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
     internal fun gatedPoolSizeForTest(

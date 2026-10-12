@@ -305,10 +305,10 @@ internal class StatBuilder(
         for (term in terms) {
             val runeClass = runeModel.countClassByVar[term.variable]
             if (runeClass != null) {
-                // A count class's var: each worn carrier of the class holds at most `slots` of its runes, so its share
-                // rides that carrier's range exactly like a per-carrier count var (sound: the class splits into
-                // per-carrier fills, [RuneCountClass]).
-                val perCarrier = term.scaledRange(0L..runeClass.slots.toLong())
+                // A count class's var: each worn carrier of the class holds at most `slots` of its runes (one unit of a pick
+                // class), so its share rides that carrier's range exactly like a per-carrier count var or pick (sound: the
+                // class splits into per-carrier fills, [RuneCountClass]).
+                val perCarrier = term.scaledRange(0L..runeClass.unitsPerCarrier)
                 for (equip in runeClass.carriers) {
                     val current = rangesByCarrier[equip] ?: (0L..0L)
                     rangesByCarrier[equip] = current.first + perCarrier.first..current.last + perCarrier.last
@@ -2535,11 +2535,12 @@ internal class StatBuilder(
             }
         }
         terms.addAll(runeModel.extraTerms[char].orEmpty())
-        // Count classes ([RuneCountClass]): one count per type for the whole class, coeff each (a class shares its values).
+        // Count classes ([RuneCountClass]): one count per type for the whole class, coeff each (a class shares its values);
+        // a pick class's unit is a whole carrier of that type, `slots` runes.
         for (rc in runeModel.countClasses) {
             val classVar = rc.vars[char] ?: continue
             val coefficient = rc.coefficients[char] ?: 0L
-            if (coefficient != 0L) terms.add(Term(classVar, coefficient))
+            if (coefficient != 0L) terms.add(Term(classVar, coefficient * rc.unit))
         }
 
         terms.addAll(skillTerms.fixed[char].orEmpty())

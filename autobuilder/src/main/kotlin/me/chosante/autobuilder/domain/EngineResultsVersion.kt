@@ -27,6 +27,8 @@ package me.chosante.autobuilder.domain
  * the count model. Every count model the search builds groups interchangeable carriers into exact count classes (one count
  * per rune type per class; the certificates keep per-carrier counts). The fold the search runs prunes its rune choices without
  * the item stat gates, as v61 did (the count model decides every carrier that changes), and keeps 2 s of the budget for the
- * polish instead of 6. A re-run may find a better build.
+ * polish instead of 6. On a large fold (the GUI-default rows from level ~170) its interchangeable single-type carriers share
+ * exact pick classes (one var per rune type per class), so the search reaches a build meeting the rows much sooner. A re-run
+ * may find a better build.
  */
 const val ENGINE_RESULTS_VERSION: Int = 7

@@ -77,6 +77,17 @@ class MixedRuneCountsPerfHarnessTest {
             "MD110F" to (params(110, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))) to false)
         )
 
+    /** A named fixture, or `MD<level>` (the GUI-default rows, hard leg) / `MD<level>F` (free) at any other level. */
+    private fun fixture(name: String): Pair<WakfuBestBuildParams, Boolean> =
+        fixtures[name] ?: Regex("""MD(\d+)(F?)""").matchEntire(name)!!.let { m ->
+            val level = m.groupValues[1].toInt()
+            if (m.groupValues[2] == "F") {
+                params(level, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))) to false
+            } else {
+                params(level, guiTargets) to true
+            }
+        }
+
     /** Arm name → the tuning it solves with (on top of the deterministic protocol). */
     private val arms: Map<String, (WakfuBuildSolver.SolverTuning) -> WakfuBuildSolver.SolverTuning> =
         linkedMapOf(
@@ -86,7 +97,14 @@ class MixedRuneCountsPerfHarnessTest {
             "classesL1" to { t -> t.copy(runeCountClasses = true, linearizationLevelOverride = 1) },
             // The mixed-rune hybrid (fold search, count polish / verify): its count stages on the classes, or per-carrier.
             "hybrid" to { t -> t.copy(runeCountClasses = true, mixedRuneHybrid = true) },
-            "hybridPerCarrier" to { t -> t.copy(runeCountClasses = false, mixedRuneHybrid = true) }
+            "hybridPerCarrier" to { t -> t.copy(runeCountClasses = false, mixedRuneHybrid = true) },
+            // The fold / the hybrid with the fold's pick carriers aggregated into PICK classes (production's default).
+            "foldPC" to { t -> t.copy(runeMixedCarriers = false, runeCountClasses = false, runePickClasses = true) },
+            "hybridPC" to { t -> t.copy(runeCountClasses = true, mixedRuneHybrid = true, runePickClasses = true) },
+            // Production's rule: pick classes only on a fold of PICK_CLASS_MIN_PICK_VARS pick vars or more.
+            "hybridAuto" to { t ->
+                t.copy(runeCountClasses = true, mixedRuneHybrid = true, runePickClasses = true, runePickClassMinPickVars = WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS)
+            }
         )
 
     private fun env(
@@ -98,14 +116,22 @@ class MixedRuneCountsPerfHarnessTest {
     fun `mixed rune count model perf`(): Unit =
         runBlocking {
             val mode = System.getenv("WAKFU_MIXED_PERF")
-            assumeTrue(mode == "shape" || mode == "run")
+            assumeTrue(mode == "shape" || mode == "pickshape" || mode == "run")
             val fixtureNames = env("WAKFU_MIXED_FIXTURES", "MD110,MD200,MD245,MD245F")
             val armNames = env("WAKFU_MIXED_ARMS", "fold,counts")
             val runes = WakfuBestBuildFinderAlgorithm.runes
             val subs = WakfuBestBuildFinderAlgorithm.sublimations
+            if (mode == "pickshape") {
+                for (f in fixtureNames) {
+                    val (p, hard) = fixture(f)
+                    val shape = WakfuBuildSolver.foldPickClassShapeForTest(p, WakfuBestBuildFinderAlgorithm.poolFor(p), runes, subs, hard)
+                    println("PICK_SHAPE $f carriers=${shape[0]} pickVars=${shape[1]} classes=${shape[2]} classVars=${shape[3]}")
+                }
+                return@runBlocking
+            }
             if (mode == "shape") {
                 for (f in fixtureNames) {
-                    val (p, hard) = fixtures.getValue(f)
+                    val (p, hard) = fixture(f)
                     val pool = WakfuBestBuildFinderAlgorithm.poolFor(p)
                     for ((mixed, classes) in listOf(false to false, true to false, true to true)) {
                         val shape = WakfuBuildSolver.runeShapeForTest(p, pool, runes, subs, hard, runeMixedCarriers = mixed, runeCountClasses = classes)
@@ -122,7 +148,9 @@ class MixedRuneCountsPerfHarnessTest {
             val workers = System.getenv("WAKFU_MIXED_WORKERS")?.toInt() ?: 1
             val interleave = System.getenv("WAKFU_MIXED_INTERLEAVE") != "0"
             val legPair = System.getenv("WAKFU_MIXED_LEGS") == "pair"
-            val pools = fixtureNames.associateWith { WakfuBestBuildFinderAlgorithm.poolFor(fixtures.getValue(it).first) }
+            // The greedy warm start (and its CP-SAT hint), on by default as in production.
+            val greedy = System.getenv("WAKFU_MIXED_GREEDY") != "0"
+            val pools = fixtureNames.associateWith { WakfuBestBuildFinderAlgorithm.poolFor(fixture(it).first) }
             val jobs =
                 buildList {
                     for (seed in seeds) for (b in budgets) for (f in fixtureNames) for (a in armNames) add(listOf(f, a, b, seed.toString()))
@@ -133,7 +161,7 @@ class MixedRuneCountsPerfHarnessTest {
                     jobs.map { (f, a, b, seed) ->
                         executor.submit(
                             Callable {
-                                val (p, hard) = fixtures.getValue(f)
+                                val (p, hard) = fixture(f)
                                 val first = b == "first"
                                 // "w60": a 60 s WALL budget (production-like, non-deterministic).
                                 val wall = b.startsWith("w")
@@ -155,7 +183,7 @@ class MixedRuneCountsPerfHarnessTest {
                                         applyDominationOverride = true,
                                         maxDamageExperiment = MaxDamageExperimentConfig.DEFAULT,
                                         maxPresolveIterationsOverride = 3,
-                                        greedyWarmStart = true,
+                                        greedyWarmStart = greedy,
                                         stopAtFirstSolution = first,
                                         searchLogSink = log?.let { w -> { line: String -> synchronized(w) { w.println(line) } } }
                                     )
@@ -164,7 +192,7 @@ class MixedRuneCountsPerfHarnessTest {
                                 val start = System.nanoTime()
                                 val results =
                                     if (legPair) {
-                                        runBlocking { MaxDamageSearch.optimizeHardThenSoft(p, pools.getValue(f), runes, subs, tuning, greedyWarmStart = true).toList() }
+                                        runBlocking { MaxDamageSearch.optimizeHardThenSoft(p, pools.getValue(f), runes, subs, tuning, greedyWarmStart = greedy).toList() }
                                     } else {
                                         runBlocking {
                                             WakfuBuildSolver
@@ -175,7 +203,7 @@ class MixedRuneCountsPerfHarnessTest {
                                                     subs,
                                                     tuning,
                                                     hardConstraints = hard,
-                                                    maxDamageGreedyWarmStart = true,
+                                                    maxDamageGreedyWarmStart = greedy,
                                                     onTermination = { outcome = it }
                                                 ).toList()
                                         }

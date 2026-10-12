@@ -420,12 +420,21 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
     model with classes. Kill switch `WAKFU_MD_RUNE_CLASSES=0`, tuned seam `SolverTuning.runeCountClasses`.
   - **The HYBRID** (`WakfuBuildSolver.mixedRuneHybrid`, kill switch `WAKFU_MD_MIXED_HYBRID=0` = the count model searched
     directly, tuned opt-in `SolverTuning.mixedRuneHybrid`). The plain fold searches (its would-be count carriers recorded in
-    `RuneModel.foldInexactCarriers`; never aggregated; its choice collapse pruned WITHOUT the item stat gates, as v61 —
+    `RuneModel.foldInexactCarriers`; its pick carriers in PICK classes on a large fold, below; its choice collapse pruned WITHOUT the item stat gates, as v61 —
     `foldSearchReads` — every carrier that changes recorded too) on the budget minus a 2 s polish reserve. The count model —
     with classes — re-solves the fold's final items (sublimations pinned, then free), verifies a PROVEN fold optimum on the
     full pool, and takes over a fold proven INFEASIBLE. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where
     `foldInexactCarriers` is non-empty: only the count model stamps `isOptimal`. The fold stage is a heuristic: anything that
     only REMOVES builds from it is sound as long as the carriers it changes are recorded.
+  - **PICK classes** (`RuneCountClass` with `unit = slots`): the fold's multi-choice PICK carriers sharing an item type, a socket
+    count and their rune choices hold one var per type per class — the number of its worn carriers filled with that type
+    (`Σ_t q_t = Σ_c x_c`), exact like the count classes, never in a certificate's model. Production builds them only where the
+    per-carrier fold would hold ≥ `WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS` (24,000) such pick vars: the GUI-default hard leg
+    from level ~170 (MD200 first CP-SAT solution and final build ~2× better), never at 110 or on the free requests, where the
+    per-carrier fold searched better on the 3-worker portfolio. Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`, tuned seam
+    `SolverTuning.runePickClasses` / `runePickClassMinPickVars`. Lock `RunePickClassTest`. Why the GUI-default hard leg got slow
+    after 1.14.2 (the stat gates broke the greedy hint's completion, the floors and gates grew the model; the old builds were
+    illegal anyway: a nation sword without its ring): `docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The hard leg since 1.14.2".
   Wall clock (E0, 60 s, 4 pinned cores, 2026-10-12; the doc's "Wall clock"): the shipped default is at or above main (v61) on
   all four fixtures — medians MD110 1,447,330 vs 1,427,130, MD200 5,654,520 vs 3,127,275, MD245 15,261,015 vs 14,191,200,
   MD245F 20,276,070 vs 19,643,625 — with a level-245 badge where main has none. Searching the class model directly

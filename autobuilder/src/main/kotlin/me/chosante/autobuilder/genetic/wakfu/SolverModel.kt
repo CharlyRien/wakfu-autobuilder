@@ -164,6 +164,11 @@ internal class RuneModel(
  * Why: the per-carrier counts make every interchangeable carrier its own copy of the rune decision (2,004 carriers × 7
  * counts on the GUI-default level-110 request), a search space the fold's picks did not have; the class keeps the exact
  * mixed fills at a fraction of the variables (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Count classes").
+ *
+ * A PICK class ([unit] = [slots]) aggregates the fold's single-type PICK carriers the same way: one var per type counts the
+ * worn carriers of the class FILLED with that type (`0..maxWorn`, `Σ_t vars[t] = Σ_c x_c`), each unit worth `slots` runes —
+ * exactly the fold's `Σ_t pick_{c,t} = x_c` summed over the class (the same argument, every class count a multiple of
+ * [slots]: [distribute] gives each worn carrier one whole type). "Pick classes" in docs/MIXED_RUNE_SECONDARY_BUDGET.md.
  */
 internal class RuneCountClass(
     val carriers: List<Equipment>,
@@ -173,20 +178,26 @@ internal class RuneCountClass(
     val runeTypes: Map<Characteristic, RuneType>,
     // The most carriers of the class one build can wear (two rings, else one), capped by the class size.
     val maxWorn: Int,
+    // Runes one unit of a class var stands for: 1 for a count class, [slots] for a PICK class (a whole carrier of one type).
+    val unit: Int = 1,
 ) {
-    /** The top of every class count: all sockets of every carrier the build can wear. */
-    val hi: Long get() = slots.toLong() * maxWorn
+    /** The top of every class var, in its own units: all sockets of every carrier the build can wear. */
+    val hi: Long get() = slots.toLong() * maxWorn / unit
+
+    /** The most units of a class var one worn carrier holds (its [slots] runes). */
+    val unitsPerCarrier: Long get() = slots.toLong() / unit
 
     /**
-     * The runes of each equipped carrier for the class counts [counts] (`Σ = slots · |equipped|`): the carriers are
-     * filled one after the other, each with exactly [slots] runes taken from the types in [vars] order. Deterministic.
+     * The runes of each equipped carrier for the class vars [counts] (in [unit]s, `Σ = slots · |equipped| / unit`): the
+     * carriers are filled one after the other, each with exactly [slots] runes taken from the types in [vars] order — for a
+     * pick class every count is a multiple of [slots], so each carrier gets a single type. Deterministic.
      */
     fun distribute(
         equipped: List<Equipment>,
         counts: Map<Characteristic, Long>,
     ): Map<Equipment, List<RuneType>> {
         val left = LinkedHashMap<Characteristic, Long>()
-        for (stat in vars.keys) left[stat] = counts[stat] ?: 0L
+        for (stat in vars.keys) left[stat] = (counts[stat] ?: 0L) * unit
         val out = LinkedHashMap<Equipment, List<RuneType>>()
         for (equip in equipped) {
             val runes = ArrayList<RuneType>(slots)

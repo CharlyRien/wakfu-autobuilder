@@ -58,6 +58,13 @@ internal fun CpModel.createRuneModel(
     // The SEARCH model: count carriers that share an item type, a socket count and their choices (same values) hold one
     // count per type for the whole class ([RuneCountClass], exact). Never in a model a certificate reads.
     aggregateCountClasses: Boolean = false,
+    // The SEARCH model: the fold's multi-choice PICK carriers that share an item type, a socket count and their choices hold
+    // one var per type for the whole class, counting its worn carriers filled with that type ([RuneCountClass] with
+    // `unit = slots`, exact). Never in a model a certificate reads.
+    aggregatePickClasses: Boolean = false,
+    // ...only when the per-carrier fold would hold at least this many such pick vars: below it the per-carrier fold searched
+    // better on production's portfolio (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes"). 0 = always.
+    pickClassMinPickVars: Int = 0,
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -175,41 +182,84 @@ internal fun CpModel.createRuneModel(
         val choices: Map<Characteristic, Pair<RuneType, Long>>,
         val gates: Map<Characteristic, Set<Sublimation>>,
     )
+
+    // The choice collapse's plan for one carrier (pure: no model change), read twice — by the pick-class size check and the model.
+    class CollapsePlan(
+        val exactKept: List<RuneChoice>,
+        val choiceGatesOfKept: Map<Characteristic, Set<Sublimation>>,
+        val narrowed: Boolean,
+        val choices: LinkedHashMap<Characteristic, Pair<RuneType, Long>>,
+    )
+
+    fun collapsePlan(equip: Equipment): CollapsePlan? {
+        // Pure max-damage reads a rune of these types through the damage objective (the M-feeding masteries —
+        // elemental / range / rear / berserk / healing — all enter the same M sum; critical mastery is K) and
+        // through whatever else [reads] lists (a sub condition's stat sum, a conversion source, …). Offer every
+        // candidate type, minus each one another candidate on THIS carrier beats on every read
+        // ([MaxDamageRuneReads.paretoChoices]): without such a read that leaves the best M-feeding rune and,
+        // when larger, the crit one — the original collapse; a capped secondary read also keeps the cheaper
+        // choices (elemental, a smaller secondary, crit) a budget can need, and — the cap holding EACH secondary on
+        // its own — every secondary type on its own budget (an equal rear and distance rune are two choices).
+        val candidates =
+            (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
+                runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
+            }
+        val exactKept = if (choicePruning) reads.paretoChoices(candidates) else candidates
+        if (exactKept.isEmpty()) return null
+        val exactGates = if (choiceGating) reads.choiceGates(exactKept) else emptyMap()
+        // The hybrid's fold stage prunes with [foldSearchReads] (no item stat gate) instead: a carrier whose choices or
+        // choice gates that changes is recorded as fold-inexact, so the stage's OPTIMAL / INFEASIBLE is never trusted.
+        val searchReads = foldSearchReads?.takeIf { !materializeCountCarriers && choicePruning }
+        val kept = searchReads?.paretoChoices(candidates) ?: exactKept
+        val choiceGatesOfKept =
+            if (searchReads == null) {
+                exactGates
+            } else if (choiceGating) {
+                searchReads.choiceGates(kept)
+            } else {
+                emptyMap()
+            }
+        val narrowed = kept.map { it.stat } != exactKept.map { it.stat } || choiceGatesOfKept != exactGates
+        val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+        kept.forEach { choices[it.stat] = it.rune to it.value }
+        return CollapsePlan(exactKept, choiceGatesOfKept, narrowed, choices)
+    }
+
+    // A multi-choice pick carrier joins a pick class — not the crit-swap shape (one bool, no class needed).
+    fun pickClassMember(choices: Map<Characteristic, *>) = choices.size >= 2 && !(choices.size == 2 && choices.containsKey(Characteristic.MASTERY_CRITICAL))
+    val generalFoldPicks =
+        singleTypePerItem && !maxDamageRuneChoiceCollapse && runeStats.size >= 2 && !(materializeCountCarriers && runeStats.any { it in mixedStats })
+    // Pick classes only on a large fold ([pickClassMinPickVars]): count the pick vars the per-carrier fold would hold first.
+    val pickClassesOn =
+        aggregatePickClasses &&
+            (
+                pickClassMinPickVars <= 0 ||
+                    allEquips.filter { it.maxShardSlots > 0 }.sumOf { equip ->
+                        when {
+                            maxDamageRuneChoiceCollapse ->
+                                collapsePlan(equip)
+                                    ?.takeIf { plan ->
+                                        !(materializeCountCarriers && plan.exactKept.size >= 2 && plan.exactKept.any { it.stat in mixedStats }) &&
+                                            pickClassMember(plan.choices)
+                                    }?.choices
+                                    ?.size ?: 0
+                            generalFoldPicks -> runeStats.size
+                            else -> 0
+                        }
+                    } >= pickClassMinPickVars
+            )
     val pendingCounts = mutableListOf<PendingCount>()
+    // Pick carriers awaiting their class ([pickClassesOn]), in the same shape.
+    val pendingPicks = mutableListOf<PendingCount>()
     for (equip in allEquips) {
         val slots = equip.maxShardSlots
         if (slots <= 0) continue
         if (maxDamageRuneChoiceCollapse) {
-            // Pure max-damage reads a rune of these types through the damage objective (the M-feeding masteries —
-            // elemental / range / rear / berserk / healing — all enter the same M sum; critical mastery is K) and
-            // through whatever else [reads] lists (a sub condition's stat sum, a conversion source, …). Offer every
-            // candidate type, minus each one another candidate on THIS carrier beats on every read
-            // ([MaxDamageRuneReads.paretoChoices]): without such a read that leaves the best M-feeding rune and,
-            // when larger, the crit one — the original collapse; a capped secondary read also keeps the cheaper
-            // choices (elemental, a smaller secondary, crit) a budget can need, and — the cap holding EACH secondary on
-            // its own — every secondary type on its own budget (an equal rear and distance rune are two choices).
-            val candidates =
-                (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
-                    runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
-                }
-            val exactKept = if (choicePruning) reads.paretoChoices(candidates) else candidates
-            if (exactKept.isEmpty()) continue
-            val exactGates = if (choiceGating) reads.choiceGates(exactKept) else emptyMap()
-            // The hybrid's fold stage prunes with [foldSearchReads] (no item stat gate) instead: a carrier whose choices or
-            // choice gates that changes is recorded as fold-inexact, so the stage's OPTIMAL / INFEASIBLE is never trusted.
-            val searchReads = foldSearchReads?.takeIf { !materializeCountCarriers && choicePruning }
-            val kept = searchReads?.paretoChoices(candidates) ?: exactKept
-            val choiceGatesOfKept =
-                if (searchReads == null) {
-                    exactGates
-                } else if (choiceGating) {
-                    searchReads.choiceGates(kept)
-                } else {
-                    emptyMap()
-                }
-            val narrowed = kept.map { it.stat } != exactKept.map { it.stat } || choiceGatesOfKept != exactGates
-            val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
-            kept.forEach { choices[it.stat] = it.rune to it.value }
+            val plan = collapsePlan(equip) ?: continue
+            val exactKept = plan.exactKept
+            val choiceGatesOfKept = plan.choiceGatesOfKept
+            val narrowed = plan.narrowed
+            val choices = plan.choices
 
             // A carrier whose choices include a type a single-type fill cannot represent exactly ([mixedStats]: a
             // threshold read with a budget) keeps per-type COUNTS over its kept types: the per-socket Pareto argument
@@ -220,6 +270,11 @@ internal fun CpModel.createRuneModel(
             if (mixed && aggregateCountClasses) {
                 countCarriers += equip
                 pendingCounts += PendingCount(equip, LinkedHashMap(choices), choiceGatesOfKept)
+                continue
+            }
+            // A multi-choice pick carrier (not the crit-swap shape, which needs one bool) joins its pick class.
+            if (!mixed && pickClassesOn && pickClassMember(choices)) {
+                pendingPicks += PendingCount(equip, LinkedHashMap(choices), choiceGatesOfKept)
                 continue
             }
             val perStat =
@@ -274,6 +329,15 @@ internal fun CpModel.createRuneModel(
             runeVars[equip] = perStat
         } else if (singleTypePerItem && !(materializeCountCarriers && runeStats.size >= 2 && runeStats.any { it in mixedStats })) {
             if (runeStats.size >= 2 && runeStats.any { it in mixedStats }) foldInexactCarriers += equip
+            if (pickClassesOn && runeStats.size >= 2) {
+                val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+                for (stat in runeStats) {
+                    val rune = runeByCharacteristic.getValue(stat)
+                    choices[stat] = rune to rune.valueOn(equip.itemType, equip.level).toLong()
+                }
+                pendingPicks += PendingCount(equip, choices, emptyMap())
+                continue
+            }
             // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
             val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
             val pickExpr = LinearExpr.newBuilder()
@@ -340,6 +404,41 @@ internal fun CpModel.createRuneModel(
                 coefficients = first.choices.mapValues { it.value.second },
                 runeTypes = first.choices.mapValues { it.value.first },
                 maxWorn = maxWorn
+            )
+    }
+    // The pick classes: one var per type per class counting its worn carriers filled with that type (0..maxWorn), `Σ_t q_t =
+    // Σ_c x_c` — the fold's `Σ_t pick_{c,t} = x_c` summed over the class. Same grouping and naming order as the count classes.
+    val pickGroups =
+        pendingPicks.groupBy { pc ->
+            Triple(pc.equip.itemType, pc.equip.maxShardSlots, pc.choices.map { (stat, choice) -> Triple(stat, choice.first.id, choice.second) })
+        }
+    for ((key, members) in pickGroups) {
+        val slots = key.second
+        val first = members.first()
+        val maxWorn = minOf(members.size, if (key.first == ItemType.RING) 2 else 1)
+        val vars =
+            first.choices.keys.associateWith { stat ->
+                newIntVar(0, maxWorn.toLong(), "runePickClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+            }
+        val capExpr = LinearExpr.newBuilder()
+        vars.values.forEach { capExpr.addTerm(it, 1L) }
+        members.forEach { capExpr.addTerm(equipVars.getValue(it.equip), -1L) }
+        addEquality(capExpr.build(), 0L)
+        for ((stat, choice) in first.choices) {
+            val v = vars.getValue(stat)
+            runeTypeByVar[v] = choice.first
+            coefficientByVar[v] = choice.second
+        }
+        for ((stat, subs) in first.gates) vars[stat]?.let { choiceGates[it] = subs }
+        countClasses +=
+            RuneCountClass(
+                carriers = members.map { it.equip },
+                slots = slots,
+                vars = vars,
+                coefficients = first.choices.mapValues { it.value.second },
+                runeTypes = first.choices.mapValues { it.value.first },
+                maxWorn = maxWorn,
+                unit = slots
             )
     }
     // Global forced runes must be socketed at least once across the build.
