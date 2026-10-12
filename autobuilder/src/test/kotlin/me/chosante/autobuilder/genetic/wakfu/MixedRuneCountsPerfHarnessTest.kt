@@ -25,7 +25,10 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Requests (`WAKFU_MIXED_FIXTURES`, default all): the GUI default rows (AP 11, MP 4, range 4, crit 25, distance 1, HP 2000, wind
  * resistance 0, dodge 0 — [PerfBaselineE0Test]) at levels 110 / 200 / 245, on the hard leg as production runs it first, and the
- * free level-245 request. Arms (`WAKFU_MIXED_ARMS`, default `fold,counts`; also `classes`, `classesL1`): see [arms]. Budgets (`WAKFU_MIXED_BUDGETS`, default
+ * free level-245 request. Arms (`WAKFU_MIXED_ARMS`, default `fold,counts`; also `classes`, `classesL1`, `hybrid` (the hybrid,
+ * its count stages on classes), `hybridPerCarrier`): see [arms]. `WAKFU_MIXED_LEGS=pair` runs production's leg PAIR
+ * ([MaxDamageSearch.optimizeHardThenSoft]: the hard leg, then the soft one if it found nothing) instead of the single leg; the
+ * hybrid's `first` is its fold stage's, so measure `first` on the `fold` arm. Budgets (`WAKFU_MIXED_BUDGETS`, default
  * `first,60,120`): `first` stops at CP-SAT's first solution (its det time is the number), a number is a det budget (the objective
  * at its end), `w<n>` a WALL budget of n seconds. Seeds: `WAKFU_MIXED_SEEDS` (default `1`). `WAKFU_MIXED_LOGDIR` writes each
  * job's CP-SAT search log there. One `MIXED_PERF` line per job.
@@ -80,7 +83,10 @@ class MixedRuneCountsPerfHarnessTest {
             "fold" to { t -> t.copy(runeMixedCarriers = false, runeCountClasses = false) },
             "counts" to { t -> t.copy(runeCountClasses = false) },
             "classes" to { t -> t.copy(runeCountClasses = true) },
-            "classesL1" to { t -> t.copy(runeCountClasses = true, linearizationLevelOverride = 1) }
+            "classesL1" to { t -> t.copy(runeCountClasses = true, linearizationLevelOverride = 1) },
+            // The mixed-rune hybrid (fold search, count polish / verify): its count stages on the classes, or per-carrier.
+            "hybrid" to { t -> t.copy(runeCountClasses = true, mixedRuneHybrid = true) },
+            "hybridPerCarrier" to { t -> t.copy(runeCountClasses = false, mixedRuneHybrid = true) }
         )
 
     private fun env(
@@ -115,6 +121,7 @@ class MixedRuneCountsPerfHarnessTest {
             // Workers per solve (default 1) and the interleaved deterministic protocol (default on).
             val workers = System.getenv("WAKFU_MIXED_WORKERS")?.toInt() ?: 1
             val interleave = System.getenv("WAKFU_MIXED_INTERLEAVE") != "0"
+            val legPair = System.getenv("WAKFU_MIXED_LEGS") == "pair"
             val pools = fixtureNames.associateWith { WakfuBestBuildFinderAlgorithm.poolFor(fixtures.getValue(it).first) }
             val jobs =
                 buildList {
@@ -156,26 +163,31 @@ class MixedRuneCountsPerfHarnessTest {
                                 var outcome: WakfuBuildSolver.SolveOutcome? = null
                                 val start = System.nanoTime()
                                 val results =
-                                    runBlocking {
-                                        WakfuBuildSolver
-                                            .optimize(
-                                                p,
-                                                pools.getValue(f),
-                                                runes,
-                                                subs,
-                                                tuning,
-                                                hardConstraints = hard,
-                                                maxDamageGreedyWarmStart = true,
-                                                onTermination = { outcome = it }
-                                            ).toList()
+                                    if (legPair) {
+                                        runBlocking { MaxDamageSearch.optimizeHardThenSoft(p, pools.getValue(f), runes, subs, tuning, greedyWarmStart = true).toList() }
+                                    } else {
+                                        runBlocking {
+                                            WakfuBuildSolver
+                                                .optimize(
+                                                    p,
+                                                    pools.getValue(f),
+                                                    runes,
+                                                    subs,
+                                                    tuning,
+                                                    hardConstraints = hard,
+                                                    maxDamageGreedyWarmStart = true,
+                                                    onTermination = { outcome = it }
+                                                ).toList()
+                                        }
                                     }
                                 log?.close()
                                 val wallMs = (System.nanoTime() - start) / 1_000_000
                                 val last = results.lastOrNull { !it.greedyWarmStartEmission }
                                 val line =
-                                    "MIXED_PERF fixture=$f arm=$a budget=$b seed=$seed status=${outcome?.status} " +
+                                    "MIXED_PERF fixture=$f arm=$a budget=$b seed=$seed legs=${if (legPair) "pair" else "single"} status=${outcome?.status} " +
                                         "objective=${outcome?.objectiveValue} raw=${last?.maxDamageRawProxy} bound=${outcome?.bestObjectiveBound} " +
-                                        "det=${outcome?.deterministicTime} branches=${outcome?.branches} conflicts=${outcome?.conflicts} wallMs=$wallMs"
+                                        "det=${outcome?.deterministicTime} branches=${outcome?.branches} conflicts=${outcome?.conflicts} " +
+                                        "last=${last?.maxDamageObjective}/hardLeg=${last?.maxDamageHardConstraintsMet}/optimal=${last?.isOptimal} wallMs=$wallMs"
                                 println(line)
                                 System.out.flush()
                                 line

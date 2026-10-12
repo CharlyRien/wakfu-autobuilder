@@ -864,7 +864,9 @@ class MixedRuneSecondaryBudgetTest {
                 val result = leg(shape.params, shape.pool, shape.subs, t, shape.hard)!!
                 val tag = "${shape.label} hard=${shape.hard} classes=$classes"
                 println(
-                    "MIXED_HYBRID_CLASSES $tag stages=${stages.map { (s, rm) -> "$s:${rm.countClasses.map { it.carriers.size }}/${rm.runeVars.keys.count { it in rm.countCarriers }}" }} " +
+                    "MIXED_HYBRID_CLASSES $tag stages=${stages.map { (s, rm) ->
+                        "$s:${rm.countClasses.map { it.carriers.size }}/${rm.runeVars.keys.count { it in rm.countCarriers }}"
+                    }} " +
                         "count=${reference.objective} hybrid=${result.maxDamageObjective}/${result.isOptimal}"
                 )
                 val fold = stages.filter { it.first == "fold" }.map { it.second }
