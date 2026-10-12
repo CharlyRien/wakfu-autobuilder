@@ -16,7 +16,9 @@ the change takes the next numbers, AGENTS.md §4). What the port changed:
 - **Sublimation stacking** (#269, v60/v61): Neutralité III now reaches its family level 4 (+32 % DI instead of 24), so the
   minimal repro below now reads fold 1,382,985 vs count model 1,408,170 (+1.82 %); the mechanism is unchanged.
   `negativeStatSources` also reads a stacking sub's per-level values (`valuesByLevel`), not only its top value.
-- The cost measurements below were NOT re-run on main: the GUI-default regression is still OPEN
+- The cost measurements below were NOT re-run on main. The GUI-default regression they show is addressed by the HYBRID
+  (2026-10-12, section "The hybrid" below): the search runs on the fold again, and the count model polishes its final build and
+  is the only source of an optimality proof. The wall-clock A/B on a calm machine is still to be run
   (`docs/perf-review-backlog.md` §E OPEN #2).
 
 ## The gap
@@ -216,6 +218,101 @@ plain counts. It misses every acceptance criterion (median ≤ 2 % worse, first 
 range), and is worse than the plain counts, so it was reverted (`f86a9b97`): the branch keeps the plain counts, which
 still regress GUI default 110 by ~15 %.
 
+## The hybrid: search on the fold, polish and verify on the count model (2026-10-12)
+
+What ships: where the fold is inexact the search no longer runs on the count model. It runs on the v61 fold, and the count
+model is used where it is cheap and where it decides correctness. `WakfuBuildSolver.mixedRuneHybrid` (called from `optimize`
+for every max-damage leg, hard or soft, whose fold has a would-be count carrier):
+
+1. **Fold stage.** `buildModel(runeMixedHybridFold = true)` builds the fold. Every carrier `mixedStats` would make a count
+   carrier keeps its single-type picks and is recorded in `RuneModel.foldInexactCarriers` (`createRuneModel(materializeCountCarriers
+   = false)`). The model is the one `WAKFU_MD_MIXED_RUNES=0` builds, so it has the same incumbents and the same first
+   solution. It searches the leg's budget minus a polish reserve (`hybridFoldStageBudget`: 10 % of the budget, at most 6 s or 6
+   deterministic units) and streams its builds as the direct solve does. A full single-type fill is also a count fill, so every
+   build it shows is a real build. Its `OPTIMAL` only proves the fold's optimum, so it never stamps a result.
+2. **Polish.** The count model on the fold's final items only (pool restricted to them, no domination, `forceFullPool`), cut
+   at `objective ≥` the best objective so far and hinted with that build. It runs twice: first with every sublimation var
+   pinned (runes and skills free; near-instant, it takes most of the gain), then with the sublimations free on what is left of
+   the reserve (`hybridPolishStageBudget`). An item may still be dropped. The polished build is a build of the request worth
+   at least the fold's, so the leg never ends below the fold. It is shown at once.
+3. **Verify, only after a PROVEN fold optimum** with budget left: the full count model (production pool), cut at `objective
+   ≥ p` (p = the polished objective) and hinted with the polished build, on what is left. Its `OPTIMAL` is the leg's only
+   optimality stamp, and it is the count model's own proof. Out of time means the best build so far, unproven.
+4. **Fold INFEASIBLE** proves nothing: two rows reading two rune types of one item can need a mixed fill. The count model then
+   searches the rest of the budget directly, and its own INFEASIBLE is what the hard leg's soft fallback reads. A fold with no
+   solution at all (UNKNOWN) ends the leg as the direct solve would.
+
+The comparisons read the objective variable exactly (`solver.value(objective)`), never the double `objectiveValue()`: a soft
+leg's penalized objective passes 2^53.
+
+**Where it applies** (`mixedRuneHybridApplies`): max-damage, count carriers on (`WAKFU_MD_MIXED_RUNES` ≠ 0,
+`SolverTuning.runeMixedCarriers`), production by default (kill switch `WAKFU_MD_MIXED_HYBRID=0` = the plain counts). A tuned
+solve opts in with `SolverTuning.mixedRuneHybrid` (default false, so every existing deterministic test keeps the plain count
+model, the E8 construct's restricted re-solve included). Excluded: the E8 fallback's `maxDamageRawFloor` feasibility search,
+`stopAtFirstSolution`, the name-hinted / bucket-interval measurement seams. A fold with no inexact carrier IS the count model:
+it runs the direct solve, and its OPTIMAL is trusted as before. Test seam `SolverTuning.mixedRuneHybridVerify = false` skips
+step 3. Diagnostics: `WAKFU_MD_HYBRID_DEBUG=1` prints one `MD_HYBRID` stderr line per hybrid leg (each stage's status,
+objective, deterministic time and wall time).
+
+### Soundness
+
+- **Builds.** Every build the leg emits is a solution of an exact model. The fold's solutions are count solutions with
+  full single-type fills. The polish and verify solutions come from count models: on a restricted pool, every item is still a
+  pool item and every equip condition and gate is still posted.
+- **Badges.** `isOptimal` (and the leg's `OPTIMAL` outcome) comes only from the verify stage, an `OPTIMAL` of the full count
+  model. It is still gated on `!needsItemPrefilter`, like everywhere. The fold's `OPTIMAL` and `INFEASIBLE` are never
+  forwarded: `MaxDamageSearch` (phase-1 `isOptimal`, the boss probes' `proved`, `proveOptimality`'s `result.isOptimal`
+  shortcut, `refineSoftLegProof`) and `optimizeHardThenSoft`'s fallback decision only ever see the count model's verdicts.
+  Relax-then-check is most-masteries only and is untouched.
+- **Certificate.** The post-search certificate, the E10 warm-up early stop and the E8 construct are unchanged. The certifier
+  mirrors the COUNT model (vertex argument, CERTIFIER_VERSION 62), so its bound covers every build the leg can return. The
+  construct crowns a build only by reaching that bound, and runs on the count model (tuned path, no opt-in). The soft
+  certificate's no-condition oracle (`timedMaxDamageProfileForTest`) builds the count model by default.
+- **Versions.** No certifier change: `CERTIFIER_VERSION` 62 stays. The engine's results change (the polish), so the unreleased
+  `ENGINE_RESULTS_VERSION` 7 history entry was extended (AGENTS.md §4).
+
+### Deterministic A/B (1 worker, seed 1, interleave, det 120; production pool, domination on; greedy warm start on)
+
+`MixedRuneHybridAbTest` (manual, `WAKFU_HYBRID_AB=1`) runs `MaxDamageSearch.optimizeHardThenSoft` (the production leg
+pair) on the E0 requests: CRA, runes and every choosable sublimation, GUI-default rows, or free with distance mastery 1. Arms:
+fold = `runeMixedCarriers = false`, counts = the plain count model, hybrid = `mixedRuneHybrid = true`. "Final" = the leg's last
+build: the raw damage proxy, and in brackets the leg it came from. "First" = deterministic time to CP-SAT's first solution
+on the hard leg (`stopAtFirstSolution`, no warm start). The hybrid's first solution is the fold's, because its fold stage is
+the same model. Two JVM runs of MD110 (all arms) and MD245 gave identical numbers.
+
+| Request | fold final | counts final | hybrid final (fold stage → polished) | hybrid vs fold | first, fold / counts (det) |
+|---|---|---|---|---|---|
+| GUI default 110 (MD110) | 1,173,695 (hard) | 1,233,860 (hard) | 1,188,975 (1,173,695 → 1,188,975) | +1.3 % | 22.7 / 14.1 |
+| GUI default 200 (MD200) | 9,137,400 (soft: the hard leg found nothing) | 4,848,060 (hard) | 9,139,340 (soft, as the fold) | +0.02 % | 29.1 / 33.2 |
+| GUI default 245 (MD245) | 15,021,210 (hard) | 9,215,765 (hard) | 15,336,570 (14,567,880 → 15,336,570) | +2.1 % | 33.9 / 29.7 |
+| free 245 (MD245F) | 18,791,000 | 19,349,125 | 19,247,000 (18,791,000 → 19,247,000) | +2.4 % | 38.0 / 31.2 |
+
+- The hybrid ends at or above the fold on all four. Its fold stage gives up 6 deterministic units to the reserve. At MD245
+  that cost a late fold improvement (14.57 M at det 114, 15.02 M at 120), which the polish more than recovered (+5.3 %).
+- On ONE worker the plain counts beat the fold at MD110 (+5.1 %) and MD245F (+3.0 %), and lose at MD245 (−39 %). On
+  MD200 the counts find a hard-leg build and the fold does not within det 120 (the hard leg then falls back to the soft
+  leg). The production multi-worker E0 numbers above point the other way at MD110 (counts −15 %). The 1-worker protocol is
+  load-independent but is not a proxy for the 3-worker portfolio. The definitive A/B is the wall-clock E0 run.
+- Polish cost: pinned 0.02–0.1 det (≤ 0.7 s wall); free 4–6 det (proven at MD245 / MD245F, capped at MD110 / MD200).
+
+Early variants, measured and rejected (MD110 unless noted, det budgets as given):
+- **Polish budget** (det 30, fold stage at det 28.5 = 867,140): pinned sublimations proved 982,695 (+13.3 %) in 0.02 det,
+  free sublimations proved 1,047,635 (+20.8 %) in 3.9 det; a free polish capped at 1.5 det stopped unproven (937,810 from
+  a fold stage of 780,235, in another JVM run). Hence pinned first, then free on the rest of the reserve.
+- **Two-stage time split** (fold 70 %, polish, then the count model hinted with the polished build for the remaining
+  ~30 %): 1,137,405, against 1,188,975 for the shipped split. The count model improved the polished build by 1.6 % in 31 det.
+  The fold gained 10.6 % between det 84 and 114.
+- **Count stage after an unproven fold** (the leftover reserve, hinted, ≥ 1 det): MD245 built the full count model (4.8 s)
+  and found nothing in 2 det. Dropped: only a proven fold optimum runs the count model on the full pool.
+
+E0 sanity (production path, 4 cores, 60 s, one run per arm on a loaded machine, not a measurement): MD110 hybrid 1,447,330
+(fold stage 1,441,270 at 54 s, polish 5.9 s), badge "within 3.59 %", first CP-SAT solution 12.7 s. The fold arm in the
+same session: 1,430,160, "within 4.84 %", 12.5 s. Baseline fold median on this PC: 1,440,260 (within 3.7–5.1 %).
+
+Not done: polishing the INTERMEDIATE fold incumbents during the search (only the final one is polished, so the builds streamed
+mid-search are fold builds). It would need a second solver beside CP-SAT's workers, and the sublimation pinning read back
+from a streamed build.
+
 ## Tests
 
 `MixedRuneSecondaryBudgetTest`:
@@ -229,7 +326,15 @@ still regress GUI default 110 by ~15 %.
   survivability floor; no sublimation, both legs): fixed fold = count model everywhere. Removing (a) fails both; removing
   (b) or (c) fails the repro test (the seeded lock alone catches only (a));
 - the HP-row case: v56 117,000 vs 117,500 on the hard leg (and the soft one), the target-aware ledger ≥ it;
-- the `mixedStats` rule.
+- the `mixedStats` rule;
+- the hybrid (2026-10-12), through the production leg (`WakfuBuildSolver.optimize` / `optimizeHardThenSoft` with
+  `SolverTuning.mixedRuneHybrid`): on the repro and the HP-row case (both legs), the fold alone proves 1,382,985 / 117,000,
+  and the hybrid ends on 1,408,170 / 117,500, proven by its verify stage. With the verify stage off, the fold's OPTIMAL stays
+  unproven and the polish still reaches the count optimum on the HP row. On 41 seeded, general-fold (both legs) and gate
+  pools, the hybrid ends on the count model's optimum, proven (unbadged only on the prefiltered positive "all resistances"
+  rows); the fold alone proves less on 13 of them. A fold proven INFEASIBLE (lock and dodge rows on one 4-socket helmet,
+  each needing part of it) hands the hard leg to the count model, which meets both. Mutations checked: stamping the
+  fold's OPTIMAL fails the first test, and trusting the fold's INFEASIBLE fails the last.
 
 Without the fix (count carriers disabled in production) the repro and the seeded lock fail (1,320,570 vs 1,328,235;
 seed 9: 2,212,350 vs 2,275,560). Without the certifier's vertex scaling the vertex lock fails (the repro's capped world
