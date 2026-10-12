@@ -304,7 +304,8 @@ Early variants, measured and rejected (MD110 unless noted, det budgets as given)
   ~30 %): 1,137,405, against 1,188,975 for the shipped split. The count model improved the polished build by 1.6 % in 31 det.
   The fold gained 10.6 % between det 84 and 114.
 - **Count stage after an unproven fold** (the leftover reserve, hinted, ≥ 1 det): MD245 built the full count model (4.8 s)
-  and found nothing in 2 det. Dropped: only a proven fold optimum runs the count model on the full pool.
+  and found nothing in 2 det. Dropped: only a proven fold optimum runs the count model on the full pool. (Re-tried on the
+  count classes after the integration, with the same result: "Integration" below.)
 
 E0 sanity (production path, 4 cores, 60 s, one run per arm on a loaded machine, not a measurement): MD110 hybrid 1,447,330
 (fold stage 1,441,270 at 54 s, polish 5.9 s), badge "within 3.59 %", first CP-SAT solution 12.7 s. The fold arm in the
@@ -458,6 +459,105 @@ Tried on top of the classes and dropped:
   exact) — requests whose carriers stay picks (no threshold read) would get the same model shrink; the certificates would
   again read the per-carrier model.
 
+## Integration (2026-10-12): the hybrid's count stages on the classes
+
+`perf/mixed-runes-integrated` merges, in this order, `perf/certificate-245` (clean), `perf/mixed-hybrid` (clean) and
+`perf/mixed-counts-speed` (conflicts in RuneModelBuilder.kt, SolverModel.kt, WakfuBuildSolver.kt, AGENTS.md and the docs).
+Both features stay on together:
+
+- **The fold stage is the plain fold.** `optimize` builds it with `runeMixedHybridFold = true` and `runeCountClasses =
+  false`. A fold-stage model has no count carrier (`createRuneModel(materializeCountCarriers = false)` leaves every would-be
+  count carrier on its picks and records it in `foldInexactCarriers`), so there is nothing to aggregate anyway; the explicit
+  `false` keeps it that way. Its incumbents and first solution are the fold's.
+- **Every count stage uses the classes.** `mixedRuneHybrid`'s `countModel` (polish with the sublimations pinned, polish
+  free, verify, the fold-INFEASIBLE fallback) passes `runeCountClasses = SolverTuning.runeCountClasses` (production: on;
+  `WAKFU_MD_RUNE_CLASSES=0` turns it off inside `buildModel`). `hintPoint` hints a class var with the sockets of its type over
+  the class's worn carriers (an unworn carrier holds none, so the hint meets `Σ_t m_t = slots · Σ_c x_c`).
+- **Classes × pinning.** The polish restricts the pool to the fold build's items: its classes are those carriers (one class
+  per item, the two rings one class of two when they match), and an item the polish drops simply leaves its class sum. The
+  verify and fallback stages see the full pool, where a class spans many unworn carriers. Either way `Σ_t m_t = slots ·
+  Σ_c x_c` counts only the worn ones, and `solutionToBuild` splits a class over its WORN carriers only
+  (`RuneCountClass.distribute(equipped, …)`); the new lock puts the worn helmet second in its class to catch a split over
+  every carrier.
+- **Hybrid off** (`WAKFU_MD_MIXED_HYBRID=0`): the direct count search uses the classes (branch 3's behaviour). **Mixed runes
+  off** (`WAKFU_MD_MIXED_RUNES=0`): every stage is the fold; there is no count carrier, no class, no hybrid.
+- **Certificates** keep per-carrier counts: every model built for one is built without classes, and the certifier bails on a
+  model with classes. The **E8 construct** re-solves on the tuned path (hybrid off), so as on branch 3 it searches the exact
+  count model with classes. It only returns solutions of that model, which are real builds.
+- No certifier change: `CERTIFIER_VERSION` 62 / `ENGINE_RESULTS_VERSION` 7 (unreleased; history entry extended).
+
+Arms for an A/B (production path, env vars read at JVM start):
+
+| Arm | `WAKFU_MD_MIXED_RUNES` | `WAKFU_MD_MIXED_HYBRID` | `WAKFU_MD_RUNE_CLASSES` |
+|---|---|---|---|
+| fold (inexact, ≤ v61) | `0` | (ignored) | (ignored) |
+| classes only (count model searched directly) | unset | `0` | unset |
+| hybrid + classes (default) | unset | unset | unset |
+| hybrid, per-carrier count stages | unset | unset | `0` |
+
+### Deterministic A/B (1 worker, seed 1, interleave; production pool, `MaxDamageExperimentConfig.DEFAULT`, presolve 3, greedy hint)
+
+`MixedRuneCountsPerfHarnessTest` (`WAKFU_MIXED_PERF=run`, arms `fold,classes,hybrid,hybridPerCarrier`, PAR 6), one leg as
+production runs it first: the HARD leg for the GUI-default rows, the plain solve for free 245. Objective = the leg's final
+raw proxy; "none" = no build on that leg (production then runs the soft leg). For the hybrid: fold stage → polished.
+
+| Request | det | fold | classes only | hybrid + classes | hybrid per-carrier |
+|---|---|---|---|---|---|
+| GUI default 110 (MD110) | 60 | 1,143,135 | **1,220,055** | 1,148,865 (1,135,495 → 1,148,865) | 1,148,865 |
+| | 120 | 1,167,965 | **1,350,370** | 1,174,650 (1,167,965 → 1,174,650) | 1,174,650 |
+| GUI default 200 (MD200) | 60 | none (det 79) | **5,818,935** | none (fold stage none, det 73) | none |
+| | 120 | none (det 139) | **5,907,075** | none (det 133) | none |
+| GUI default 245 (MD245) | 60 | 8,722,770 (det 79) | **14,075,130** | 14,007,240 (8,722,770 → 14,007,240; det 73) | 14,007,240 |
+| | 120 | 13,763,475 | **15,137,280** | 13,585,025 (12,562,050 → 13,585,025) | 13,585,025 |
+| free 245 (MD245F) | 60 | 13,406,120 (det 65) | 19,396,625 | **19,458,375** (13,406,120 → 19,458,375; det 65) | 19,458,375 |
+| | 120 | 19,358,625 | **19,501,125** | 19,451,250 (19,358,625 → 19,451,250) | 19,451,250 |
+
+("det N": presolve overshot the budget.) Two repeats of MD110 fold / classes at det 60 in one JVM, and the same jobs in a
+second JVM, gave identical numbers. Seeds 2 and 3, same binary (per seed 1 / 2 / 3, then the median):
+
+| Request | det | fold | classes only | hybrid + classes | median fold / classes / hybrid |
+|---|---|---|---|---|---|
+| MD110 | 60 | 1,143,135 / 1,191,840 / 1,135,495 | 1,220,055 / 1,254,870 / 1,377,640 | 1,148,865 / 1,182,290 / 1,163,190 | 1,143,135 / **1,254,870** / 1,163,190 |
+| | 120 | 1,167,965 / 1,217,625 / 1,135,495 | 1,350,370 / 1,254,870 / 1,380,670 | 1,174,650 / 1,227,175 / 1,163,190 | 1,167,965 / **1,350,370** / 1,174,650 |
+| MD200 | 60 | none ×3 | 5,818,935 / 6,537,615 / 5,645,090 | none ×3 | none / **5,818,935** / none |
+| | 120 | none / none / 4,772,400 | 5,907,075 / 7,415,970 / 6,463,160 | none / none / 5,005,200 | none / **6,463,160** / none |
+| MD245 | 60 | 8,722,770 / 8,722,770 / 8,597,940 | 14,075,130 / 14,348,880 / 14,802,210 | 14,007,240 / 13,974,390 / 15,319,050 | 8,722,770 / **14,348,880** / 14,007,240 |
+| | 120 | 13,763,475 / 12,077,850 / 8,597,940 | 15,137,280 / 15,397,125 / 15,950,500 | 13,585,025 / 15,319,050 / 15,102,240 | 12,077,850 / **15,397,125** / 15,102,240 |
+| MD245F | 60 | 13,406,120 / 18,392,000 / 19,254,125 | 19,396,625 / 18,634,250 / 19,178,125 | 19,458,375 / 19,458,375 / 19,479,750 | 18,392,000 / 19,178,125 / **19,458,375** |
+| | 120 | 19,358,625 / 19,517,750 / 19,296,875 | 19,501,125 / 19,073,625 / 19,242,250 | 19,451,250 / 19,517,750 / 19,479,750 | 19,358,625 / 19,242,250 / **19,479,750** |
+
+- On this one-worker protocol **classes only leads on the three GUI-default requests** (median +9.8 / +15.6 % over the
+  fold at MD110, a hard-leg build at MD200 where the fold has none, +64.5 / +27.5 % at MD245). **The hybrid leads on free
+  245** (+5.8 / +0.6 % over the fold, +1.5 / +1.2 % over the classes). The hybrid ends at or above the fold in 23 of 24
+  runs; the exception is MD245 det 120 seed 1 (−1.3 %, where the 6-det reserve cost the fold a late improvement). Its polish is large where the fold stage
+  stops at the greedy hint's completion (MD245 det 60: +60.6 %, MD245F det 60: +45.1 %), small otherwise (+0.6 to +8.1 %).
+- **MD200, hard leg: the fold finds no build** (none by det 402 on branch 3), so neither does the hybrid's fold stage, and
+  the polish has nothing to start from. The classes find one by det 28 (branch 3). In production the leg pair then runs the
+  soft leg, and on 4 cores the fold's first MD200 hard solution came at 25–30 s ("Production path" table above).
+- **Classes in the hybrid change nothing measurable here.** The polish's restricted pool has one class per item, so its
+  model and trajectory are identical with or without classes. The verify stage never ran, because no fold stage proved
+  its optimum within det 120, and no fold was INFEASIBLE. The classes pay off in the hybrid only where those stages run:
+  small or proven requests, and the INFEASIBLE fallback. The new lock exercises all of them.
+- **Tried, dropped: a count stage on the leftover after an unproven fold**, now that the count model is cheap (classes,
+  hinted with the polished build, cut ≥ it). It ran on MD110 det 60 (0.97 det), MD245 det 120 (2.04) and MD245F det 120
+  (5.99, where the polish proved in 0.04). It ended UNKNOWN every time, with no better build, and cost 2–10 s of wall.
+- **Not done: polishing the fold's intermediate incumbents during the search (optional item).** In the deterministic
+  protocol it cannot change the fold-stage objective, since the fold never sees the polished builds. So the only measurable
+  effect would be on the streamed builds. In production it needs a second CP-SAT solve beside the portfolio, and production
+  already leaves exactly one core to the host and GUI (`searchWorkers = cores − 1`), so it would steal a core either way.
+  It would also need the sublimation pinning read back from a streamed build. The final-build polish costs 5–6 det / 13–15 s
+  of wall clock at MD110 on one worker. Concurrent polishes would compete with the portfolio for most of the search. Left
+  for the wall-clock A/B to motivate.
+- The deterministic protocol is not production's portfolio: branch 3 measured the fold ahead on 3 workers at MD110
+  (wall-clock tables above). The definitive comparison is the wall-clock E0 A/B of the four arms above.
+
+**The numbers depend on the binary, not only on the model.** The same request and arm gave MD110 fold det 60 = 1,143,135 on
+this branch, 1,169,580 on `perf/mixed-counts-speed` rebuilt today and 1,239,270 in that branch's table above. Classes gave
+1,220,055 / 1,401,940 / 1,419,050. MD245F reproduced exactly (13,406,120 / 19,396,625). Each binary is reproducible run
+to run. An unrelated code change (here the certificate merge) changes the model's construction order and so the
+trajectory. The most likely cause is the JVM's identity hash order in hash collections of model objects. Compare arms
+within one binary, over several seeds.
+
 ## Tests
 
 `MixedRuneSecondaryBudgetTest`:
@@ -480,6 +580,14 @@ Tried on top of the classes and dropped:
   rows); the fold alone proves less on 13 of them. A fold proven INFEASIBLE (lock and dodge rows on one 4-socket helmet,
   each needing part of it) hands the hard leg to the count model, which meets both. Mutations checked: stamping the
   fold's OPTIMAL fails the first test, and trusting the fold's INFEASIBLE fails the last.
+- the hybrid × classes (integration, 2026-10-12): a stage observer (`SolverTuning.mixedRuneHybridStageObserverForTest`)
+  records each hybrid stage's rune model on the repro, the HP row (both legs, each also with interchangeable TWINS: a weaker
+  helmet listed first, a second ring of the same class) and the lock/dodge helmet whose fold is INFEASIBLE. The fold stage
+  has no count carrier and no class. Every count stage (polish pinned / free, verify, the fallback) has classes covering
+  every count carrier and no per-carrier count var. The leg ends on the per-stat count optimum, proven, with every socket of
+  every worn carrier filled. The verify stage of the twin pools holds classes of two carriers. With the classes off, the same
+  stages are per-carrier and reach the same optimum. Mutations checked: count stages built without classes fail it; a class
+  split over every carrier instead of the worn ones fails it (the worn helmet's sockets come out empty).
 
 `RuneCountClassTest` (the count classes):
 - seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under the

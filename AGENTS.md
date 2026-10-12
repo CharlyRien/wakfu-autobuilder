@@ -424,9 +424,12 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
     (sublimations pinned, then free), verifies a PROVEN fold optimum on the full pool, and takes over a fold proven
     INFEASIBLE. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where `foldInexactCarriers` is non-empty: only the count model
     stamps `isOptimal`.
-  Wall-clock A/B still to run (OPEN #2). Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat count model,
-  `forceRuneCountModel`; the hybrid's count stages on classes), `RuneCountClassTest` (classes = per-carrier = count model;
-  identical domains).
+  On the deterministic one-worker protocol (seeds 1–3) classes-only led on the GUI-default requests and the hybrid on free
+  245; the hybrid is the fold plus its polish (no build at all on the GUI-default-200 hard leg, where the fold finds none). Production's multi-worker
+  portfolio ranked the fold first at level 110 before, so the shipped default (hybrid + classes) waits for the wall-clock
+  A/B (OPEN #2; arm switches in the doc's "Integration"). Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat
+  count model, `forceRuneCountModel`; the hybrid's count stages on classes), `RuneCountClassTest` (classes = per-carrier =
+  count model; identical domains).
 - **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
   skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,
   `worldPruneOrder`); the production cascade first probes the top world's exact pass on tier-1's step-8 rows and skips

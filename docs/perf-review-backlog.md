@@ -1253,7 +1253,9 @@ either way was found in the repo.
    type per class of interchangeable carriers — 2,004 carriers → 60 classes at level 110; "Count classes"), which every
    count stage of the hybrid and the direct count search use. Kill switches for A/B: `WAKFU_MD_MIXED_RUNES=0` (the
    inexact fold), `WAKFU_MD_MIXED_HYBRID=0` (search the count model directly), `WAKFU_MD_RUNE_CLASSES=0` (per-carrier
-   counts). Still open: the wall-clock E0 A/B on a calm machine.
+   counts). Deterministic one-worker A/B of the integration (fold / classes only / hybrid + classes, MD110 / MD200 / MD245 /
+   MD245F at det 60 and 120, seeds 1–3): classes only leads on the GUI-default requests, the hybrid on free 245; the
+   hybrid is the fold plus its polish, and has no hard-leg build at MD200 (the fold finds none). Still open: the wall-clock E0 A/B on a calm machine decides the default.
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does

@@ -24,6 +24,7 @@ package me.chosante.autobuilder.domain
  * instead of one type per item, and an item stat gate's stat no longer lets the rune choice collapse prune the choice the
  * gated item needs. The search itself runs on the fast single-type fold where it is inexact, then re-solves the count
  * model on the fold's items (and verifies a proven fold optimum on the full count model): a build is proven optimal only by
- * the count model. A re-run may find a better build.
+ * the count model. Every count model the search builds groups interchangeable carriers into exact count classes (one count
+ * per rune type per class; the certificates keep per-carrier counts). A re-run may find a better build.
  */
 const val ENGINE_RESULTS_VERSION: Int = 7
