@@ -20,7 +20,9 @@ the change takes the next numbers, AGENTS.md §4). What the port changed:
   remedies, built in parallel and integrated on `perf/mixed-runes-integrated` (section "Integration" below): the HYBRID
   ("The hybrid": the search runs on the fold again, the count model polishes its final build and is the only source of an
   optimality proof) and the count CLASSES ("Count classes": the count model made ~6× smaller), which every count stage of
-  the hybrid uses. The wall-clock A/B on a calm machine is still to be run (`docs/perf-review-backlog.md` §E OPEN #2).
+  the hybrid uses. The wall-clock A/B against main ("Wall clock" below, 2026-10-12) puts the integrated default (hybrid +
+  classes, its fold stage pruned without the stat gates, a 2 s polish reserve) at or above main on all four E0 fixtures, with
+  a badge at level 245 where main has none (`docs/perf-review-backlog.md` §E OPEN #2, closed).
 
 ## The gap
 
@@ -227,10 +229,13 @@ for every max-damage leg, hard or soft, whose fold has a would-be count carrier)
 
 1. **Fold stage.** `buildModel(runeMixedHybridFold = true)` builds the fold. Every carrier `mixedStats` would make a count
    carrier keeps its single-type picks and is recorded in `RuneModel.foldInexactCarriers` (`createRuneModel(materializeCountCarriers
-   = false)`). The model is the one `WAKFU_MD_MIXED_RUNES=0` builds, so it has the same incumbents and the same first
-   solution. It searches the leg's budget minus a polish reserve (`hybridFoldStageBudget`: 10 % of the budget, at most 6 s or 6
-   deterministic units) and streams its builds as the direct solve does. A full single-type fill is also a count fill, so every
-   build it shows is a real build. Its `OPTIMAL` only proves the fold's optimum, so it never stamps a result.
+   = false)`). Since the wall-clock A/B ("Wall clock" below) its choice collapse prunes WITHOUT the item stat gates, as v61 did
+   (`foldSearchReads`), and every carrier whose kept choices or choice gates that changes is recorded too; the gates stay
+   posted. So the model is v61's fold (smaller than the one `WAKFU_MD_MIXED_RUNES=0` builds on free requests; identical on
+   the GUI default, whose general fold reads no gate). It searches the leg's budget minus a polish reserve
+   (`hybridFoldStageBudget`: 10 % of the budget, at most 2 s or 2 deterministic units — 6 before the A/B) and streams its builds
+   as the direct solve does. A full single-type fill is also a count fill and every constraint is posted, so every build it
+   shows is a real build. Its `OPTIMAL` only proves the fold's optimum, so it never stamps a result.
 2. **Polish.** The count model on the fold's final items only (pool restricted to them, no domination, `forceFullPool`), cut
    at `objective ≥` the best objective so far and hinted with that build. It runs twice: first with every sublimation var
    pinned (runes and skills free; near-instant, it takes most of the gain), then with the sublimations free on what is left of
@@ -558,6 +563,71 @@ to run. An unrelated code change (here the certificate merge) changes the model'
 trajectory. The most likely cause is the JVM's identity hash order in hash collections of model objects. Compare arms
 within one binary, over several seeds.
 
+## Wall clock (2026-10-12): the integrated default against main
+
+`PerfBaselineE0Test` (production path: `WakfuBestBuildFinderAlgorithm.run` + the GUI's proof chain), 60 s search,
+`-XX:ActiveProcessorCount=4`, 3 GB heap, proof capped at 120 s and the E8 construct at 60 s, fixtures MD110, MD245, MD200,
+MD245F in that order per JVM (main got the MD200 fixture locally, uncommitted). Two JVMs at a time, each pinned to 4 physical
+cores of its own CCD (`start /affinity FF` / `FF0000`, Ryzen 9 5950X), arms rotated between the slots. "Final" = the search's
+raw damage proxy, "first" = the first CP-SAT solution (ms from the search start). Medians; the run count in brackets.
+
+**A first session measured large regressions that a calm re-run did not reproduce.** Its medians of 3 (MD110 / MD200 /
+MD245 / MD245F): main 1,424,860 / — / 14,778,120 / 19,688,750; fold arm (`WAKFU_MD_MIXED_RUNES=0`) 1,441,270 / 4,569,720 /
+5,706,250 / 19,187,625; classes only 1,344,640 / 8,052,495 / 13,737,870 / 17,940,750; hybrid + classes 1,447,330 / 3,696,350 /
+6,930,500 / 19,479,750, with the first MD245 solution at 36–45 s (main 23 s). Two suspects were the gate-aware rune reads and
+the warm-up starting on the first emission. Neither explains it:
+- On the GUI-default requests the gate reads change NOTHING in the model: their rows add non-damage rune types, so the fold is
+  the GENERAL fold (every type on every carrier, `collapse=false`), which reads no `MaxDamageRuneReads`. Shape harness: MD200
+  43,612 vars / 6,016 constraints and MD245 54,681 / 7,464 with and without them; production CP-SAT logs of main and of the
+  fold arm at MD245 show the same model (54,681 vars in, 54,650 after presolve). The reads only grow the FREE collapse
+  (MD245F, below).
+- The same binary (bc6a1dd3) on a calm machine: hybrid + classes median 15,319,050 at MD245 (first 24.8 s), main 14,191,200.
+  The first session's MD245 trajectories (first solution 2.5–3.0 M at 36–42 s, final 3.7–6.9 M) show up in the calm session
+  as a minority "late first solution" mode (2.8 M at 35 s) that still ends at 15.1–15.3 M. Most likely the first session's
+  CPU was shared with other jobs; it is not a measurement of the code.
+
+**Calm session** (one sitting, 07:30–10:23; arms below share it):
+
+| Arm | MD110 | MD200 | MD245 | MD245F |
+|---|---|---|---|---|
+| main v61 (9) | 1,427,130 | 3,127,275 | 14,191,200 | 19,643,625 |
+| hybrid + classes, bc6a1dd3 (6) | 1,438,240 | 5,858,785 | 15,319,050 | 19,498,750 |
+| … warm-up at CP-SAT's first solution (3) | 1,447,330 | 5,128,350 | 15,319,050 | 19,479,750 |
+| … polish reserve 2 s (3) | 1,447,330 | 5,342,640 | 15,319,050 | 19,536,750 |
+| … 2 s + fold stage pruned without the gates (3 scratch + 3 committed b7d6143f) — **ships** | **1,447,330** | **5,654,520** | **15,261,015** | **20,276,070** (×6) |
+| classes only, `WAKFU_MD_MIXED_HYBRID=0` (3) | 1,358,010 | 8,487,985 | 16,087,740 | 17,366,000 |
+
+Shipped vs main: +1.4 % / +81 % / +7.5 % / +3.2 %. First CP-SAT solution (median): main 12.5 / 36.6 / 22.6 / 21.0 s, shipped
+13.1 / 26.1 / 25.7 / 20.2 s. Badges (s after the search end): shipped MD110 within 3.6–4.9 % (instant), MD200 within 56–165 %
+(+8.7–10.2 s), MD245 within 23–39 % (+4.5–5.4 s), MD245F within 1.44 % (+0.01–1.0 s) and the E8-proven optimum 20,328,360 at
++11.3–12.1 s; main MD110 within 4.1–13.7 %, MD200 within 91–665 % (+79–86 s), MD245 and MD245F Unavailable at the 120 s cap in
+all 9 runs.
+
+What each lever did:
+- **A — narrowing `statGateRuneReads`: nothing to narrow.** Every catalog gate on a rune stat (distance mastery ≥ 400 / ≤ 500,
+  lock ≥ 400 / ≥ 500 / ≤ 500 / ≤ 600, dodge ≥ 500 / ≤ 600) is posted by the model on the level-200 / 245 pools that hold it —
+  its reach crosses the value (distance −420..7,306, lock −970..3,035, dodge −1,500..6,168 at 245) — and the gates that can
+  never fail (`critical hit > −10`) read no rune type. Both sides of the distance band are in those pools, so a side-aware
+  read equals opaque. The pool is already the model's own (after the prefilter and domination). Instead, the hybrid's FOLD
+  STAGE now prunes without the gate reads (exact: the stage is a heuristic; every carrier that changes is fold-inexact, so
+  the count stages decide — lock in `MixedRuneSecondaryBudgetTest`). Free 245's fold stage: 31,049 vars / 16,087 constraints
+  / 6,643 inexact carriers → 28,107 / 20,738 / 5,200 (types per carrier {2: 1,443, 3: 95, 4: 5,105} → {1: 1,443, 2: 39, 3: 56,
+  4: 5,105}). MD245F alone in its JVM, 4 runs per arm, 6 s reserve: lean fold stage 19,688,750, gate-read fold stage 19,482,125 (main 20,276,070).
+- **The polish reserve.** The fold stage's CP-SAT budget runs from its own start, like the direct solve's (main's 60 s
+  MD245F search ends at ~65.8 s: model build excluded), so the 6 s reserve was 6 s less search; the polish takes 0.2–0.6 s on
+  free 245 and 1.1–1.9 s on the GUI default. 2 s alone did not move MD245F (19,536,750); together with the lean fold stage
+  every MD245F run reached 20,276,070 (6 of 6), which main reached only when MD245F ran alone in its JVM (20,276,070 ×3 and
+  20,171,490, at 56–63 s), never in the 4-fixture runs. MD_HYBRID lines (2 s reserve): the polish lifts the GUI-default hard
+  leg by +2 % to +25 % (MD245 13.8 → 16.0 M, MD200 4.2 → 5.3 M).
+- **B — the warm-up start: kept on the first emission.** Started at CP-SAT's first solution instead, the search is no better
+  (medians above) and the badges come much later (paired runs): MD200 +29.8–30.9 s against +9.9–10.5 s, MD245 +18.5–23.5 s
+  against +5.1–5.7 s, MD245F badge +14.6–15.0 s / E8 proof +25.5–26.0 s against +2.4–3.7 s / +13.8–15.2 s (all within the 120 s cap).
+- **C — classes for the GUI-default hard leg at 200+: not shipped.** Searching the class model directly leads at MD200 (+50 %
+  over the shipped default) and MD245 (+5 %) but loses at MD110 (−6 %) and MD245F (−14 %). A request-shape rule (the general
+  fold with many count carriers: 5,351 at MD200, 6,727 at MD245, 2,004 at MD110) would be tuned on two fixtures with nothing
+  measured in between; a portfolio switch on "no fold solution yet" is a wall-clock threshold (the fold's first hard-leg
+  solution comes ~19 s into CP-SAT at 200/245 and ~7 s at 110), machine-dependent. Left open with these numbers.
+
 ## Tests
 
 `MixedRuneSecondaryBudgetTest`:
@@ -588,6 +658,11 @@ within one binary, over several seeds.
   every worn carrier filled. The verify stage of the twin pools holds classes of two carriers. With the classes off, the same
   stages are per-carrier and reach the same optimum. Mutations checked: count stages built without classes fail it; a class
   split over every carrier instead of the worn ones fails it (the worn helmet's sockets come out empty).
+- the lean fold stage (wall-clock A/B, 2026-10-12): on the cap-20 gate pool the fold stage keeps ONE choice per carrier (no
+  gate read: the larger M-feeding rune) where the exact count model keeps the elemental and the distance ones; all four
+  changed carriers are fold-inexact, and the verify stage proves 302,495. Mutation checked: pruning the fold stage without
+  the gate reads AND without recording the changed carriers makes the leg prove main's 178,265 (this test and the gate part
+  of the 41-pool hybrid test fail).
 
 `RuneCountClassTest` (the count classes):
 - seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under the

@@ -1344,6 +1344,18 @@ was shared with other agents' CPU-heavy runs, and searches on `fix/mixed-runes-e
 5.7 %), E8 proven optimum 15.4 / 21.4 / 15.2 s after it; MD245 badge 16.9 / 14.9 / 8.4 s (ProvenWithin 98 / 52 / 42 %:
 the 60 s hard-leg incumbent is far from the target-aware ledger). Before: Unavailable at the 120 s cap in every run.
 
+**Calm-machine E0 on the integrated branch (2026-10-12, `perf/mixed-runes-integrated`,
+`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "Wall clock").** Two pinned JVMs at a time (4 physical cores of one CCD each),
+fixtures MD110 → MD245 → MD200 → MD245F per JVM. With the shipped default: MD245F ProvenWithin 1.44 % at +0.01–1.0 s after the
+search end and the E8-proven optimum 20,328,360 at +11.3–12.1 s (6 runs); MD245 within 23–39 % at +4.5–5.4 s; MD200 within
+56–165 % at +8.7–10.2 s. main (v61): Unavailable at the 120 s cap on MD245 and MD245F in 9 of 9 runs, MD200 within 91–665 % at
++79–86 s. **Lever 3 re-measured** (warm-up at CP-SAT's first solution, `WAKFU_MD_WARMUP_FIRST_EMISSION=0`, 3 runs against 3
+paired default runs, before the fold-stage change): the search does not gain (medians 1,447,330 / 5,128,350 / 15,319,050 /
+19,479,750 against 1,447,330 / 5,610,450 / 15,319,050 / 19,479,750 for MD110 / MD200 / MD245 / MD245F) and every badge comes
+later — MD245 +18.5–23.5 s against +5.1–5.7 s, MD245F +14.6–15.0 s (E8 proof +25.5–26.0 s) against +2.4–3.7 s (+13.8–15.2 s),
+MD200 +29.8–30.9 s against +9.9–10.5 s. The warm-up stays on the first emission. (A first, CPU-shared session had pointed at
+it; the calm re-run did not reproduce that session's search regression.)
+
 **What dominates now:** the fast tier (12 normal worlds × 2.5–6 s + the relaxed aux world ~17 s on its own thread,
 ~45–50 s on the one thread the warm-up holds during the search). It overlaps the search; the badge waits for it only
 when the machine is loaded. Next levers, by expected gain: share the item-stage prefix between each world's

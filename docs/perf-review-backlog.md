@@ -107,7 +107,7 @@ with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `
 | — | ~~C6, C7, C8(2)/(3)~~ | **All closed (status 2026-10-11).** C7 ✅ CLOSED 2026-07-09: re-implemented from the staged derivation (sound, guards green, fires on the engineered pool), MEASURED-INERT on the flagship shapes (self-disables; byte-identical A/B), stays OFF. C6 ⛔ MEASURED → REMOVED 2026-07-08 (`docs/SOLVER_PERFORMANCE.md` §7 "E0 — C6 required-target Lagrangian"). C8(2) measured-NO. C8(3) ✅ SHIPPED 2026-07-09 (`677cee0a`, greedy warm start). See each item's block in §C. |
 | Anytime | D1, D3, D4 | Tiny hygiene — D1 CLI wording, D3 nightly-test flake, D4 doc note. |
 | — | ~~E0 → E1~~ | **Mostly DONE (status 2026-10-11).** E0 was measured on v38 and v50 (`docs/perf-next-steps-2026-10.md` §1 and §8), and most E1 leads shipped (CERTIFIER_VERSION 39–52). Some residuals are still open; see the §E status block. |
-| Later | The open §E items (status block at the top of §E) | *(2026-10-11: one of the eight follow-ups is closed (the two reads of precision's halving). The two precision weight items are likely unreachable since #238, by a code read. The compute-settings part of the background-proof plan shipped. Also still open: the rune choice collapse's search cost, and the search cost of the mixed-rune count carriers that close the single-type rune fold soundness gap (CERTIFIER_VERSION 62, OPEN #2).)* **OPEN, decided "later" (recorded 2026-10-05):** eight leftovers of the per-element random-roll work (#237, #238) — the max-damage hard-leg proof time, the unweighted precision primary and the priority that never reaches the assignment, `assignMaxMin`'s cost, the EHP proxy, the two reads of precision's halving, the placement search's node budget, one re-measure — plus the PLANNED background full-catalog proof for multi-element requests. |
+| Later | The open §E items (status block at the top of §E) | *(2026-10-11: one of the eight follow-ups is closed (the two reads of precision's halving). The two precision weight items are likely unreachable since #238, by a code read. The compute-settings part of the background-proof plan shipped. Also still open: the rune choice collapse's search cost. The search cost of the mixed-rune count carriers that close the single-type rune fold soundness gap (CERTIFIER_VERSION 62, OPEN #2) is closed on `perf/mixed-runes-integrated` (2026-10-12, wall-clock E0 at or above main).)* **OPEN, decided "later" (recorded 2026-10-05):** eight leftovers of the per-element random-roll work (#237, #238) — the max-damage hard-leg proof time, the unweighted precision primary and the priority that never reaches the assignment, `assignMaxMin`'s cost, the EHP proxy, the two reads of precision's halving, the placement search's node budget, one re-measure — plus the PLANNED background full-catalog proof for multi-element requests. |
 
 ---
 
@@ -1255,7 +1255,11 @@ either way was found in the repo.
    inexact fold), `WAKFU_MD_MIXED_HYBRID=0` (search the count model directly), `WAKFU_MD_RUNE_CLASSES=0` (per-carrier
    counts). Deterministic one-worker A/B of the integration (fold / classes only / hybrid + classes, MD110 / MD200 / MD245 /
    MD245F at det 60 and 120, seeds 1–3): classes only leads on the GUI-default requests, the hybrid on free 245; the
-   hybrid is the fold plus its polish, and has no hard-leg build at MD200 (the fold finds none). Still open: the wall-clock E0 A/B on a calm machine decides the default.
+   hybrid is the fold plus its polish, and has no hard-leg build at MD200 (the fold finds none). **Closed 2026-10-12 by the
+   wall-clock E0 A/B** (same doc, "Wall clock"; pinned, 3–9 runs per arm): with its fold stage pruned without the item stat
+   gates and a 2 s polish reserve, the default (hybrid + classes) is at or above main on MD110 / MD200 / MD245 / MD245F
+   (medians 1,447,330 / 5,654,520 / 15,261,015 / 20,276,070 against 1,427,130 / 3,127,275 / 14,191,200 / 19,643,625) and
+   badges level 245 where main hits the cap. Still open (a choice, not a regression): classes only lead at MD200 / MD245.
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does
@@ -1563,7 +1567,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
 - **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — ✅ SOUNDNESS FIXED (PR #251, written 2026-10-06 against
   v56/57, ported onto main 2026-10-11 as CERTIFIER_VERSION 62 / ENGINE_RESULTS_VERSION 7; found 2026-10-04 by the #226
-  review). Its SEARCH COST is still OPEN (below and status block OPEN #2).** The max-damage fold (and the collapse built on it) filled each item with ONE rune
+  review). Its SEARCH COST was OPEN (below and status block OPEN #2; closed 2026-10-12 on `perf/mixed-runes-integrated`, docs/MIXED_RUNE_SECONDARY_BUDGET.md "Wall clock").** The max-damage fold (and the collapse built on it) filled each item with ONE rune
   type, on the premise that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE secondary
   line gives that stat's cap (each secondary is capped on its own since v56) a positive budget, which a mixed item (part
   secondary, part elemental) fills exactly while no single type fits — and CP-SAT's `OPTIMAL` over the fold was then a

@@ -420,14 +420,18 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
     model with classes. Kill switch `WAKFU_MD_RUNE_CLASSES=0`, tuned seam `SolverTuning.runeCountClasses`.
   - **The HYBRID** (`WakfuBuildSolver.mixedRuneHybrid`, kill switch `WAKFU_MD_MIXED_HYBRID=0` = the count model searched
     directly, tuned opt-in `SolverTuning.mixedRuneHybrid`). The plain fold searches (its would-be count carriers recorded in
-    `RuneModel.foldInexactCarriers`; never aggregated). The count model — with classes — re-solves the fold's final items
-    (sublimations pinned, then free), verifies a PROVEN fold optimum on the full pool, and takes over a fold proven
-    INFEASIBLE. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where `foldInexactCarriers` is non-empty: only the count model
-    stamps `isOptimal`.
-  On the deterministic one-worker protocol (seeds 1–3) classes-only led on the GUI-default requests and the hybrid on free
-  245; the hybrid is the fold plus its polish (no build at all on the GUI-default-200 hard leg, where the fold finds none). Production's multi-worker
-  portfolio ranked the fold first at level 110 before, so the shipped default (hybrid + classes) waits for the wall-clock
-  A/B (OPEN #2; arm switches in the doc's "Integration"). Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat
+    `RuneModel.foldInexactCarriers`; never aggregated; its choice collapse pruned WITHOUT the item stat gates, as v61 —
+    `foldSearchReads` — every carrier that changes recorded too) on the budget minus a 2 s polish reserve. The count model —
+    with classes — re-solves the fold's final items (sublimations pinned, then free), verifies a PROVEN fold optimum on the
+    full pool, and takes over a fold proven INFEASIBLE. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where
+    `foldInexactCarriers` is non-empty: only the count model stamps `isOptimal`. The fold stage is a heuristic: anything that
+    only REMOVES builds from it is sound as long as the carriers it changes are recorded.
+  Wall clock (E0, 60 s, 4 pinned cores, 2026-10-12; the doc's "Wall clock"): the shipped default is at or above main (v61) on
+  all four fixtures — medians MD110 1,447,330 vs 1,427,130, MD200 5,654,520 vs 3,127,275, MD245 15,261,015 vs 14,191,200,
+  MD245F 20,276,070 vs 19,643,625 — with a level-245 badge where main has none. Searching the class model directly
+  (`WAKFU_MD_MIXED_HYBRID=0`) leads at MD200 / MD245 and loses at MD110 / MD245F; no shape rule ships. The gate reads change
+  nothing in the GUI-default (general-fold) model; measure A/Bs on a calm machine — a CPU-shared session once showed a 2×
+  regression that did not reproduce. Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat
   count model, `forceRuneCountModel`; the hybrid's count stages on classes), `RuneCountClassTest` (classes = per-carrier =
   count model; identical domains).
 - **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
