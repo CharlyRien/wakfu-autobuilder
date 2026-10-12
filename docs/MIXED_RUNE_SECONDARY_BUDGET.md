@@ -290,7 +290,76 @@ count per type for the class, `m_t ∈ 0..slots·maxWorn` (two rings, else one),
 
 (A "(det N)" is a budget the per-carrier model's presolve overshot.) The classes reach their first solution 2–11× sooner
 and lead at det 60 everywhere (+14.5 % / from nothing / +79 % / +45 % over the fold); at det 120 they lead on three of four,
-and the fold catches up on GUI default 245 (−0.3 %, one trajectory). Multi-seed: below.
+and the fold catches up on GUI default 245 (−0.3 %, one trajectory). Multi-seed:
+
+| Request | seeds | fold (per seed) | classes (per seed) | median fold → classes |
+|---|---|---|---|---|
+| MD110, det 60 | 1–3 | 1,239,270 / 1,202,345 / 1,185,740 | 1,419,050 / 1,324,110 / 1,427,130 | 1,202,345 → 1,419,050 (+18.0 %) |
+| MD110, det 120 | 1–3 | 1,244,320 / 1,273,610 / 1,224,120 | 1,425,110 / 1,348,350 / 1,427,130 | 1,244,320 → 1,425,110 (+14.5 %) |
+| MD200, det 60 | 1–3 | none ×3 | 5,664,800 / 4,052,745 / 7,265,610 | none → 5,664,800 |
+| MD200, det 120 | 1–3 | none / none / 4,856,175 | 7,391,400 / 7,754,625 / 7,539,480 | none → 7,539,480 |
+| MD245, det 60 | 1–3 | 8,532,240 ×3 (presolve overshoots to det 72–90; the hint's completion) | 15,251,160 / 14,094,840 / 14,576,640 | 8,532,240 → 14,576,640 (+70.8 %) |
+| MD245, det 120 | 1–7 | 15,461,400 / 13,941,540 / 14,885,430 / 8,536,620 / 13,115,910 / 13,895,550 / 14,784,690 | 15,411,375 / 14,574,450 / 15,608,130 / 14,964,270 / 14,896,380 / 14,835,060 / 16,166,625 | 13,941,540 → 14,964,270 (+7.3 %; 6 of 7 seeds) |
+| MD245F, det 60 | 1–3 | 13,406,120 / 18,392,000 / 19,254,125 | 19,396,625 / 18,634,250 / 19,178,125 | 18,392,000 → 19,178,125 (+4.3 %) |
+| MD245F, det 120 | 1–7 | 19,358,625 / 19,517,750 / 19,296,875 / 19,263,625 / 19,460,750 / 19,249,375 / 19,877,670 | 19,501,125 / 19,073,625 / 19,242,250 / 19,401,375 / 19,688,750 / 20,226,270 / 19,458,375 | 19,358,625 → 19,458,375 (+0.5 %; 4 of 7) |
+
+On this deterministic one-worker protocol the classes' median is ahead of the (inexact) fold's at every budget on all four
+requests, and their first solution comes sooner everywhere — but see the next section: production's multi-worker portfolio
+ranks them differently. Free 245 is the closest: its optimum (20,328,360, proven by the E8 construct) is within ~5 % of both,
+and the best seed of all (20,226,270) is a classes run. The dual bound is also tighter with the classes (GUI default 110:
+3.08 M against the fold's 4.16–4.41 M at det 60–120).
+
+### Production's portfolio ranks them differently (3 workers, wall clock)
+
+The interleaved one-worker search is NOT production's portfolio. With 3 workers and no interleave (the GUI's 4-core search:
+`default_lp` + `fixed` full workers, `fj` first solution, then feasibility pump, RINS/RENS and the graph / random LNS
+interleaved on the helper threads), 60 s wall, `-XX:ActiveProcessorCount=4`, the same harness (`WAKFU_MIXED_WORKERS=3
+WAKFU_MIXED_INTERLEAVE=0`, budget `w60`, one solve at a time; wall clock, so on a shared PC):
+
+| Request | fold | counts | classes | median fold / counts / classes |
+|---|---|---|---|---|
+| GUI default 110 (seeds 1–8; counts 3–5) | 1,440,260 / 1,443,290 / 1,282,380 / 1,427,130 / 1,447,330 / 1,442,280 / 1,446,320 / 1,447,330 | 1,330,315 / 1,091,565 / 1,244,365 | 1,418,175 / 1,331,100 / 1,340,670 / 1,318,920 / 1,411,490 / 1,334,135 / 1,301,520 / 1,329,360 | 1,442,785 / 1,244,365 / 1,332,618 (−7.6 % vs the fold, +7.1 % vs the counts) |
+| free 245 (seeds 1–5; counts 3–5) | 19,648,375 / 19,745,750 / 19,460,750 / 19,078,375 / 19,389,500 | 19,244,625 / 18,843,250 / 19,273,125 | 18,437,125 / 19,517,750 / 19,432,250 / 19,881,125 / 19,097,375 | 19,460,750 / 19,244,625 / 19,432,250 (−0.1 %) |
+
+`PerfBaselineE0Test` (the production path: hard leg, proof chain; 60 s, 4 cores, MD110 then MD245F per JVM, arms
+alternating, 2 runs): fold MD110 1,427,130 / 1,427,130 (first CP-SAT solution 13.0 / 12.1 s, badge within 5.1 %),
+classes 1,340,670 / 1,273,030 (first 4.6 / 4.1 s, within 11.8 / 17.8 %); MD245F fold 19,296,875 / 19,353,875 (first
+19.3 / 19.6 s), classes 17,147,500 / 17,301,875 (first 15.6 s ×2), no badge either way. (For reference, the plain counts'
+E0 runs of PR #251 read MD110 1.18–1.22 M, within 26–30 %.)
+
+So on production's portfolio the classes recover about half of the GUI-default-110 regression (counts −14 % → classes −8 %
+against the inexact fold; first solution ~3× sooner) and reach parity on free 245 in the harness (the two E0 runs of free
+245 were low; too few to conclude). The fold's 3-worker search converges on GUI default 110 almost every time (1.44 M in 7
+of 8 runs): its whole-item fills are a much smaller space for the pump / RINS / LNS neighbourhoods. With 8 workers the
+classes reach the same 1,447,330 in 38 s (one 300 s run) — the GUI-default-110 optimum needs no mixed fill, so the exact
+model's extra space only costs search there.
+
+Tried on top of the classes and dropped:
+- **Deviation form** (keep the fold's per-carrier picks and give each class signed deviations `d_t`, `Σ_t d_t = 0`,
+  `slots·Σ_c p_{c,t} + d_t ≥ 0` — exact, same domains): det one-worker it is the fold again (presolve-bound: first solution
+  det 13.4 / 73.8 / 42.5 / 26.4 on the four requests, det 120 1,183,245 / 4,223,380 / 15,483,300 / 19,536,750); 3 workers it
+  is the most erratic arm (GUI default 110: 1,420,060 / 1,064,880 / 1,079,150 / 1,409,960 / 1,208,075; free 245 median
+  19,330,125). Reverted.
+- **Linearization level 1** for the class model (3 workers, GUI default 110, seeds 6–8): 1,321,720 / 1,403,850 / 1,317,180
+  against 1,334,135 / 1,301,520 / 1,329,360 — no change.
+
+### The other levers (2026-10-12)
+
+- **Fewer threshold reads (static analysis): no gain on these requests.** Every type the shape run lists in `mixedStats`
+  can bind: HP 2000 is above level 110's base 1,150 and, at 245 (base 2,500), items with negative HP lines survive
+  domination; the wind-resistance and dodge 0-rows have negative lines in the pool; distance / rear have the Neutralité
+  budget (and distance-mastery gates from 200); crit has its budget / Dénouement. Even dropping one would leave every
+  carrier a count carrier (one mixed type beside another is enough).
+- **Fewer count vars per carrier (merge the non-threshold types): nothing to merge** — the generic elemental rune is the
+  only non-mixed type on the GUI default. The classes make the count-var count small anyway (420 at level 110).
+- **Dominance cuts** (e.g. never overshoot a `≥` row by a whole rune of a type nothing else reads): not tried. An exact
+  version needs, per type, every reader of its stat (HP feeds `%HP` and the survivability floor; dodge is read by Furie's
+  `dodge < level` and by gates; resistances by the random-roll folds), and the measured gap it would close is gone.
+- **Search guidance** (decision strategy, rune hints, CP-SAT parameters): not needed after the classes; the per-carrier
+  models' main cost was presolve and LP size, which no parameter fixes.
+- **Next, if wanted:** aggregate the fold's PICK carriers the same way (`p_{k,t} ∈ 0..maxWorn`, `Σ_t p = Σ x_c`, also
+  exact) — requests whose carriers stay picks (no threshold read) would get the same model shrink; the certificates would
+  again read the per-carrier model.
 
 ## Tests
 

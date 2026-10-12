@@ -412,8 +412,9 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
   `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The SEARCH model aggregates the count carriers into CLASSES
   (`RuneCountClass`: same item type, socket count and rune choices — one count per type per class, exact, since every rune
-  reader reads class sums; on the GUI default it cut the model five-fold and closed the regression of the plain per-carrier
-  counts). The certificates never see a class: a model built for one keeps per-carrier counts, and the certifier bails on a
+  reader reads class sums; on the GUI default it cuts the model five-fold — the plain per-carrier counts' first solution and
+  search regression shrink, but on 3 workers the GUI-default-110 search still ends ~8 % below the inexact fold: OPEN,
+  `docs/perf-review-backlog.md` §E OPEN #2). The certificates never see a class: a model built for one keeps per-carrier counts, and the certifier bails on a
   model with classes. Kill switch (A/B only) `WAKFU_MD_RUNE_CLASSES=0`. Locks: `MixedRuneSecondaryBudgetTest` (reference: the
   per-stat count model, `forceRuneCountModel`), `RuneCountClassTest` (classes = per-carrier = count model; identical domains).
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`

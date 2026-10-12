@@ -794,6 +794,9 @@ object WakfuBuildSolver {
         val runeMixedCarriers: Boolean = true,
         // A/B seam: false gives the search model per-carrier rune counts instead of count classes ([RuneCountClass]).
         val runeCountClasses: Boolean = true,
+        // Measurement seam (manual harnesses): a WALL-clock limit on top of the det budget, to run production's multi-worker
+        // portfolio (non-deterministic: `interleaveSearch` off, several workers). Null = none.
+        val maxWallSecondsForTest: Double? = null,
         // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
         // receive CP-SAT's own search log lines (dual-bound trajectory + per-subsolver attribution) —
         // the standard solve path otherwise hardcodes the log off. A Java-side callback, NOT stdout:
@@ -5254,6 +5257,7 @@ object WakfuBuildSolver {
             solver.parameters.numSearchWorkers = tuning.numSearchWorkers
             solver.parameters.randomSeed = tuning.randomSeed
             solver.parameters.maxDeterministicTime = maxDeterministicTimeOverride ?: tuning.maxDeterministicTime
+            tuning.maxWallSecondsForTest?.let { solver.parameters.maxTimeInSeconds = it }
             if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
             tuning.maxPresolveIterationsOverride?.let { solver.parameters.maxPresolveIterations = it }
             tuning.linearizationLevelOverride?.let { solver.parameters.linearizationLevel = it }

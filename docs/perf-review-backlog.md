@@ -1247,10 +1247,11 @@ either way was found in the repo.
    `MixedRuneSecondaryBudgetTest`). Its SEARCH COST was open: requests whose rows make every rune type a threshold read
    (the GUI default: HP 2000, 0-rows with negative lines, the Neutralité budget) turn every socketed carrier into integer
    counts, and the GUI-default level-110 search ended ~15 % lower at 60 s with a looser badge (same doc, "Production
-   path"). **Addressed on `perf/mixed-counts-speed` (2026-10-12): the search model's count CLASSES** (`RuneCountClass`,
-   exact: one count per rune type per class of interchangeable carriers — 2,004 carriers → 60 classes at level 110),
-   deterministic A/B in the same doc ("Count classes"); the wall-clock A/B on a calm machine is pending. Kill switches for
-   A/B: `WAKFU_MD_MIXED_RUNES=0` (the inexact fold), `WAKFU_MD_RUNE_CLASSES=0` (per-carrier counts).
+   path"). **Partly addressed on `perf/mixed-counts-speed` (2026-10-12): the search model's count CLASSES**
+   (`RuneCountClass`, exact: one count per rune type per class of interchangeable carriers — 2,004 carriers → 60 classes at
+   level 110). Deterministic one-worker: ahead of the fold on all four requests; production's 3-worker portfolio: GUI
+   default 110 still ~8 % below the fold (the counts were ~14 %), free 245 at parity (same doc, "Count classes"). Kill
+   switches for A/B: `WAKFU_MD_MIXED_RUNES=0` (the inexact fold), `WAKFU_MD_RUNE_CLASSES=0` (per-carrier counts).
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does
@@ -1581,9 +1582,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     the first CP-SAT solution comes 1–6 s later on the measured shapes. A gated encoding (per-carrier `mixed` bool, hinted
     off) was tried and reverted as worse (`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The gated encoding"). **2026-10-12:
     diagnosed (the per-carrier counts copy the rune decision onto every interchangeable carrier; presolve and the LP pay for
-    14k–47k count vars of which a build uses ~80) and addressed by the count CLASSES (same doc, "Count classes"): exact,
-    the certificates untouched; deterministic first solution 2–11× sooner and the det-60 objective ahead of the fold on all
-    four requests measured. Wall-clock confirmation on a calm machine pending.**
+    14k–47k count vars of which a build uses ~80) and partly addressed by the count CLASSES (same doc, "Count classes"):
+    exact, the certificates untouched; deterministic first solution 2–11× sooner and the det objective ahead of the fold on
+    all four requests; on production's 3-worker portfolio GUI default 110 still ends ~8 % below the fold. Still OPEN there.**
 - **NEUTRALITÉ FAMILY READ AS A SUM — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 56).** The engine credited Neutralité,
   Ambition, Inflexibilité and Prétention whenever the SUM of the six secondary masteries was ≤ 0; the game requires EACH
   of them to be ≤ 0, so a positive secondary could be offset by a negative one of another stat — bonuses the game never
