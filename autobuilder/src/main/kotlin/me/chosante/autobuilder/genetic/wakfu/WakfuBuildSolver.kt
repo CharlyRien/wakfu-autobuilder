@@ -805,6 +805,9 @@ object WakfuBuildSolver {
         val mixedRuneHybrid: Boolean = false,
         // Test seam (the hybrid's lock): false skips its VERIFY stage, so a fold proven OPTIMAL must still end unproven.
         val mixedRuneHybridVerify: Boolean = true,
+        // Test seam (the hybrid × classes lock): called with each hybrid stage's name ("fold", "polish-pinned", "polish-free",
+        // "verify", "count-fallback") and the rune model that stage searches, before it runs.
+        val mixedRuneHybridStageObserverForTest: ((String, RuneModel) -> Unit)? = null,
         // A/B seam: false gives the search model per-carrier rune counts instead of count classes ([RuneCountClass]).
         val runeCountClasses: Boolean = true,
         // Measurement seam (manual harnesses): a WALL-clock limit on top of the det budget, to run production's multi-worker
@@ -1797,6 +1800,7 @@ object WakfuBuildSolver {
         )
 
         // ---- 1. The FOLD stage.
+        tuning?.mixedRuneHybridStageObserverForTest?.invoke("fold", fold.runeModel)
         var foldSolver: CpSolver? = null
         val foldOutcome =
             executeSolverAndEmitResults(
@@ -1832,6 +1836,7 @@ object WakfuBuildSolver {
             }
             val count = countModel(equipmentsByItemType, restricted = false)
             if (count.maxDamageStaticallyInfeasible || !scope.isActive) return foldOutcome
+            tuning?.mixedRuneHybridStageObserverForTest?.invoke("count-fallback", count.runeModel)
             if (HYBRID_DEBUG) System.err.println("MD_HYBRID hard=$hardConstraints fold=INFEASIBLE det=${"%.2f".format(spentDet)} — the count model decides")
             return executeSolverAndEmitResults(
                 count.model,
@@ -1877,6 +1882,7 @@ object WakfuBuildSolver {
             if (restrictedPool.isEmpty() || !scope.isActive) return
             val model = countModel(restrictedPool, restricted = true)
             if (model.maxDamageStaticallyInfeasible || !scope.isActive) return
+            tuning?.mixedRuneHybridStageObserverForTest?.invoke(if (pinSublimations) "polish-pinned" else "polish-free", model.runeModel)
             model.model.addGreaterOrEqual(model.objective, best.objective)
             hintPoint(model, best)
             if (pinSublimations) {
@@ -1947,6 +1953,7 @@ object WakfuBuildSolver {
         if (countStageRuns) {
             val count = countModel(equipmentsByItemType, restricted = false)
             if (!count.maxDamageStaticallyInfeasible && scope.isActive) {
+                tuning?.mixedRuneHybridStageObserverForTest?.invoke("verify", count.runeModel)
                 count.model.addGreaterOrEqual(count.objective, best.objective)
                 hintPoint(count, best)
                 var countSolver: CpSolver? = null

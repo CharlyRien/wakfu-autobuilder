@@ -778,4 +778,127 @@ class MixedRuneSecondaryBudgetTest {
                 .toSet()
         assertThat(runesWorn).contains(lock, dodge)
     }
+
+    // ---- The hybrid × count classes (perf/mixed-runes-integrated) ------------------------------------------------------
+
+    /**
+     * Every COUNT stage of the hybrid (polish with the sublimations pinned, polish free, verify, the fold-INFEASIBLE fallback)
+     * searches the count CLASSES ([RuneCountClass]) when [WakfuBuildSolver.SolverTuning.runeCountClasses] is on — no count
+     * carrier keeps per-carrier count vars there — while the FOLD stage stays the plain fold (no count carrier, no class). On
+     * the repro pools (the minimal repro, the HP row, the lock/dodge helmet whose fold is INFEASIBLE), the first two also with
+     * interchangeable TWINS (a weaker helmet listed before the worn one, a second ring of the same class), the leg still ends
+     * on the per-stat count model's optimum, proven, and its build fills every socket of every worn carrier: a class spanning
+     * an unworn carrier (the weaker twin) splits its counts over the worn ones only ([RuneCountClass.distribute]). With the
+     * classes off, the same stages run per-carrier counts and reach the same optimum.
+     */
+    @Test
+    fun `the hybrid's count stages search the count classes and reach the count optimum`() {
+        val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+        val lowScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+
+        class Shape(
+            val label: String,
+            val params: WakfuBestBuildParams,
+            val pool: Map<ItemType, List<Equipment>>,
+            val subs: List<Sublimation>,
+            val hard: Boolean,
+            val twins: Boolean,
+        )
+        val shapes = ArrayList<Shape>()
+        val reproTwins =
+            listOf(
+                // The weaker helmet first (by list and by id): the worn one is its class's SECOND carrier.
+                item(809_001, ItemType.HELMET, 236, mapOf(Characteristic.MASTERY_ELEMENTARY to 380, melee to -102)),
+                item(810_001, ItemType.HELMET, 236, mapOf(Characteristic.MASTERY_ELEMENTARY to 414, melee to -102)),
+                item(810_002, ItemType.BELT, 219, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 365, back to -214)),
+                item(810_003, ItemType.CHEST_PLATE, 215, mapOf(Characteristic.MASTERY_ELEMENTARY to 369)),
+                item(810_004, ItemType.RING, 208, mapOf(Characteristic.MASTERY_ELEMENTARY to 159, melee to -58)),
+                item(811_004, ItemType.RING, 208, mapOf(Characteristic.MASTERY_ELEMENTARY to 140, back to -40))
+            ).groupBy { it.itemType }
+        for (hard in listOf(false, true)) {
+            shapes += Shape("repro", params(reproLevel, reproScenario), reproPool, listOf(neutralite), hard, twins = false)
+            shapes += Shape("repro+twins", params(reproLevel, reproScenario), reproTwins, listOf(neutralite), hard, twins = true)
+        }
+        val hpLevel = 50
+        val hpParams =
+            params(hpLevel, lowScenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
+                .copy(useSublimations = false)
+        val hpPool =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(820_001 + i, type, hpLevel, mapOf(fire to 300)) }
+        val hpTwins =
+            (
+                listOf(item(819_001, ItemType.HELMET, hpLevel, mapOf(fire to 250))) + hpPool +
+                    listOf(
+                        item(821_011, ItemType.RING, hpLevel, mapOf(fire to 120)),
+                        item(821_012, ItemType.RING, hpLevel, mapOf(fire to 110, Characteristic.HP to 20))
+                    )
+            ).groupBy { it.itemType }
+        for (hard in listOf(false, true)) {
+            shapes += Shape("hp", hpParams, hpPool.groupBy { it.itemType }, emptyList(), hard, twins = false)
+            shapes += Shape("hp+twins", hpParams, hpTwins, emptyList(), hard, twins = true)
+        }
+        // The lock / dodge helmet: two rows each needing part of one 4-socket helmet, at the largest common target the count
+        // model meets — the fold is INFEASIBLE on the hard leg and the count model decides.
+        val lockPool = listOf(item(860_001, ItemType.HELMET, hpLevel, mapOf(fire to 200))).groupBy { it.itemType }
+
+        fun lockRows(t: Int) =
+            params(hpLevel, lowScenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.LOCK, t), TargetStat(Characteristic.DODGE, t)))
+                .copy(useSublimations = false)
+        var lo = 0
+        var hi = 4_000
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (solve(lockRows(mid), lockPool, emptyList(), count = true, hard = true).hasSolution) lo = mid else hi = mid - 1
+        }
+        shapes += Shape("lock/dodge", lockRows(lo), lockPool, emptyList(), hard = true, twins = false)
+
+        var sharedClassInVerify = 0
+        var fallbackRuns = 0
+        for (shape in shapes) {
+            val reference = solve(shape.params, shape.pool, shape.subs, count = true, hard = shape.hard)
+            assertThat(reference.isOptimal).describedAs("%s hard=%s: the count model proves its optimum", shape.label, shape.hard).isTrue()
+            for (classes in listOf(true, false)) {
+                val stages = ArrayList<Pair<String, RuneModel>>()
+                val t = hybridTuning.copy(runeCountClasses = classes, mixedRuneHybridStageObserverForTest = { stage, rm -> stages += stage to rm })
+                val result = leg(shape.params, shape.pool, shape.subs, t, shape.hard)!!
+                val tag = "${shape.label} hard=${shape.hard} classes=$classes"
+                println(
+                    "MIXED_HYBRID_CLASSES $tag stages=${stages.map { (s, rm) -> "$s:${rm.countClasses.map { it.carriers.size }}/${rm.runeVars.keys.count { it in rm.countCarriers }}" }} " +
+                        "count=${reference.objective} hybrid=${result.maxDamageObjective}/${result.isOptimal}"
+                )
+                val fold = stages.filter { it.first == "fold" }.map { it.second }
+                assertThat(fold).describedAs("%s: one fold stage", tag).hasSize(1)
+                assertThat(fold.single().foldInexactCarriers).describedAs("%s: the fold is inexact (the hybrid owns the leg)", tag).isNotEmpty()
+                assertThat(fold.single().countCarriers).describedAs("%s: the fold stage is the plain fold", tag).isEmpty()
+                assertThat(fold.single().countClasses).describedAs("%s: the fold stage aggregates nothing", tag).isEmpty()
+                val countStages = stages.filter { it.first != "fold" }
+                assertThat(countStages).describedAs("%s: count stages ran", tag).isNotEmpty()
+                for ((stage, rm) in countStages) {
+                    val perCarrierCounts = rm.runeVars.keys.filter { it in rm.countCarriers }
+                    if (classes) {
+                        assertThat(rm.countClasses).describedAs("%s %s: searches the count classes", tag, stage).isNotEmpty()
+                        assertThat(perCarrierCounts).describedAs("%s %s: no per-carrier count var left", tag, stage).isEmpty()
+                        assertThat(rm.countClasses.flatMap { it.carriers }.toSet()).describedAs("%s %s: every count carrier in a class", tag, stage).isEqualTo(rm.countCarriers)
+                    } else {
+                        assertThat(rm.countClasses).describedAs("%s %s: classes off", tag, stage).isEmpty()
+                        assertThat(perCarrierCounts).describedAs("%s %s: per-carrier counts", tag, stage).isNotEmpty()
+                    }
+                }
+                if (classes && shape.twins) {
+                    sharedClassInVerify += countStages.count { (stage, rm) -> stage == "verify" && rm.countClasses.any { it.carriers.size >= 2 } }
+                }
+                if (countStages.any { it.first == "count-fallback" }) fallbackRuns++
+                assertThat(result.maxDamageObjective).describedAs("%s: the count optimum", tag).isEqualTo(reference.objective)
+                assertThat(result.isOptimal).describedAs("%s: proven by the count model", tag).isTrue()
+                val build = result.individual
+                for (equip in build.equipments.filter { it.maxShardSlots > 0 }) {
+                    assertThat(build.runes[equip].orEmpty()).describedAs("%s: %s's sockets", tag, equip.equipmentId).hasSize(equip.maxShardSlots)
+                }
+                assertThat(build.runes.keys).describedAs("%s: runes only on worn items", tag).allMatch { it in build.equipments }
+            }
+        }
+        assertThat(sharedClassInVerify).describedAs("verify stages whose model holds a class of several carriers (the lock's reach)").isGreaterThan(0)
+        assertThat(fallbackRuns).describedAs("legs where the fold was INFEASIBLE and the count model decided").isEqualTo(2)
+    }
 }
