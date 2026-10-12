@@ -1260,6 +1260,15 @@ either way was found in the repo.
    gates and a 2 s polish reserve, the default (hybrid + classes) is at or above main on MD110 / MD200 / MD245 / MD245F
    (medians 1,447,330 / 5,654,520 / 15,261,015 / 20,276,070 against 1,427,130 / 3,127,275 / 14,191,200 / 19,643,625) and
    badges level 245 where main hits the cap. Still open (a choice, not a regression): classes only lead at MD200 / MD245.
+   **Follow-up 2026-10-12, PICK classes** (same doc, "The hard leg since 1.14.2, and pick classes"): the GUI-default hard
+   leg had slowed since 1.14.2 for real-rule reasons (bisected: the exclusivity groups `81621547` and the item stat gates
+   `09ce499f` broke the greedy hint's completion at level 200; the floors and gates grew the model; every 1.12 / 1.14.2
+   build of MD200 / MD245 is illegal today — a nation sword without its ring). The fold stage's pick carriers are now
+   aggregated into exact pick classes on folds of ≥ 24,000 pick vars (`PICK_CLASS_MIN_PICK_VARS`; levels ~170+ of the GUI
+   default): wall-clock E0 MD200 4.84 M → 8.69 M (first CP-SAT solution 33.7 s → 17.3 s), MD245 15.32 M → 15.63 M (6 runs
+   with classes: 15.5–17.3 M), MD110 / MD245F unchanged (the per-carrier fold, below the threshold). Kill switch
+   `WAKFU_MD_RUNE_PICK_CLASSES=0`. Still open: below the threshold the per-carrier fold's LNS beats the class model on the
+   3-worker portfolio (level 110: 1.44 M vs 1.32 M) although the class model is far ahead on one worker — why is unexplained.
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does

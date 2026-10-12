@@ -23,6 +23,9 @@ the change takes the next numbers, AGENTS.md §4). What the port changed:
   the hybrid uses. The wall-clock A/B against main ("Wall clock" below, 2026-10-12) puts the integrated default (hybrid +
   classes, its fold stage pruned without the stat gates, a 2 s polish reserve) at or above main on all four E0 fixtures, with
   a badge at level 245 where main has none (`docs/perf-review-backlog.md` §E OPEN #2, closed).
+- **Pick classes** (2026-10-12, section "The hard leg since 1.14.2, and pick classes"): why the GUI-default hard leg slowed
+  after 1.14.2 (bisected; the old builds are illegal today), and the fold stage's pick carriers aggregated into exact classes
+  on large folds — MD200 4.84 M → 8.69 M at 60 s.
 
 ## The gap
 
@@ -628,6 +631,155 @@ What each lever did:
   measured in between; a portfolio switch on "no fold solution yet" is a wall-clock threshold (the fold's first hard-leg
   solution comes ~19 s into CP-SAT at 200/245 and ~7 s at 110), machine-dependent. Left open with these numbers.
 
+## The hard leg since 1.14.2, and pick classes (2026-10-12)
+
+The release-history E0 run (60 s, 4 pinned cores, medians of 3) put the GUI-default HARD leg far below 1.12 / 1.14.2: MD200
+6.34 M / 5.25 M then (first CP-SAT solution 23.3 / 16.5 s) against 3.26 M on this branch (31.6 s), MD245 16.0 M / 15.39 M
+against 15.32 M, with the break between 1.14.2 and 1.16.0. Three questions: what the old numbers are worth today, which
+commits broke the hard leg and why, and what fixes it without touching soundness.
+
+### What is real: the old builds under today's rules
+
+The old releases' E0 harness was instrumented locally (uncommitted) to log the final build of MD200 / MD245 (items, runes
+per item, sublimations per carrier, skill points), and each release re-ran them 3 times, pinned. Each build was rebuilt on
+this branch (same data 1.93.1.62; the sublimation shards re-resolved as the current stacking resolves them), checked with
+`BuildCombination.isValid(CRA)`, `equipConditionViolation`, `statGateViolations` and the target rows, re-scored with
+`rescore` (it reproduces every old score exactly: the scorer did not change, legality did), and the current exact model was
+re-solved on that build's items only (runes, sublimations and skills free, hard leg, every run `OPTIMAL`).
+
+| Release / run | MD200 old raw — why it is illegal today | best legal on its items | MD245 old raw — why it is illegal today | best legal on its items |
+|---|---|---|---|---|
+| 1.12.0 r1 | 6,754,165 — Épée de Brâkmar without its ring; Coiffe Cornue's `distance ≤ 500` gate broken (846) | 4,578,195 | 14,373,500 — Brâkmar sword without its ring | 12,035,725 |
+| 1.12.0 r2 | 4,161,300 — Brâkmar sword without its ring | 2,889,040 | 16,199,875 — idem | 12,241,190 |
+| 1.12.0 r3 | 8,731,800 — Brâkmar sword without its ring; 4 gates broken (Les Patères MP ≤ 5 at 7, Bottes Ailes Tell WP ≥ 8 at 6, Coiffe Goguenarde crit ≤ 25 at 50, Ceinturon Brrrr AP ≥ 13 at 12) | none (INFEASIBLE) | 16,646,375 — Brâkmar sword without its ring | 12,241,190 |
+| 1.14.2 r1 | 3,418,280 — Piquants du Guerrier Trool anciens beside Coiffeuse Mortelle (one EPIC-group item at a time), its `AP ≤ 11` gate broken (15), dodge −7 under the 0-row | 3,341,930 | 15,859,225 — Brâkmar sword without its ring | none (INFEASIBLE) |
+| 1.14.2 r2 | 7,769,630 — Brâkmar sword without its ring | 5,135,850 | 16,128,975 — idem | none (INFEASIBLE) |
+| 1.14.2 r3 | 3,856,325 — Épée de Sufokia without its ring | 3,418,815 | 14,787,825 — Brâkmar sword without its ring | none (INFEASIBLE) |
+
+**None of the 12 builds is legal today**: 11 wear a nation sword (+3 AP) without the EPIC ring it requires, the other one
+two EPIC-group items. The sword's free AP is what let the old hard leg meet AP 11 cheaply. Re-solved on their own items, the
+best legal builds are 5.14 M (MD200) and 12.24 M (MD245); four item sets have no legal completion at all (AP 11 is out of
+reach once the sword cannot be worn). So the old medians are not a target: the integrated head already ends above every
+legal re-solve at MD245 (15.32 M), and its MD200 runs reach 3.1–8.0 M.
+
+### Bisect (deterministic)
+
+Protocol: the GUI-default hard leg on the production pool (domination on, presolve 3, `MaxDamageExperimentConfig.DEFAULT`, the
+greedy warm start hinted), 1 worker, interleave, seeds 1–5, stopped at CP-SAT's first solution (`stopAtFirstSolution`, det
+budget 400); a small local harness copied onto each commit. Deterministic time to the first hard-leg solution:
+
+| Commit | MD200 (seeds 1–5) | median | MD245 (seeds 1–5) | median | MD200 presolved vars |
+|---|---|---|---|---|---|
+| e9048298 (1.14.2) | 111 / 39 / 33 / 53 / 39 | 39 | 23 / 25 / 26 / 31 / 24 | 25 | 37,135 |
+| b445e9ac (a 0-row is a floor) | 31 / 41 / 18 / 114 / 52 | 41 | 31 / 67 / 28 / 22 / 25 | 28 | 42,358 |
+| 0d20246f (equip conditions) | 33 / 41 / 25 / 76 / 22 | 33 | 20 / 31 / 20 / 26 / 20 | 20 | 42,376 |
+| 81621547 (exclusivity groups) | 311 / 127 / 23 / 65 / 57 | 65 | 29 / 22 / 19 / 31 / 34 | 29 | 42,368 |
+| 09ce499f (item stat gates, #255) | 348 / 81 / 59 / 229 / 58 | 81 | 40 / 29 / 27 / 23 / 62 | 29 | 43,590 |
+| 377cf5fe (1.16.0) | 165 / 64 / 138 / 81 / 421 | 138 | 32 / 32 / 37 / 31 / 20 | 32 | 43,590 |
+| this branch's head, fold stage (seed 1) | 218 | | 26 | | 43,593 |
+
+- **MD200 doubles across 81621547 and 09ce499f** (33 → 65 → 81; 138 at 1.16.0, within this spread); MD245 moves less
+  (20 → 29–32).
+- **Mechanism, from the CP-SAT logs** (`searchLogSink`): up to 81621547 the first MD200 solution is the greedy hint's
+  completion in every seed (`default_lp [hint]`, once `max_lp [hint]`). From 09ce499f on, no MD200 seed finds it through the
+  hint: it comes from a worker that ignores it (`pseudo_costs`, `quick_restart_no_lp`, `no_lp`, `fixed`), much later. The
+  greedy item set at level 200 holds Cartes du Monde (gate `range ≤ 3`) under the range-4 row and Ceinture Assoiffée
+  (`max AP ≥ 13`), and none of its subsets reaches range 4 (the current model restricted to them is INFEASIBLE): the hinted
+  dive is a dead end the gates now make the solver prove. At MD245 the hint completes at every commit. 81621547 keeps the
+  hint path but makes it longer: the two COMMON AP / MP items (Piquants, Sain Turastil) joined the EPIC budget the AP-11 row
+  leans on.
+- The model grew too: presolve no longer removes the dodge / wind-resistance rune picks once the 0-rows are floors
+  (b445e9ac: 37,135 → 42,358 presolved vars at MD200), and the gates add their out-of-combat sums (09ce499f: → 43,590). On
+  one worker a single `max_lp` batch on that 43k-var model (a 5,953-row LP) then takes 100–165 det units.
+- These are all rules the game imposes (AGENTS.md §4), not mistakes. What was lost is the cheap path to a FIRST feasible
+  hard-leg build — and the per-carrier fold model is too big to find one fast without it.
+
+### The fix: pick classes (exact, search model only)
+
+The count classes ("Count classes" above) shrank the COUNT models ~6×, but the hybrid's FOLD stage — what production searches
+on the GUI default — stayed per carrier (43,612 vars at level 200, 54,681 at 245). **Pick classes** aggregate the fold's
+multi-choice PICK carriers the same way: carriers sharing an item type, a socket count and their rune choices (same rune,
+same per-socket value, hence the same choice gates) hold ONE var per type for the class, `q_t ∈ 0..maxWorn` (two rings, else
+one), with `Σ_t q_t = Σ_{c ∈ class} x_c`; one unit of `q_t` is a whole carrier filled with type t (`RuneCountClass` with
+`unit = slots`).
+
+- **Exact** (same reachable stat totals, same objective per build): summing the fold's `Σ_t pick_{c,t} = x_c` over the class
+  gives the class equation and the same stat sums (every rune reader reads `Σ_c Σ_t slots·v_t·pick_{c,t} = Σ_t slots·v_t·q_t`
+  through `StatBuilder.baseTermsFor`); conversely `N = Σ_c x_c` worn carriers and `Σ_t q_t = N` assign one type per worn
+  carrier (`RuneCountClass.distribute`: every class count is a multiple of `slots`, so each worn carrier gets one whole type).
+  A choice gate `pick ≤ Σ subVar` sums to `q_t ≤ maxWorn·Σ subVar` (`gateScale` = the class top). The crit-swap shape (one
+  bool beside the equip var's default) and single-choice carriers are untouched.
+- **Domains**: `reachableSumDomain` lets a class var ride each of its carriers at one whole fill (`unitsPerCarrier`), so the
+  declared domains equal the per-carrier fold's (locked on the GUI-default and free requests at 110 / 245, both legs).
+- **Certificates untouched**: like the count classes, every model built for a certificate keeps per-carrier vars, and the
+  certifier bails on a model with classes. The fold stage's `OPTIMAL` was never trusted (`foldInexactCarriers`); where the
+  fold is exact (no inexact carrier) the direct solve's `OPTIMAL` is a proof of the same model, aggregated. No
+  `CERTIFIER_VERSION` change; the unreleased `ENGINE_RESULTS_VERSION` 7 history entry is extended (search trajectories, and so
+  the returned builds, change).
+- **Where**: production builds pick classes into any max-damage search model (the hybrid's fold stage and count stages, the
+  direct solve) whose per-carrier fold would hold at least `PICK_CLASS_MIN_PICK_VARS` = 24,000 multi-choice pick vars; below
+  that the model is the same as before. Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`; tuned opt-in `SolverTuning.runePickClasses`
+  (with `runePickClassMinPickVars`, default 0 = always).
+- Model size (production pool, hard leg unless free): level 110 16,566 → 2,958 vars, 140 24,610 → 4,093, 170 32,987 → 5,260,
+  200 43,612 → 6,855, 245 54,681 → 8,362, free 245 (fold stage) 28,107 → 7,806.
+
+### Deterministic A/B (1 worker, interleave, seeds 1–3; production pool and leg; `MixedRuneCountsPerfHarnessTest`)
+
+First hard-leg solution (fold stage, seed 1): MD200 det 218 → 25.9, MD245 25.6 → 10.3. Final raw proxy per seed (median),
+classes always on ("none" = no hard-leg build):
+
+| Request | det | hybrid (head) | hybrid + pick classes |
+|---|---|---|---|
+| MD110 | 60 | 1,224,120 / 1,215,715 / 1,194,705 (1,215,715) | 1,431,545 / 1,403,900 / 1,322,400 (1,403,900) |
+| | 120 | 1,218,060 / 1,215,715 / 1,204,255 (1,215,715) | 1,431,545 / 1,408,950 / 1,408,625 (1,408,950) |
+| MD200 | 60 | none ×3 | 8,035,995 / 7,845,360 / 5,816,120 (7,845,360) |
+| | 120 | 4,412,350 / none / 3,766,840 | 8,851,550 / 7,845,360 / 7,908,870 (7,908,870) |
+| MD245 | 60 | 14,012,475 / 13,720,350 / 14,217,480 (14,012,475) | 15,371,610 / 15,292,770 / 15,474,540 (15,371,610) |
+| | 120 | 14,957,700 / 15,730,770 / 15,711,060 (15,711,060) | 16,946,940 / 15,292,770 / 15,492,060 (15,492,060) |
+| MD245F | 60 | 19,458,375 / 19,458,375 / 17,942,670 (19,458,375) | 19,477,375 / 19,745,750 / 19,458,375 (19,477,375) |
+| | 120 | 19,688,750 / 19,458,375 / 19,688,750 (19,688,750) | 19,707,750 / 19,745,750 / 19,458,375 (19,707,750) |
+
+### Production's portfolio: the size rule
+
+Classes always on, wall clock (E0, 3 rounds, pinned, against the head in the same session): MD200 3.95 M → 7.78 M, MD245
+15.32 M → 17.02 M, free 245 19.79 M → 19.73 M — but **MD110 1,429,150 → 1,384,750**, every class run below every head run.
+The 3-worker harness (`w60`, `WAKFU_MIXED_WORKERS=3 WAKFU_MIXED_INTERLEAVE=0`, pinned) confirms it at 110 (seeds 1–4: 1,438,240
+→ 1,320,660: the class model reaches its first solution at 2.9 s instead of 10.7 s, then its LNS stalls near 1.33 M where the
+per-carrier fold's `graph_arc_lns` / `rins_pump_lns` climb to 1,447,330) and places the crossover (seeds 1–3): level 140
+(21,007 pick vars) 2,449,920 → 2,440,900 (even), level 170 (28,287) 4,000,400 → 4,261,740 (+6.5 %); free 245 has 20,632 (even).
+Hence the 24,000-var threshold: levels 110 and 140 and the free requests keep the per-carrier fold; 170, 200 and 245 get
+pick classes (`PICK_SHAPE` mode of the harness prints a request's count).
+
+**Wall clock, the shipped rule** (`PerfBaselineE0Test`, the production path: 60 s, `-XX:ActiveProcessorCount=4`, 3 GB, proof capped at
+120 s and E8 at 60 s; head = `76f68482`, two JVMs at a time, each pinned to 4 physical cores of its own CCD, slots swapped
+every round, 3 rounds; 1.14.2 from the release-history session, its builds illegal today):
+
+| Fixture | head (per run) | head median | pick classes (per run) | median | 1.14.2 median | first CP-SAT solution, head → classes |
+|---|---|---|---|---|---|---|
+| MD110 | 1,423,090 / 1,429,150 / 1,447,330 | 1,429,150 | 1,444,300 / 1,420,060 / 1,447,330 | 1,444,300 | — | 13.1 → 12.4 s (same model) |
+| MD200 | 4,835,835 / 3,469,020 / 5,086,680 | 4,835,835 | 8,746,430 / 7,988,535 / 8,689,450 | **8,689,450 (+80 %)** | 5.25 M (illegal) | 33.7 → 17.3 s (1.14.2: 16.5 s) |
+| MD245 | 15,319,050 ×3 | 15,319,050 | 15,978,240 / 15,634,410 / 15,520,530 | **15,634,410 (+2.1 %)** | 15.39 M (illegal) | 25.7 → 21.0 s (1.14.2: 19.9 s) |
+| MD245F | 20,276,070 / 20,405,550 / 20,276,070 | 20,276,070 | 20,373,180 / 20,111,730 / 20,405,550 | 20,373,180 | — | 19.9 → 19.7 s (same model) |
+
+Badges (same runs): MD200 within 109–206 % → 22–33 %, MD245 28.4 % → 23.1–26.7 %, MD110 and MD245F unchanged in kind (E8
+crowns the free-245 optimum in all six runs). With the classes always on (the session above), the same code at 200 / 245 read
+7,776,660 / 8,112,270 / 7,612,220 and 17,016,875 / 16,627,375 / 17,280,500: over six runs MD200 7.6–8.7 M and MD245
+15.5–17.3 M, every run above every head run. MD200 now ends above the best LEGAL build of any 1.12 / 1.14.2 item set (5.14 M),
+and above those releases' (illegal) medians.
+
+### Tried and dropped
+
+- **A target-aware greedy hint** (skip an item whose upper stat gate caps a stat below a target row — Cartes du Monde under
+  range 4): a hint filter only. Deterministic, 3 seeds: on the head it gives MD200 a hard-leg build by det 60 in 2 of 3 seeds
+  but costs MD245 6.6 % at det 120; on top of pick classes it moves the medians −4.3 % (MD110 det 60) to +2.5 % (MD245 det
+  120), no consistent gain. Not shipped.
+- **A feasibility-first stage** (clone the hard model, clear the objective, stop at its first solution, hint the full
+  assignment into the real solve): MD200 det 35.9 (+ 10.5 for the real solve's hint completion) to the first solution
+  instead of 218, but a second presolve (~13 s wall at level 200), and MD245 ends below the head (12.96 M / 15.18 M at det
+  60 / 120, the stage's det not counted, vs 13.92 M / 15.85 M). Superseded by pick classes, which make the first solution
+  cheap with one model.
+- **No hint at all**: MD200's first solution at det 33 (the hint was the dead end), but MD245 falls to 10.96 M at det 120.
+
 ## Tests
 
 `MixedRuneSecondaryBudgetTest`:
@@ -663,6 +815,17 @@ What each lever did:
   changed carriers are fold-inexact, and the verify stage proves 302,495. Mutation checked: pruning the fold stage without
   the gate reads AND without recording the changed carriers makes the leg prove main's 178,265 (this test and the gate part
   of the 41-pool hybrid test fail).
+
+`RunePickClassTest` (the pick classes, 2026-10-12):
+- seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under an HP
+  row (general fold), a dodge floor beside a lock row, and the Neutralité budget (the collapse's explicit picks and their
+  gates), both legs: the v61 fold with pick classes proves the per-carrier fold's optimum, every shape holding a class of
+  ≥ 2 carriers. Mutation-checked: a class var read at one rune instead of a whole fill fails it (and the domain lock);
+- the hybrid with its fold stage on pick classes ends on the per-stat count model's optimum, proven, every socket filled;
+- a build from the pick-class fold fills each worn carrier with ONE type, every socket. Mutation-checked: a class split
+  that forgets the unit (one rune per unit) fails it;
+- production's size rule: the GUI-default hard-leg fold stage aggregates at level 200 and stays per carrier at 110;
+- the fold stage's declared reachable domains are the per-carrier fold's (GUI default and free, 110 / 245, both legs).
 
 `RuneCountClassTest` (the count classes):
 - seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under the
