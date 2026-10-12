@@ -459,6 +459,9 @@ object WakfuBuildSolver {
      */
     internal val mixedRuneCarriersEnabled: Boolean = System.getenv("WAKFU_MD_MIXED_RUNES") != "0"
 
+    /** A/B kill switch of the search model's rune count classes ([RuneCountClass]): `WAKFU_MD_RUNE_CLASSES=0` = per-carrier counts. */
+    internal val runeCountClassesEnabled: Boolean = System.getenv("WAKFU_MD_RUNE_CLASSES") != "0"
+
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
     // cycles from search/proof. Intermediate snapshots are pure progress — re-rendering the in-flight build
@@ -789,6 +792,8 @@ object WakfuBuildSolver {
         // A/B seam (CERTIFIER_VERSION 62): false gives the max-damage rune fold no count carrier — the ≤ v61 all-or-nothing
         // fill, which can miss a part-filled optimum. Production keeps it on.
         val runeMixedCarriers: Boolean = true,
+        // A/B seam: false gives the search model per-carrier rune counts instead of count classes ([RuneCountClass]).
+        val runeCountClasses: Boolean = true,
         // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
         // receive CP-SAT's own search log lines (dual-bound trajectory + per-subsolver attribution) —
         // the standard solve path otherwise hardcodes the log off. A Java-side callback, NOT stdout:
@@ -1001,6 +1006,7 @@ object WakfuBuildSolver {
                             applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
                             maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
                             runeMixedCarriers = tuning?.runeMixedCarriers ?: true,
+                            runeCountClasses = tuning?.runeCountClasses ?: true,
                             hardConstraints = hardConstraints,
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
@@ -1082,6 +1088,7 @@ object WakfuBuildSolver {
                                 applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
                                 maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
                                 runeMixedCarriers = tuning?.runeMixedCarriers ?: true,
+                                runeCountClasses = tuning?.runeCountClasses ?: true,
                                 hardConstraints = hardConstraints,
                                 mmOvershootPinnedPrimary = outcome.objectiveValue,
                                 mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
@@ -1164,6 +1171,7 @@ object WakfuBuildSolver {
             built.skillVars.values +
             built.runeModel.runeVars.values
                 .flatMap { it.values } +
+            built.runeModel.countClasses.flatMap { it.vars.values } +
             built.subModel.subVars.values +
             built.subModel.copyVars.values
                 .flatten()
@@ -1694,6 +1702,9 @@ object WakfuBuildSolver {
         // Test seam (the mixed-rune lock): false gives the fold no count carrier ([RuneModel.countCarriers]) — the
         // all-or-nothing fill of CERTIFIER_VERSION ≤ 61, which misses a part-filled optimum. Production keeps it on.
         runeMixedCarriers: Boolean = true,
+        // The SEARCH model's count classes ([RuneCountClass], exact): interchangeable count carriers share one count per
+        // rune type. Forced off whenever this build feeds a certificate (the AP-cell certifier mirrors per-carrier vars).
+        runeCountClasses: Boolean = false,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -1841,7 +1852,15 @@ object WakfuBuildSolver {
                         runeReads.mixedStats(negativeStatSources(allEquips, sublimations, params.character.level))
                     } else {
                         emptySet()
-                    }
+                    },
+                aggregateCountClasses =
+                    runeCountClasses &&
+                        runeCountClassesEnabled &&
+                        !certifyAllApForTest &&
+                        certifyExplainCellForTest == null &&
+                        !certifyLedgerForTest &&
+                        !certifyFastOnlyForTest &&
+                        !maxDamageExperiment.certifierCellCap
             )
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
@@ -3872,6 +3891,7 @@ object WakfuBuildSolver {
         runeChoiceGating: Boolean = true,
         // The mixed-rune lock: see [buildModel].
         runeMixedCarriers: Boolean = true,
+        runeCountClasses: Boolean = true,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -3886,6 +3906,7 @@ object WakfuBuildSolver {
                 runeChoicePruning = runeChoicePruning,
                 runeChoiceGating = runeChoiceGating,
                 runeMixedCarriers = runeMixedCarriers,
+                runeCountClasses = runeCountClasses,
                 hardConstraints = hardConstraints,
                 forceFullPool = forceFullPool,
                 maxDamageExperiment = tuning.maxDamageExperiment
@@ -4234,6 +4255,108 @@ object WakfuBuildSolver {
         val proto = built.model.model()
         return Triple(proto.variablesCount, proto.constraintsCount, built.allEquips.size)
     }
+
+    /**
+     * Test-only (the mixed-rune perf harness): the rune shape of the production model of [params] (domination on) — the
+     * `mixedStats` it was built with, the rune types each carrier offers, and which carriers are count carriers.
+     */
+    internal fun runeShapeForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+        runeMixedCarriers: Boolean = true,
+        runeCountClasses: Boolean = false,
+    ): String {
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = true,
+                hardConstraints = hardConstraints,
+                runeMixedCarriers = runeMixedCarriers,
+                runeCountClasses = runeCountClasses,
+                maxDamageExperiment = MaxDamageExperimentConfig.DEFAULT
+            )
+        val reads = maxDamageRuneReads(params, sublimations, buildSkillTerms(built.skillVars).percent.keys, statGateRuneReads(built.allEquips))
+        val negative = negativeStatSources(built.allEquips, sublimations, params.character.level)
+        val mixed = reads.mixedStats(negative)
+        val rm = built.runeModel
+        val proto = built.model.model()
+        val typeHistogram =
+            rm.runeVars.values
+                .groupingBy { it.keys.size }
+                .eachCount()
+                .toSortedMap()
+        val classes =
+            rm.runeVars.keys
+                .groupBy { e ->
+                    Triple(
+                        e.itemType,
+                        e.maxShardSlots,
+                        rm.runeVars
+                            .getValue(e)
+                            .keys
+                            .associateWith { rm.coefficientFor(e, it) }
+                    )
+                }
+        val classesNoType =
+            classes.keys
+                .map { it.second to it.third }
+                .toSet()
+                .size
+        val slotTypes =
+            rm.runeVars.keys
+                .map { it.itemType }
+                .toSet()
+                .size
+        return "items=${built.allEquips.size} vars=${proto.variablesCount} cons=${proto.constraintsCount} " +
+            "fold=${rm.singleTypePerItem} collapse=${rm.maxDamageChoiceCollapse} carriers=${rm.runeVars.size} " +
+            "countCarriers=${rm.countCarriers.size} typesPerCarrier=$typeHistogram classes=${classes.size} " +
+            "classesIgnoringItemType=$classesNoType itemTypes=$slotTypes countClassVars=${rm.countClasses.sumOf { it.vars.size }} " +
+            "runeTypes=${rm.runeVars.values.flatMap { it.keys }.toSortedSet()} mixedStats=$mixed negativeSources=${negative.sorted()} " +
+            "gated=${statGateRuneReads(built.allEquips)}"
+    }
+
+    /**
+     * Test-only: every tracked max-damage objective-chain var's declared reachable range, by name (the leaf seeds
+     * included), of the production model of [params] (domination on, the production experiment config) with or without
+     * rune count classes — the class model must declare the per-carrier model's domains (an under-estimate cuts the optimum).
+     */
+    internal fun maxDamageTrackedRangesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+        runeCountClasses: Boolean,
+        applyDomination: Boolean = true,
+    ): List<Pair<String, LongRange>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            hardConstraints = hardConstraints,
+            runeCountClasses = runeCountClasses,
+            maxDamageExperiment = MaxDamageExperimentConfig.DEFAULT
+        ).maxDamageTracked.map { (_, name, range) -> name to range }
+
+    /** Test-only: the carrier count of each rune count class ([RuneCountClass]) the search model of [params] builds (no domination). */
+    internal fun runeCountClassSizesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+    ): List<Int> =
+        buildModel(params, equipmentsByItemType, runes, sublimations, hardConstraints = hardConstraints, runeCountClasses = true)
+            .runeModel.countClasses
+            .map { it.carriers.size }
 
     /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
     internal fun gatedPoolSizeForTest(
@@ -5353,6 +5476,16 @@ object WakfuBuildSolver {
                         if (effectiveCount > 0 && rune != null) List(effectiveCount) { rune } else emptyList()
                     }
                 }.filterValues { it.isNotEmpty() }
+                .toMutableMap()
+        // Count classes ([RuneCountClass]): split each class's counts over its worn carriers (any split is the same build).
+        if (runeModel.countClasses.isNotEmpty()) {
+            val worn = equippedItems.toHashSet()
+            for (rc in runeModel.countClasses) {
+                val equipped = rc.carriers.filter { it in worn }
+                if (equipped.isEmpty()) continue
+                runes += rc.distribute(equipped, rc.vars.mapValues { (_, v) -> valueOf(v) })
+            }
+        }
 
         // Sublimations keyed by carrier item: a normal sub by its assignment var, an epic/relic sub by the
         // equipped epic/relic item (whose dedicated slot hosts it). This is what the GUI renders per item.
@@ -5384,7 +5517,9 @@ object WakfuBuildSolver {
             }
         }
 
-        return BuildCombination(equippedItems, optimizedSkills, runes, sublimationsByItem, resolvedPassives(params))
+        // In the equipped items' order, whichever model filled them.
+        val runesInOrder = equippedItems.mapNotNull { e -> runes[e]?.let { e to it } }.toMap()
+        return BuildCombination(equippedItems, optimizedSkills, runesInOrder, sublimationsByItem, resolvedPassives(params))
     }
 
     // Splits each skill's contribution into fixed / percent terms keyed by characteristic, mirroring

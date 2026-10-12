@@ -410,9 +410,12 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   offering such a type keeps per-type COUNTS
   (`RuneModel.countCarriers`); the certificate reads each of its types at its full-fill vertex, which bounds every mixed
   fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
-  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The plain counts slow the search where every rune type is
-  a threshold read (the GUI default): OPEN, `docs/perf-review-backlog.md` §E OPEN #2. Locks: `MixedRuneSecondaryBudgetTest`
-  (reference: the per-stat count model, `forceRuneCountModel`).
+  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0`. The SEARCH model aggregates the count carriers into CLASSES
+  (`RuneCountClass`: same item type, socket count and rune choices — one count per type per class, exact, since every rune
+  reader reads class sums; on the GUI default it cut the model five-fold and closed the regression of the plain per-carrier
+  counts). The certificates never see a class: a model built for one keeps per-carrier counts, and the certifier bails on a
+  model with classes. Kill switch (A/B only) `WAKFU_MD_RUNE_CLASSES=0`. Locks: `MixedRuneSecondaryBudgetTest` (reference: the
+  per-stat count model, `forceRuneCountModel`), `RuneCountClassTest` (classes = per-carrier = count model; identical domains).
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
   pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +

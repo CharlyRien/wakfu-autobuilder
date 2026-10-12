@@ -86,7 +86,18 @@ internal class RuneModel(
     val countCarriers: Set<Equipment> = emptySet(),
     // Each [countCarriers] var → its carrier's socket count (a gated count is posted as `count ≤ slots·Σ subVar`).
     private val countVarSlots: Map<IntVar, Long> = emptyMap(),
+    /**
+     * The SEARCH model's aggregated count carriers ([RuneCountClass]): count carriers that share an item type, a socket
+     * count and their rune choices with the same per-socket values hold ONE count per type for the whole class instead of
+     * one per carrier. Those carriers have no [runeVars] entry. Empty in every model a certificate reads (the AP-cell
+     * certifier mirrors per-carrier vars, and bails on a model with classes).
+     */
+    val countClasses: List<RuneCountClass> = emptyList(),
 ) {
+    /** Each [countClasses] var → its class. */
+    val countClassByVar: Map<IntVar, RuneCountClass> =
+        buildMap { countClasses.forEach { rc -> rc.vars.values.forEach { put(it, rc) } } }
+
     /** Whether [equip]'s rune vars are boolean single-type PICKS (else per-type counts 0..slots). */
     fun isPickCarrier(equip: Equipment): Boolean = singleTypePerItem && equip !in countCarriers
 
@@ -96,8 +107,8 @@ internal class RuneModel(
     /** Sockets one unit of [equip]'s rune var fills: all of them for a pick, one for a count. */
     fun runeVarMultiplier(equip: Equipment): Long = if (isPickCarrier(equip)) equip.maxShardSlots.toLong() else 1L
 
-    /** The largest value a gated choice var takes (1 for a pick, the carrier's sockets for a count). */
-    fun gateScale(variable: IntVar): Long = countVarSlots[variable] ?: 1L
+    /** The largest value a gated choice var takes (1 for a pick, the carrier's sockets for a count, a class's top). */
+    fun gateScale(variable: IntVar): Long = countClassByVar[variable]?.hi ?: countVarSlots[variable] ?: 1L
 
     fun runeTypeFor(
         variable: IntVar,
@@ -122,6 +133,65 @@ internal class RuneModel(
 
     companion object {
         val EMPTY = RuneModel(emptyMap(), emptyMap())
+    }
+}
+
+/**
+ * A CLASS of interchangeable max-damage count carriers ([RuneModel.countClasses]): every [carriers] item has the same item
+ * type, [slots] sockets, and offers the same rune types at the same per-socket value ([coefficients]). The search model
+ * gives the class ONE count per type ([vars], `0..`[hi]) with `Σ_t vars[t] = slots · Σ_{c ∈ carriers} x_c`, instead of
+ * one count per type on every carrier (`Σ_t n_{c,t} = slots · x_c`).
+ *
+ * Exact (same optimum, same objective value per build): every reader of a rune reads it through the stat sums of
+ * [StatBuilder.baseTermsFor] — `Σ_c Σ_t coeff_t · n_{c,t}` — and a class's carriers share `coeff_t`, so a build's stat
+ * totals depend on the per-carrier counts only through their class sums `m_t = Σ_c n_{c,t}`. Per-carrier → class: summing
+ * a per-carrier solution gives `Σ_t m_t = slots · Σ_c x_c`, the same totals, and each choice gate `n_{c,t} ≤ slots·Σ subVar`
+ * implies `m_t ≤ hi·Σ subVar`. Class → per-carrier: with `N = Σ_c x_c` equipped carriers, any `m ≥ 0` with
+ * `Σ_t m_t = slots · N` splits into N fills of exactly [slots] runes ([distribute]: fill the carriers one after the other),
+ * unequipped carriers get none, and a type with `m_t > 0` has a taken gate sub, so every per-carrier gate holds. The
+ * carriers' own stats, socket counts and sublimation slots are untouched (they ride the equip vars). Nothing else reads a
+ * count carrier's rune var: forced runes keep the per-stat count model (no fold, no class), and the certificates read the
+ * per-carrier model (no class there: the AP-cell certifier bails on a model with classes).
+ *
+ * Why: the per-carrier counts make every interchangeable carrier its own copy of the rune decision (2,004 carriers × 7
+ * counts on the GUI-default level-110 request), a search space the fold's picks did not have; the class keeps the exact
+ * mixed fills at a fraction of the variables (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Count classes").
+ */
+internal class RuneCountClass(
+    val carriers: List<Equipment>,
+    val slots: Int,
+    val vars: Map<Characteristic, IntVar>,
+    val coefficients: Map<Characteristic, Long>,
+    val runeTypes: Map<Characteristic, RuneType>,
+    // The most carriers of the class one build can wear (two rings, else one), capped by the class size.
+    val maxWorn: Int,
+) {
+    /** The top of every class count: all sockets of every carrier the build can wear. */
+    val hi: Long get() = slots.toLong() * maxWorn
+
+    /**
+     * The runes of each equipped carrier for the class counts [counts] (`Σ = slots · |equipped|`): the carriers are
+     * filled one after the other, each with exactly [slots] runes taken from the types in [vars] order. Deterministic.
+     */
+    fun distribute(
+        equipped: List<Equipment>,
+        counts: Map<Characteristic, Long>,
+    ): Map<Equipment, List<RuneType>> {
+        val left = LinkedHashMap<Characteristic, Long>()
+        for (stat in vars.keys) left[stat] = counts[stat] ?: 0L
+        val out = LinkedHashMap<Equipment, List<RuneType>>()
+        for (equip in equipped) {
+            val runes = ArrayList<RuneType>(slots)
+            for ((stat, n) in left) {
+                if (runes.size >= slots) break
+                val take = minOf(n, (slots - runes.size).toLong())
+                if (take <= 0L) continue
+                repeat(take.toInt()) { runes += runeTypes.getValue(stat) }
+                left[stat] = n - take
+            }
+            if (runes.isNotEmpty()) out[equip] = runes
+        }
+        return out
     }
 }
 

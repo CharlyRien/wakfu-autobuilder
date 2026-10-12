@@ -9,6 +9,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERI
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ItemType
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationKind
@@ -45,6 +46,9 @@ internal fun CpModel.createRuneModel(
     // The rune types a single-type fill cannot represent exactly ([MaxDamageRuneReads.mixedStats]): a fold carrier
     // offering one of them beside another type gets per-type COUNTS instead of picks. Empty ⇒ the pure fold.
     mixedStats: Set<Characteristic> = emptySet(),
+    // The SEARCH model: count carriers that share an item type, a socket count and their choices (same values) hold one
+    // count per type for the whole class ([RuneCountClass], exact). Never in a model a certificate reads.
+    aggregateCountClasses: Boolean = false,
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -152,6 +156,15 @@ internal fun CpModel.createRuneModel(
     // The count carriers' vars → their socket count (a count var's gate is `count ≤ slots·Σ subVar`).
     val countVarSlots = HashMap<IntVar, Long>()
     val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
+
+    // Count carriers awaiting their class ([aggregateCountClasses]): the carrier, its choices (type → rune, per-socket
+    // value) and its choice gates (type → subs).
+    data class PendingCount(
+        val equip: Equipment,
+        val choices: Map<Characteristic, Pair<RuneType, Long>>,
+        val gates: Map<Characteristic, Set<Sublimation>>,
+    )
+    val pendingCounts = mutableListOf<PendingCount>()
     for (equip in allEquips) {
         val slots = equip.maxShardSlots
         if (slots <= 0) continue
@@ -177,6 +190,11 @@ internal fun CpModel.createRuneModel(
             // threshold read with a budget) keeps per-type COUNTS over its kept types: the per-socket Pareto argument
             // and the gates hold rune by rune, so pruning stays exact; only the all-or-nothing fill goes.
             val mixed = choices.size >= 2 && choices.keys.any { it in mixedStats }
+            if (mixed && aggregateCountClasses) {
+                countCarriers += equip
+                pendingCounts += PendingCount(equip, LinkedHashMap(choices), if (choiceGating) reads.choiceGates(kept) else emptyMap())
+                continue
+            }
             val perStat =
                 if (mixed) {
                     countCarriers += equip
@@ -241,6 +259,15 @@ internal fun CpModel.createRuneModel(
             // The count model — or, under the general fold, a carrier offering a [mixedStats] type (exact: every type
             // counted, `= slots·selected` like the fold's picks).
             if (singleTypePerItem) countCarriers += equip
+            if (singleTypePerItem && aggregateCountClasses) {
+                val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+                for (stat in runeStats) {
+                    val rune = runeByCharacteristic.getValue(stat)
+                    choices[stat] = rune to rune.valueOn(equip.itemType, equip.level).toLong()
+                }
+                pendingCounts += PendingCount(equip, choices, emptyMap())
+                continue
+            }
             val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
             // Sockets only count when the item is equipped: Σ runeCount {= max-damage | ≤ other modes} slots·selected.
             val capExpr = LinearExpr.newBuilder()
@@ -249,6 +276,45 @@ internal fun CpModel.createRuneModel(
             if (fillSockets) addEquality(capExpr.build(), 0L) else addLessOrEqual(capExpr.build(), 0L)
             runeVars[equip] = perStat
         }
+    }
+    // The count classes ([RuneCountClass]): one count per type per class, `Σ_t m_t = slots · Σ_c x_c`. Grouped in
+    // allEquips order (the first carrier names the class), so the model is JVM-independent.
+    val countClasses = mutableListOf<RuneCountClass>()
+    val classGroups =
+        pendingCounts.groupBy { pc ->
+            Triple(pc.equip.itemType, pc.equip.maxShardSlots, pc.choices.map { (stat, choice) -> Triple(stat, choice.first.id, choice.second) })
+        }
+    for ((key, members) in classGroups) {
+        val slots = key.second
+        val first = members.first()
+        // The most of them one build wears: two rings, one of any other type ([addBuildValidityConstraints]; the same
+        // limit [StatBuilder.reachableSumDomain] reads).
+        val maxWorn = minOf(members.size, if (key.first == ItemType.RING) 2 else 1)
+        val hi = slots.toLong() * maxWorn
+        val vars =
+            first.choices.keys.associateWith { stat ->
+                newIntVar(0, hi, "runeClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+            }
+        val capExpr = LinearExpr.newBuilder()
+        vars.values.forEach { capExpr.addTerm(it, 1L) }
+        members.forEach { capExpr.addTerm(equipVars.getValue(it.equip), -slots.toLong()) }
+        addEquality(capExpr.build(), 0L)
+        for ((stat, choice) in first.choices) {
+            val v = vars.getValue(stat)
+            runeTypeByVar[v] = choice.first
+            coefficientByVar[v] = choice.second
+        }
+        // Same kept choices ⇒ same gates on every member ([MaxDamageRuneReads.choiceGates] reads the choices only).
+        for ((stat, subs) in first.gates) vars[stat]?.let { choiceGates[it] = subs }
+        countClasses +=
+            RuneCountClass(
+                carriers = members.map { it.equip },
+                slots = slots,
+                vars = vars,
+                coefficients = first.choices.mapValues { it.value.second },
+                runeTypes = first.choices.mapValues { it.value.first },
+                maxWorn = maxWorn
+            )
     }
     // Global forced runes must be socketed at least once across the build.
     for (stat in globalForcedRuneStats) {
@@ -292,7 +358,8 @@ internal fun CpModel.createRuneModel(
         maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse,
         choiceGates = choiceGates,
         countCarriers = countCarriers,
-        countVarSlots = countVarSlots
+        countVarSlots = countVarSlots,
+        countClasses = countClasses
     )
 }
 
