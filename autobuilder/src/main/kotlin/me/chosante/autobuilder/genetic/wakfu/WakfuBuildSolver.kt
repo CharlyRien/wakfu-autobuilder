@@ -473,12 +473,12 @@ object WakfuBuildSolver {
     internal val runePickClassesEnabled: Boolean = System.getenv("WAKFU_MD_RUNE_PICK_CLASSES") != "0"
 
     /**
-     * Production aggregates the fold's pick carriers into pick classes only when the per-carrier fold would hold at least this
-     * many such pick vars. Measured on production's 4-core portfolio (E0 / 3-worker harness, GUI-default rows): 14,028 (level
-     * 110) per-carrier ahead (−8 % with classes), 21,007 (140) and 20,632 (free 245) even, 28,287 (170) +6.5 %, 37,457 (200)
-     * +97 %, 47,089 (245) +11 % — docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes".
+     * 1.18.0's size rule for the pick classes (pick classes only on a fold of at least this many per-carrier pick vars, posted
+     * linearly): kept for the A/B harnesses only. Production now aggregates every fold, in the literal encoding
+     * ([createRuneModel]'s `pickClassLinear`): the linear form starved CP-SAT's feasibility pump at level 110, which is why the
+     * per-carrier fold had searched better there (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes and the feasibility pump").
      */
-    internal const val PICK_CLASS_MIN_PICK_VARS: Int = 24_000
+    internal const val PICK_CLASS_MIN_PICK_VARS_1_18: Int = 24_000
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -822,10 +822,11 @@ object WakfuBuildSolver {
         // A/B seam: false gives the search model per-carrier rune counts instead of count classes ([RuneCountClass]).
         val runeCountClasses: Boolean = true,
         // A/B seam: true gives the search model's fold pick carriers PICK classes ([RuneCountClass] with `unit = slots`) — on
-        // any fold of at least [runePickClassMinPickVars] pick vars (0 = always). Production (tuning == null) has them on folds
-        // of [PICK_CLASS_MIN_PICK_VARS] or more; a tuned solve opts in.
+        // any fold of at least [runePickClassMinPickVars] pick vars (0 = always), posted linearly when [runePickClassLinear].
+        // Production (tuning == null) has them on every fold, in the literal encoding; a tuned solve opts in.
         val runePickClasses: Boolean = false,
         val runePickClassMinPickVars: Int = 0,
+        val runePickClassLinear: Boolean = false,
         // Measurement seam (manual harnesses): a WALL-clock limit on top of the det budget, to run production's multi-worker
         // portfolio (non-deterministic: `interleaveSearch` off, several workers). Null = none.
         val maxWallSecondsForTest: Double? = null,
@@ -1049,7 +1050,8 @@ object WakfuBuildSolver {
                             // the classes ([RuneCountClass]) unless switched off.
                             runeCountClasses = !hybridFold && (tuning?.runeCountClasses ?: true),
                             runePickClasses = tuning?.runePickClasses ?: true,
-                            runePickClassMinPickVars = tuning?.runePickClassMinPickVars ?: PICK_CLASS_MIN_PICK_VARS,
+                            runePickClassMinPickVars = tuning?.runePickClassMinPickVars ?: 0,
+                            runePickClassLinear = tuning?.runePickClassLinear ?: false,
                             hardConstraints = hardConstraints,
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
@@ -1823,7 +1825,8 @@ object WakfuBuildSolver {
             // exact): on the restricted pool they collapse to the worn carriers, on the full pool they shrink the model ~6×.
             runeCountClasses = tuning?.runeCountClasses ?: true,
             runePickClasses = tuning?.runePickClasses ?: true,
-            runePickClassMinPickVars = tuning?.runePickClassMinPickVars ?: PICK_CLASS_MIN_PICK_VARS,
+            runePickClassMinPickVars = tuning?.runePickClassMinPickVars ?: 0,
+            runePickClassLinear = tuning?.runePickClassLinear ?: false,
             hardConstraints = hardConstraints
         )
 
@@ -2214,6 +2217,7 @@ object WakfuBuildSolver {
         // one var per rune type. Forced off whenever this build feeds a certificate, like [runeCountClasses].
         runePickClasses: Boolean = false,
         runePickClassMinPickVars: Int = 0,
+        runePickClassLinear: Boolean = false,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -2387,7 +2391,8 @@ object WakfuBuildSolver {
                         !certifyLedgerForTest &&
                         !certifyFastOnlyForTest &&
                         !maxDamageExperiment.certifierCellCap,
-                pickClassMinPickVars = runePickClassMinPickVars
+                pickClassMinPickVars = runePickClassMinPickVars,
+                pickClassLinear = runePickClassLinear
             )
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
@@ -4420,6 +4425,7 @@ object WakfuBuildSolver {
         runeMixedCarriers: Boolean = true,
         runeCountClasses: Boolean = true,
         runePickClasses: Boolean = false,
+        runePickClassLinear: Boolean = false,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -4436,6 +4442,7 @@ object WakfuBuildSolver {
                 runeMixedCarriers = runeMixedCarriers,
                 runeCountClasses = runeCountClasses,
                 runePickClasses = runePickClasses,
+                runePickClassLinear = runePickClassLinear,
                 hardConstraints = hardConstraints,
                 forceFullPool = forceFullPool,
                 maxDamageExperiment = tuning.maxDamageExperiment
