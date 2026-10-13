@@ -126,7 +126,7 @@ solver.
 > with a lower one (or none: saved before the field existed) as **obsolete** — a re-run may find a better build or score —
 > beside the game-data reason (`HistoryEntry.dataVersion` ≠ `WakfuData.VERSION`). It is a plain constant, NOT in
 > `WakfuBuildSolver` (whose init loads OR-Tools), so the GUI reads it for free. `EngineResultsVersionTest` locks the pair
-> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump.
+> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump. Bump at most once per release: if the constant's current value is higher than the one in the latest release tag (`git show <tag>:<file>`), it has not shipped yet, so reuse it and extend its history entry. Otherwise take the next number. (For `CERTIFIER_VERSION`, see the disk-cache caveat below.)
 
 > A genetic-algorithm engine used to be selectable via a `WakfuSolver` enum. **It has been removed —
 > OR-Tools is the only solver.** Any reference to a GA, a `WakfuSolver` enum / solver toggle, or
@@ -392,7 +392,7 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
 - **`CERTIFIER_VERSION` (`WakfuBuildSolver.kt`) must be bumped on ANY certifier change** (fast pass,
   exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
   cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a
-  stale (possibly now-unsound) one.
+  stale (possibly now-unsound) one. Bump at most once per release: if the constant's current value is higher than the one in the latest release tag (`git show <tag>:<file>`), it has not shipped yet, so reuse it and extend its history entry. Otherwise take the next number. Reusing an unreleased `CERTIFIER_VERSION` is sound only if the change cannot make a bound cached on DISK by an earlier build of the same number (`MaxDamageCertificateDiskCache`, keyed on the data version and this constant) too LOW: it only removes builds, tightens a pass, or leaves every bound identical. A change that RAISES the optimum a bound must cover (relaxes the model, makes more builds legal, loosens a pass) takes the next number even when unreleased.
 - **Hard-leg results get a TARGET-AWARE ledger (CERTIFIER_VERSION 52).** A result of the hard-constraints leg
   (`SolverResult.maxDamageHardConstraintsMet`) of a request with a positive AP / MP / CC / RANGE row is compared with a
   ledger that enforces those rows in every pass (`StatBuilder.certifierTargetAware`; each filter reads a sound
@@ -400,6 +400,54 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   flag is part of the certificate cache key (memory and disk); soft-leg and free results keep the target-blind ledger.
   Kill switch `WAKFU_MD_TARGET_AWARE=0`; locks in `MaxDamageTargetAwareCertificateTest` (oracle: the pinned hard-leg
   CP-SAT optimum per AP cell).
+- **Rune fold vs mixed items (CERTIFIER_VERSION 62, ENGINE_RESULTS_VERSION 6).** Max-damage fills a socketed item with ONE rune type (a pick
+  bool per type) — exact only while every reader of a rune is linear in its count. A threshold read breaks it: a
+  `secondary ≤ 0` cap with a budget (an item's NEGATIVE line of that secondary), a forced condition, a required row or
+  floor (keyed per rune type: an "all resistances" row reads the four resistance runes; a negative aggregate line lowers
+  all four), the survivability floor, a ramp, an item STAT GATE of the pool (`statGateRuneReads`: distance mastery,
+  lock and dodge gates read the out-of-combat sheet, runes included — also opaque to the collapse's Pareto pruning)
+  (`MaxDamageRuneReads.mixedStats`; the full reader list is in `docs/MIXED_RUNE_SECONDARY_BUDGET.md`). A carrier
+  offering such a type keeps per-type COUNTS
+  (`RuneModel.countCarriers`); the certificate reads each of its types at its full-fill vertex, which bounds every mixed
+  fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
+  `mixedStats`. Kill switch (A/B only) `WAKFU_MD_MIXED_RUNES=0` (everything on the inexact fold). The plain per-carrier
+  counts slowed the search where every rune type is a threshold read (the GUI default); two exact remedies work together
+  (`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "Integration"):
+  - **Count CLASSES** (`RuneCountClass`): every COUNT model the search builds aggregates interchangeable count carriers
+    (same item type, socket count and rune choices) into one count per type per class — exact, every rune reader reads class
+    sums; `RuneCountClass.distribute` splits them back per worn carrier in `solutionToBuild`. ~6× smaller model at the GUI
+    default. The certificates never see a class: a model built for one keeps per-carrier counts, and the certifier bails on a
+    model with classes. Kill switch `WAKFU_MD_RUNE_CLASSES=0`, tuned seam `SolverTuning.runeCountClasses`.
+  - **The HYBRID** (`WakfuBuildSolver.mixedRuneHybrid`, kill switch `WAKFU_MD_MIXED_HYBRID=0` = the count model searched
+    directly, tuned opt-in `SolverTuning.mixedRuneHybrid`). The plain fold searches (its would-be count carriers recorded in
+    `RuneModel.foldInexactCarriers`; its pick carriers in PICK classes on a large fold, below; its choice collapse pruned WITHOUT the item stat gates, as v61 —
+    `foldSearchReads` — every carrier that changes recorded too) on the budget minus a 2 s polish reserve. The count model —
+    with classes — re-solves the fold's final items (sublimations pinned, then free), verifies a PROVEN fold optimum on the
+    full pool, and takes over a fold proven INFEASIBLE. Never trust a fold's `OPTIMAL` / `INFEASIBLE` where
+    `foldInexactCarriers` is non-empty: only the count model stamps `isOptimal`. The fold stage is a heuristic: anything that
+    only REMOVES builds from it is sound as long as the carriers it changes are recorded.
+  - **PICK classes** (`RuneCountClass` with `unit = slots`): the fold's multi-choice PICK carriers sharing an item type, a socket
+    count and their rune choices hold one var per type per class — the number of its worn carriers filled with that type
+    (`Σ_t q_t = Σ_c x_c`), exact like the count classes, never in a certificate's model. Production builds them only where the
+    per-carrier fold would hold ≥ `WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS` (24,000) such pick vars: the GUI-default hard leg
+    from level ~170 (MD200 first CP-SAT solution and final build ~2× better), never at 110 or on the free requests, where the
+    per-carrier fold searched better on the 3-worker portfolio. Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`, tuned seam
+    `SolverTuning.runePickClasses` / `runePickClassMinPickVars`. Lock `RunePickClassTest`. Why the GUI-default hard leg got slow
+    after 1.14.2 (the stat gates broke the greedy hint's completion, the floors and gates grew the model; the old builds were
+    illegal anyway: a nation sword without its ring): `docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The hard leg since 1.14.2".
+  Wall clock (E0, 60 s, 4 pinned cores, 2026-10-12; the doc's "Wall clock"): the shipped default is at or above main (v61) on
+  all four fixtures — medians MD110 1,447,330 vs 1,427,130, MD200 5,654,520 vs 3,127,275, MD245 15,261,015 vs 14,191,200,
+  MD245F 20,276,070 vs 19,643,625 — with a level-245 badge where main has none. Searching the class model directly
+  (`WAKFU_MD_MIXED_HYBRID=0`) leads at MD200 / MD245 and loses at MD110 / MD245F; no shape rule ships. The gate reads change
+  nothing in the GUI-default (general-fold) model; measure A/Bs on a calm machine — a CPU-shared session once showed a 2×
+  regression that did not reproduce. Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat
+  count model, `forceRuneCountModel`; the hybrid's count stages on classes), `RuneCountClassTest` (classes = per-carrier =
+  count model; identical domains).
+- **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
+  skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,
+  `worldPruneOrder`); the production cascade first probes the top world's exact pass on tier-1's step-8 rows and skips
+  tier-1.5 for a cell that probe already puts above the incumbent. Both keep every reported bound and the argmax
+  provenance identical (locks in `WakfuBuildSolverTest`); measured in `docs/CERTIFICATE_PROD_PLAN.md` P7.
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
   pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +

@@ -5102,7 +5102,10 @@ class WakfuBuildSolverTest {
      * (world, crit-step) provenance — pruning may only ever change how many DPs run. Each fixture is driven at
      * `incumbent = argmax − 1` (the rescue shape: the argmax survivor cannot be cleared by tier-1.5, so its
      * exact pass runs WITH the free bounds). Locked over the coupling panel (conversion / Critical-Secret /
-     * budget-sub worlds) plus seeded fuzz shapes, and the pruning must actually FIRE.
+     * budget-sub worlds) plus seeded fuzz shapes, and the pruning must actually FIRE. The CROSS-WORLD floor (a world
+     * skips the steps its row puts below a value another world of the cell reached; worlds queued by descending bound)
+     * rides the same switch and is locked the same way — serial and parallel exact tier, at the rescue incumbent and a
+     * weak one — and must fire too.
      */
     @Test
     fun `exact c-loop pruning is value- and provenance-identical to the unpruned loop`() {
@@ -5112,6 +5115,7 @@ class WakfuBuildSolverTest {
                 for (iteration in 0 until 4) add(fuzzScenario(iteration))
             }
         CertifierTuning.cPruneSkippedForTest.set(0)
+        CertifierTuning.cPruneCrossWorldSkippedForTest.set(0)
         try {
             for ((i, fixture) in fixtures.withIndex()) {
                 val (params, pool, subs) = fixture
@@ -5120,23 +5124,116 @@ class WakfuBuildSolverTest {
                     WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, forceTier2All = true)
                 val max = reference.maxCellObjective ?: continue
                 if (max <= 1L) continue // degenerate fixture — no exact work to prune
-                val incumbent = max - 1 // the rescue shape: the argmax survivor must be confirmed exactly
-                CertifierTuning.cLoopPruneEnabled = true
-                val pruned =
-                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, incumbentObjective = incumbent)
-                CertifierTuning.cLoopPruneEnabled = false
-                val plain =
-                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, incumbentObjective = incumbent)
-                // CertLedger is a value type: this compares every cell bound, tier sets AND cellProvenance
-                // (the winning world/crit-step per exact cell) in one shot.
-                assertThat(pruned).describedAs("fixture $i: the pruned ledger is byte-identical to the plain one").isEqualTo(plain)
-                assertThat(pruned.tier2Cells).describedAs("fixture $i: the rescue shape exercises the exact tier").isNotEmpty
+                // The rescue shape (max − 1: the argmax survivor must be confirmed exactly) and a weak incumbent (more
+                // survivors, so the exact tier runs several cells — in parallel too).
+                for (incumbent in listOf(max - 1, max * 9 / 10)) {
+                    // threads = 1: the serial per-cell world loop; threads = 4: the parallel (cell × world) queue, whose
+                    // cross-world floor is shared live between running worlds.
+                    for (threads in listOf(1, 4)) {
+                        CertifierTuning.cLoopPruneEnabled = true
+                        val pruned =
+                            WakfuBuildSolver.certifyLedgerForTest(
+                                params,
+                                pool,
+                                sublimations = subs,
+                                applyDomination = false,
+                                incumbentObjective = incumbent,
+                                threads = threads
+                            )
+                        CertifierTuning.cLoopPruneEnabled = false
+                        val plain =
+                            WakfuBuildSolver.certifyLedgerForTest(
+                                params,
+                                pool,
+                                sublimations = subs,
+                                applyDomination = false,
+                                incumbentObjective = incumbent,
+                                threads = threads
+                            )
+                        // CertLedger is a value type: this compares every cell bound, tier sets AND cellProvenance
+                        // (the winning world/crit-step per exact cell) in one shot.
+                        assertThat(pruned)
+                            .describedAs("fixture $i incumbent $incumbent threads $threads: the pruned ledger is byte-identical to the plain one")
+                            .isEqualTo(plain)
+                        assertThat(pruned.tier2Cells).describedAs("fixture $i: the rescue shape exercises the exact tier").isNotEmpty
+                    }
+                }
             }
         } finally {
             CertifierTuning.cLoopPruneEnabled = true
         }
         assertThat(CertifierTuning.cPruneSkippedForTest.get())
             .describedAs("the pruning must actually skip crit steps somewhere across the fixtures (else this lock is vacuous)")
+            .isGreaterThan(0L)
+        assertThat(CertifierTuning.cPruneCrossWorldSkippedForTest.get())
+            .describedAs("the cross-world floor must actually skip crit steps somewhere across the fixtures (else this lock is vacuous)")
+            .isGreaterThan(0L)
+    }
+
+    /**
+     * Cascade exact-first probe lock (production badge path, `cascadeTier15 = true`): before paying a survivor's
+     * tier-1.5 pass, the cascade runs the exact pass of its most promising world on tier-1's step-8 rows; when that
+     * one world already beats the incumbent the cell cannot be cleared, so tier-1.5 is skipped and the cell is
+     * confirmed exactly on the tier-1 rows. The invariant: every BOUND the ledger reports is the plain cascade's —
+     * per-cell objectives, exact cells, bailed cells, the fast array and the argmax provenance. Only the superseded
+     * tier-1.5 value of a probed cell may be missing. Driven at the optimum (the probe stays below: plain path, probed
+     * world reused), just below it (the rescue shape) and at a weak incumbent; serial and parallel exact tier. The
+     * probe must actually skip tier-1.5 somewhere.
+     */
+    @Test
+    fun `cascade exact-first probe reports the plain cascade's bounds`() {
+        val fixtures =
+            buildList {
+                add(couplingPanel())
+                for (iteration in 0 until 4) add(fuzzScenario(iteration))
+            }
+        val skippedBefore = CertifierTuning.exactFirstProbeSkippedTier15ForTest.get()
+        try {
+            for ((i, fixture) in fixtures.withIndex()) {
+                val (params, pool, subs) = fixture
+                val reference =
+                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, forceTier2All = true)
+                val max = reference.maxCellObjective ?: continue
+                if (max <= 1L) continue
+                for (incumbent in listOf(max, max - 1, max * 9 / 10)) {
+                    for (threads in listOf(1, 4)) {
+                        fun ledger(probe: Boolean): CertLedger {
+                            CertifierTuning.exactFirstProbeEnabled = probe
+                            return checkNotNull(
+                                WakfuBuildSolver.maxDamageCertificate(
+                                    params,
+                                    pool,
+                                    sublimations = subs,
+                                    applyDomination = false,
+                                    incumbentObjective = incumbent,
+                                    threads = threads,
+                                    threadsProvider = { threads },
+                                    cascadeTier15 = true
+                                )
+                            ) { "fixture $i: the cascade ledger must not bail" }
+                        }
+                        val probed = ledger(probe = true)
+                        val plain = ledger(probe = false)
+                        val label = "fixture $i incumbent $incumbent threads $threads"
+                        assertThat(probed.cellObjectives).describedAs("$label: per-cell bounds").isEqualTo(plain.cellObjectives)
+                        assertThat(probed.maxCellObjective).describedAs("$label: the ledger max").isEqualTo(plain.maxCellObjective)
+                        assertThat(probed.tier2Cells).describedAs("$label: exact cells").isEqualTo(plain.tier2Cells)
+                        assertThat(probed.bailedCells).describedAs("$label: bailed cells").isEqualTo(plain.bailedCells)
+                        assertThat(probed.exactBailedCells).describedAs("$label: exact-bailed cells").isEqualTo(plain.exactBailedCells)
+                        assertThat(probed.fastObjectives).describedAs("$label: the fast array").isEqualTo(plain.fastObjectives)
+                        assertThat(probed.cellProvenance).describedAs("$label: the argmax provenance").isEqualTo(plain.cellProvenance)
+                        // A probed cell skips tier-1.5; every tier-1.5 value it DID compute is the plain cascade's.
+                        for ((cell, t15) in probed.tier15Objectives) {
+                            assertThat(t15).describedAs("$label cell $cell: tier-1.5 value").isEqualTo(plain.tier15Objectives[cell])
+                        }
+                    }
+                }
+            }
+        } finally {
+            CertifierTuning.exactFirstProbeEnabled = true
+        }
+        assertThat(CertifierTuning.exactFirstProbeSkippedTier15ForTest.get() - skippedBefore)
+            .describedAs("the probe must actually confirm a cell without tier-1.5 somewhere (else this lock is vacuous)")
             .isGreaterThan(0L)
     }
 
@@ -5197,6 +5294,79 @@ class WakfuBuildSolverTest {
         assertThat(CertifierTuning.tier15SegmentsSkippedForTest.get())
             .describedAs("the segment skip must actually fire somewhere across the fixtures (else this lock is vacuous)")
             .isGreaterThan(0L)
+    }
+
+    /**
+     * Cascade reconstruction lock: the post-search proof (cascade, the FINAL incumbent) arrives after the search-time
+     * warm-up's cascade (same shape, an earlier, weaker incumbent) and must read its ledger from the cache whenever the
+     * cascade would run no DP — and then report what a fresh cascade would: the same cells above the incumbent with the
+     * same values (exact confirms, fast bounds of the cells the cascade never reached) and the same verdict. Cells at or
+     * below the incumbent may carry a different sound tier-1.5 value (its segment skip is incumbent-relative), which
+     * never moves the verdict.
+     */
+    @Test
+    fun `cascade reconstruction from a weaker incumbent's cascade matches a fresh cascade`() {
+        val fixtures =
+            buildList {
+                add(couplingPanel())
+                for (iteration in 0 until 4) add(fuzzScenario(iteration))
+            }
+        var reconstructed = 0
+        try {
+            for ((i, fixture) in fixtures.withIndex()) {
+                val (params, pool, subs) = fixture
+                val reference =
+                    WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = false, forceTier2All = true)
+                val max = reference.maxCellObjective ?: continue
+                if (max <= 1L) continue
+                for ((weak, strong) in listOf(max * 8 / 10 to max * 9 / 10, max * 9 / 10 to max - 1, max * 9 / 10 to max)) {
+                    fun cached(incumbent: Long) =
+                        checkNotNull(
+                            MaxDamageCertificateCache.certificate(
+                                params,
+                                pool,
+                                emptyList(),
+                                subs,
+                                applyDomination = false,
+                                incumbentObjective = incumbent,
+                                threads = 1,
+                                cascadeTier15 = true
+                            )
+                        )
+                    MaxDamageCertificateCache.clear()
+                    cached(weak)
+                    val computes0 = MaxDamageCertificateCache.computeCountForTest.get()
+                    val recon = cached(strong)
+                    if (MaxDamageCertificateCache.computeCountForTest.get() == computes0) reconstructed++
+                    val fresh =
+                        checkNotNull(
+                            WakfuBuildSolver.maxDamageCertificate(
+                                params,
+                                pool,
+                                sublimations = subs,
+                                applyDomination = false,
+                                incumbentObjective = strong,
+                                threads = 1,
+                                cascadeTier15 = true
+                            )
+                        )
+                    val label = "fixture $i incumbents $weak -> $strong"
+                    assertThat(recon.cellObjectives.filterValues { it > strong })
+                        .describedAs("$label: the cells above the incumbent")
+                        .isEqualTo(fresh.cellObjectives.filterValues { it > strong })
+                    assertThat((recon.maxCellObjective ?: Long.MAX_VALUE) > strong)
+                        .describedAs("$label: the verdict")
+                        .isEqualTo((fresh.maxCellObjective ?: Long.MAX_VALUE) > strong)
+                    assertThat(recon.fastObjectives).describedAs("$label: the fast array").isEqualTo(fresh.fastObjectives)
+                    for ((cell, obj) in recon.cellObjectives) {
+                        assertThat(obj).describedAs("$label cell $cell: bound ≤ fast").isLessThanOrEqualTo(recon.fastObjectives.getValue(cell))
+                    }
+                }
+            }
+        } finally {
+            MaxDamageCertificateCache.clear()
+        }
+        assertThat(reconstructed).describedAs("the cascade reconstruction must actually serve a later proof somewhere").isGreaterThan(0)
     }
 
     /**

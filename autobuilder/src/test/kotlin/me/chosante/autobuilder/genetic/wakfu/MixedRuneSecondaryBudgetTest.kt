@@ -1,0 +1,959 @@
+package me.chosante.autobuilder.genetic.wakfu
+
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
+import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.common.Character
+import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
+import me.chosante.common.Equipment
+import me.chosante.common.I18nText
+import me.chosante.common.ItemEquipCriterion
+import me.chosante.common.ItemStatGate
+import me.chosante.common.ItemType
+import me.chosante.common.Rarity
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationRarity
+import me.chosante.common.skills.CharacterSkills
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * CERTIFIER_VERSION 62: the max-damage single-type rune fold under a positive secondary budget. A `≤ 0` cap (the
+ * Neutralité family holds EACH secondary mastery ≤ 0) does not rule out a part-filled item: an item's NEGATIVE line of a
+ * capped secondary leaves that stat a budget a MIXED item fills — some sockets of the secondary rune, the rest elemental
+ * — where no single type fits. The all-or-nothing fold (≤ v61) filled every item with one type, so it missed that optimum and CP-SAT's
+ * `OPTIMAL` over it was a wrong badge. The fold now keeps per-type COUNTS on the carriers that can need a mix
+ * ([MaxDamageRuneReads.mixedStats], [RuneModel.countCarriers]); the per-stat COUNT model (`forceRuneCountModel`) is the
+ * exact reference. The AP-cell certificate reads a count carrier's types at their full-fill vertices, which bound every
+ * mixed fill: it must stay ≥ the count-model optimum.
+ */
+class MixedRuneSecondaryBudgetTest {
+    private val runes = WakfuBestBuildFinderAlgorithm.runes
+    private val catalog = WakfuBestBuildFinderAlgorithm.sublimations
+
+    private fun sub(fr: String) = catalog.single { it.name.fr == fr }
+
+    private val neutralite = sub("Neutralité III")
+    private val caps = listOf("Neutralité III", "Prétention III", "Ambition III", "Inflexibilité II").map(::sub)
+    private val critSecret = sub("Secret critique")
+    private val unraveling = sub("Dénouement")
+
+    private val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, maxDeterministicTime = 60.0, interleaveSearch = true)
+
+    private fun params(
+        level: Int,
+        scenario: DamageScenario,
+        targets: List<TargetStat> = listOf(TargetStat(scenario.rangeBand.masteryCharacteristic, 1)),
+        forcedSubs: List<String> = emptyList(),
+    ) = WakfuBestBuildParams(
+        character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+        targetStats = TargetStats(targets),
+        searchDuration = 60.seconds,
+        stopWhenBuildMatch = false,
+        maxRarity = Rarity.EPIC,
+        forcedItems = emptyList(),
+        excludedItems = emptyList(),
+        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+        damageScenario = scenario,
+        useRunes = true,
+        useSublimations = true,
+        forcedSublimations = forcedSubs
+    )
+
+    private fun item(
+        id: Int,
+        type: ItemType,
+        level: Int,
+        stats: Map<Characteristic, Int>,
+        sockets: Int = 4,
+        gates: List<ItemStatGate> = emptyList(),
+    ) = Equipment(
+        equipmentId = id,
+        guiId = id,
+        level = level,
+        name = I18nText("mr$id", "mr$id", "", ""),
+        rarity = Rarity.LEGENDARY,
+        itemType = type,
+        characteristics = stats,
+        maxShardSlots = sockets,
+        equipCriterion = if (gates.isEmpty()) null else ItemEquipCriterion(itemId = id, raw = "test gate", statGates = gates)
+    )
+
+    private fun solve(
+        p: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        subs: List<Sublimation>,
+        count: Boolean = false,
+        mixed: Boolean = true,
+        hard: Boolean = false,
+    ) = WakfuBuildSolver.maxDamageSolveForTest(
+        p,
+        pool,
+        tuning,
+        tightDomains = true,
+        runes = runes,
+        sublimations = subs,
+        forceRuneCountModel = count,
+        hardConstraints = hard,
+        runeMixedCarriers = mixed
+    )
+
+    private val melee = Characteristic.MASTERY_MELEE
+    private val back = Characteristic.MASTERY_BACK
+
+    /**
+     * The minimal repro (delta-debugged from seed 9 of the measurement fuzz): CRA 245 fire / melee / back, Neutralité III
+     * choosable, four socketed items whose melee (−102, −58) and rear (−214) lines give the cap a melee budget of 160 and a
+     * rear budget of 214. Melee and rear runes are worth 3/2 of an elemental one (33 vs 22 at rune level 11) but come in
+     * whole items of 4 × 33 = 132 under the fold: one item of each leaves 28 melee and 82 rear unspent (the skill points
+     * absorb part of it, at the cost of what they buy elsewhere). The optimum fills the budgets with part-filled items.
+     * The all-or-nothing fold (≤ v61): 1,382,985. Count model and the fixed fold: 1,408,170 (+1.82 %). (Written against
+     * 1,320,570 / 1,328,235: since CERTIFIER_VERSION 61 Neutralité III stacks to its family level 4, +32 % DI instead of 24.)
+     */
+    private val reproLevel = 245
+    private val reproScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.BACK)
+    private val reproPool =
+        listOf(
+            item(810_001, ItemType.HELMET, 236, mapOf(Characteristic.MASTERY_ELEMENTARY to 414, melee to -102)),
+            item(810_002, ItemType.BELT, 219, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 365, back to -214)),
+            item(810_003, ItemType.CHEST_PLATE, 215, mapOf(Characteristic.MASTERY_ELEMENTARY to 369)),
+            item(810_004, ItemType.RING, 208, mapOf(Characteristic.MASTERY_ELEMENTARY to 159, melee to -58))
+        ).groupBy { it.itemType }
+
+    @Test
+    fun `a part-filled item under a negative secondary budget is the optimum the fold now reaches`() {
+        val p = params(reproLevel, reproScenario)
+        val subs = listOf(neutralite)
+        val oldFold = solve(p, reproPool, subs, mixed = false)
+        val count = solve(p, reproPool, subs, count = true)
+        val fixed = solve(p, reproPool, subs)
+        println("MIXED_REPRO oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+        for ((label, outcome) in listOf("all-or-nothing fold" to oldFold, "count model" to count, "fixed fold" to fixed)) {
+            assertThat(outcome.isOptimal).describedAs("the %s proves its optimum", label).isTrue()
+        }
+        // The mechanism: the all-or-nothing fill proves a value below the real optimum (a wrong "Optimal proven").
+        assertThat(oldFold.objective).describedAs("the all-or-nothing fold (≤ v61) misses the part-filled optimum").isEqualTo(1_382_985L)
+        assertThat(count.objective).describedAs("the exact count-model optimum").isEqualTo(1_408_170L)
+        assertThat(fixed.objective).describedAs("the fold with count carriers reaches the count optimum").isEqualTo(count.objective)
+
+        // The exported build takes Neutralité III and mixes rune types on at least one item, every secondary ≤ 0.
+        val result =
+            runBlocking {
+                WakfuBuildSolver.optimize(p, reproPool, runes, subs, tuning).toList().last()
+            }
+        assertThat(result.isOptimal).isTrue()
+        val build = result.individual
+        // Socketed shards carry their stack level (CERTIFIER_VERSION 61): compare the family.
+        assertThat(
+            build.sublimations.values
+                .flatten()
+                .map { it.stateId }
+        ).contains(neutralite.stateId)
+        val mixedItems = build.runes.filterValues { r -> r.map { it.characteristic }.distinct().size > 1 }
+        println("MIXED_REPRO runes=${build.runes.map { (e, r) -> e.itemType to r.map { it.characteristic } }}")
+        assertThat(mixedItems).describedAs("some item carries more than one rune type").isNotEmpty
+        for ((equip, r) in build.runes) assertThat(r).describedAs("%s fills every socket", equip.itemType).hasSize(equip.maxShardSlots)
+
+        // Every AP cell of every certificate tier bounds the count model pinned to that cell.
+        val (exact, fast, tier15) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(p, reproPool, runes, subs)
+        var cells = 0
+        for (ap in exact.keys.sorted()) {
+            val pinned = solve(p.copy(maxDamageApTarget = ap), reproPool, subs, count = true)
+            if (!pinned.hasSolution) continue
+            assertThat(pinned.isOptimal).describedAs("AP=%d: the count model proves its cell", ap).isTrue()
+            cells++
+            for ((tier, bound) in listOf("exact" to exact.getValue(ap), "fast" to fast.getValue(ap), "tier1.5" to tier15.getValue(ap))) {
+                assertThat(bound).describedAs("AP=%d: %s must certify this shape", ap, tier).isLessThan(Long.MAX_VALUE).isGreaterThanOrEqualTo(0L)
+                assertThat(bound).describedAs("AP=%d: %s must bound the mixed-rune optimum", ap, tier).isGreaterThanOrEqualTo(pinned.objective)
+            }
+        }
+        assertThat(cells).isGreaterThan(0)
+    }
+
+    /**
+     * The same flaw without any sublimation: a required HP row is a threshold too. CRA 50, three 4-socket items of 300
+     * fire mastery, an HP row of 850 the skills and items fall just short of: one HP rune tops it up, the fold sold HP
+     * runes only by the whole item. oldFold: 117,000 (hard leg); count model and the fixed fold: 117,500 — on the soft leg too
+     * (117,000,000,000 vs 117,500,000,000, the soft objective's scale). A GUI-default request (HP 2000) has this shape.
+     */
+    @Test
+    fun `a required HP row is a threshold a part-filled item tops up`() {
+        val level = 50
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val pool =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(820_001 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)) }
+                .groupBy { it.itemType }
+        val p =
+            params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
+                .copy(useSublimations = false)
+        for ((hard, expectedV56, expected) in listOf(Triple(true, 117_000L, 117_500L), Triple(false, 117_000_000_000L, 117_500_000_000L))) {
+            val oldFold = solve(p, pool, emptyList(), mixed = false, hard = hard)
+            val count = solve(p, pool, emptyList(), count = true, hard = hard)
+            val fixed = solve(p, pool, emptyList(), hard = hard)
+            println("MIXED_HP hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+            for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).isTrue()
+            assertThat(oldFold.objective).describedAs("hard=%s: the all-or-nothing fold (≤ v61) misses the topped-up build", hard).isEqualTo(expectedV56)
+            assertThat(count.objective).describedAs("hard=%s: the count optimum", hard).isEqualTo(expected)
+            assertThat(fixed.objective).describedAs("hard=%s: the fold with count carriers reaches it", hard).isEqualTo(expected)
+        }
+        // The target-aware certificate (the hard leg's) never reads HP: it bounds the topped-up build.
+        val ledger = WakfuBuildSolver.certifyLedgerForTest(p, pool, runes, emptyList(), forceTier2All = true, targetAware = true)
+        assertThat(ledger.maxCellObjective!!).isGreaterThanOrEqualTo(117_500L)
+    }
+
+    @Test
+    fun `only a threshold read with a budget makes a rune type mixed`() {
+        val distance = Characteristic.MASTERY_DISTANCE
+        val crit = Characteristic.MASTERY_CRITICAL
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK)
+        val p = params(230, scenario)
+        val choosable = maxDamageRuneReads(p, caps + critSecret, emptySet())
+        // No source can make a secondary negative: a taken cap holds its runes at 0 — the fold stays exact.
+        assertThat(choosable.mixedStats(emptySet())).isEmpty()
+        // A negative rear line: rear runes have a budget (and feed M). Distance has none.
+        assertThat(choosable.mixedStats(setOf(back))).containsExactly(back)
+        // A negative crit line alone buys nothing: under `crit ≤ 0` a crit rune is clamped out of Graw…
+        assertThat(choosable.mixedStats(setOf(crit, distance))).containsExactly(distance)
+        // …unless a conversion moves crit mastery into M (Unraveling).
+        val converting = maxDamageRuneReads(p, caps + unraveling, emptySet())
+        // (Unraveling's own `crit rate ≤ 10` condition is a threshold too — no rune feeds crit rate, so it never matters.)
+        assertThat(converting.mixedStats(setOf(crit))).contains(crit).doesNotContain(distance, back)
+        // A FORCED cap may be broken on purpose: every stat it reads is mixed, budget or not.
+        val forced = maxDamageRuneReads(params(230, scenario, forcedSubs = listOf("Neutralité III")), listOf(neutralite), emptySet())
+        assertThat(forced.mixedStats(emptySet())).contains(distance, back, crit)
+        // A required row with a positive target is a threshold; a 0-target row on a stat nothing makes negative is not.
+        val rows =
+            maxDamageRuneReads(
+                params(230, scenario, targets = listOf(TargetStat(distance, 1), TargetStat(Characteristic.HP, 2000), TargetStat(Characteristic.DODGE, 0))),
+                emptyList(),
+                emptySet()
+            )
+        assertThat(rows.mixedStats(emptySet())).containsExactly(Characteristic.HP)
+        assertThat(rows.mixedStats(setOf(Characteristic.DODGE))).containsExactlyInAnyOrder(Characteristic.HP, Characteristic.DODGE)
+        // Nothing modelled reads a threshold: the pure fold.
+        assertThat(maxDamageRuneReads(p, emptyList(), emptySet()).mixedStats(setOf(back, distance, crit))).isEmpty()
+    }
+
+    /**
+     * The AP-cell mirror reads a count carrier's types at their full-fill VERTICES — exactly the options oldFold's picks gave
+     * the same carriers. So on every pool the certificate with count carriers equals, cell for cell and tier for tier
+     * (the capped aux worlds included), the one over oldFold's picks: a vertex read short (one rune instead of a full fill)
+     * would under-value a count carrier wherever a capped world binds.
+     */
+    @Test
+    fun `the certificate reads a count carrier at the same vertices as the picks it replaces`() {
+        val cases =
+            listOf(Case("repro", params(reproLevel, reproScenario), reproPool, listOf(neutralite))) +
+                listOf(9L, 23L, 30L).flatMap { seed -> listOf(case(seed, false, false), case(seed, true, false), case(seed, false, true)) }
+        var auxCells = 0
+        for (c in cases) {
+            for (targetAware in listOf(false, true)) {
+                val now = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(c.params, c.pool, runes, c.subs, targetAware = targetAware)
+                val oldFold =
+                    WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(
+                        c.params,
+                        c.pool,
+                        runes,
+                        c.subs,
+                        targetAware = targetAware,
+                        runeMixedCarriers = false
+                    )
+                assertThat(now.first).describedAs("%s target-aware=%s: exact", c.label, targetAware).isEqualTo(oldFold.first)
+                assertThat(now.second).describedAs("%s target-aware=%s: fast", c.label, targetAware).isEqualTo(oldFold.second)
+                assertThat(now.third).describedAs("%s target-aware=%s: tier-1.5", c.label, targetAware).isEqualTo(oldFold.third)
+                val (_, aux) = WakfuBuildSolver.certifierFastAndAuxCellObjectivesForTest(c.params, c.pool, runes, c.subs, targetAware = targetAware)
+                val (_, auxOld) =
+                    WakfuBuildSolver.certifierFastAndAuxCellObjectivesForTest(
+                        c.params,
+                        c.pool,
+                        runes,
+                        c.subs,
+                        targetAware = targetAware,
+                        runeMixedCarriers = false
+                    )
+                assertThat(aux).describedAs("%s target-aware=%s: the capped / aux worlds", c.label, targetAware).isEqualTo(auxOld)
+                auxCells += aux.values.count { it in 0 until Long.MAX_VALUE }
+            }
+        }
+        // The capped world must actually be priced on these pools, or the lock reads nothing.
+        assertThat(auxCells).isGreaterThan(0)
+    }
+
+    // ---- Seeded lock --------------------------------------------------------------------------------------------
+
+    private class Case(
+        val label: String,
+        val params: WakfuBestBuildParams,
+        val pool: Map<ItemType, List<Equipment>>,
+        val subs: List<Sublimation>,
+    )
+
+    /**
+     * Small negative-biased pools (the measurement fuzz's generator): socketed items near the character level, scenario
+     * secondaries and crit mastery mostly NEGATIVE (a budget for the cap), part of the Neutralité family with Critical
+     * Secret / Unraveling, choosable or one forced, free or with AP / MP / RANGE / CC rows.
+     */
+    private fun case(
+        seed: Long,
+        forced: Boolean,
+        rows: Boolean,
+    ): Case {
+        val rng = java.util.Random(seed * 1_000_003L + 17L)
+        val level = listOf(110, 170, 200, 230, 245)[rng.nextInt(5)]
+        val range = if (rng.nextBoolean()) RangeBand.DISTANCE else RangeBand.MELEE
+        val orientation = if (rng.nextBoolean()) Orientation.BACK else Orientation.FACE
+        val berserk = rng.nextInt(4) == 0
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = range, orientation = orientation, berserk = berserk)
+        val scenarioSecondaries =
+            buildList {
+                add(range.masteryCharacteristic)
+                if (orientation.grantsRearMastery) add(back)
+                if (berserk) add(Characteristic.MASTERY_BERSERK)
+            }
+        var id = 900_000 + (seed % 5_000).toInt() * 40
+
+        fun drawn(type: ItemType): Equipment {
+            val stats = mutableMapOf<Characteristic, Int>()
+            stats[if (rng.nextInt(3) == 0) Characteristic.MASTERY_ELEMENTARY else Characteristic.MASTERY_ELEMENTARY_FIRE] = 60 + rng.nextInt(400)
+            for (s in scenarioSecondaries) {
+                if (rng.nextInt(10) < 4) stats[s] = if (rng.nextInt(5) == 0) rng.nextInt(80) else -(10 + rng.nextInt(250))
+            }
+            if (rng.nextInt(10) < 3) stats[Characteristic.MASTERY_CRITICAL] = if (rng.nextInt(4) == 0) rng.nextInt(80) else -(10 + rng.nextInt(200))
+            if (rng.nextInt(10) < 4) stats[Characteristic.CRITICAL_HIT] = rng.nextInt(15) - 3
+            if (rng.nextInt(10) < 2) stats[Characteristic.ACTION_POINT] = 1
+            if (rng.nextInt(10) < 2) stats[Characteristic.MOVEMENT_POINT] = 1
+            if (rng.nextInt(10) < 2) stats[Characteristic.RANGE] = 1
+            if (rng.nextInt(8) == 0) stats[Characteristic.DAMAGE_INFLICTED] = 5 + rng.nextInt(10)
+            id++
+            return item(id, type, maxOf(1, level - rng.nextInt(60)), stats.filterValues { it != 0 }, listOf(2, 3, 4, 4, 4)[rng.nextInt(5)])
+        }
+        val slots =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.SHOULDER_PADS, ItemType.BOOTS, ItemType.AMULET, ItemType.CAPE, ItemType.BELT)
+                .shuffled(rng)
+                .take(3 + rng.nextInt(3))
+        val items = mutableListOf<Equipment>()
+        for (slot in slots) repeat(2) { items += drawn(slot) }
+        if (rng.nextBoolean()) repeat(2) { items += drawn(ItemType.RING) }
+        if (rng.nextBoolean()) items += drawn(ItemType.ONE_HANDED_WEAPONS)
+        val family = caps.filter { rng.nextBoolean() }.ifEmpty { listOf(caps[0]) }
+        val extras = listOf(critSecret, unraveling).filter { rng.nextBoolean() }
+        val forcedName = if (forced) (family.firstOrNull { it.rarity == SublimationRarity.NORMAL } ?: neutralite).name.fr else null
+        val subs = (family + extras + listOfNotNull(forcedName?.let(::sub))).distinct()
+        val targets =
+            buildList {
+                add(TargetStat(range.masteryCharacteristic, 1))
+                if (rows) {
+                    if (rng.nextBoolean()) add(TargetStat(Characteristic.ACTION_POINT, 7 + rng.nextInt(2)))
+                    if (rng.nextBoolean()) add(TargetStat(Characteristic.MOVEMENT_POINT, 3 + rng.nextInt(2)))
+                    if (rng.nextBoolean()) add(TargetStat(Characteristic.RANGE, rng.nextInt(2)))
+                    if (rng.nextBoolean()) add(TargetStat(Characteristic.CRITICAL_HIT, 5 + rng.nextInt(20)))
+                }
+            }
+        return Case(
+            "seed$seed ${if (forced) "forced" else "choosable"} ${if (rows) "rows" else "free"} lvl$level $range/$orientation berserk=$berserk " +
+                "subs=${subs.map { it.name.fr }}",
+            params(level, scenario, targets, listOfNotNull(forcedName)),
+            items.groupBy { it.itemType },
+            subs
+        )
+    }
+
+    /**
+     * Seeds 9, 18, 23, 30 and 38 diverged on oldFold (count beat the fold by 0.07–2.86 % in every mode); 1–4 did not. Every
+     * case: the fixed fold proves the count-model optimum, and the certificate ledger (every cell confirmed exactly; the
+     * target-aware one on the hard leg of a rowed request) is ≥ it. The divergence count keeps the lock sensitive: with
+     * the count carriers disabled the first assertion fails on the diverging seeds.
+     */
+    @Test
+    fun `the fold proves the count-model optimum and the certificate bounds it on seeded negative-budget pools`() {
+        var diverged = 0
+        for (seed in listOf(1L, 2L, 3L, 4L, 9L, 18L, 23L, 30L, 38L)) {
+            for ((forced, rows) in listOf(false to false, true to false, false to true)) {
+                val c = case(seed, forced, rows)
+                val hard = rows
+                val count = solve(c.params, c.pool, c.subs, count = true, hard = hard)
+                if (!count.hasSolution) continue
+                val fixed = solve(c.params, c.pool, c.subs, hard = hard)
+                val oldFold = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
+                println(
+                    "MIXED_LOCK ${c.label} hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} " +
+                        "count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}"
+                )
+                assertThat(count.isOptimal).describedAs("%s: the count model proves its optimum", c.label).isTrue()
+                assertThat(fixed.isOptimal).describedAs("%s: the fold proves its optimum", c.label).isTrue()
+                assertThat(fixed.objective).describedAs("%s: the fold's optimum is the count model's", c.label).isEqualTo(count.objective)
+                if (oldFold.isOptimal && oldFold.objective < count.objective) diverged++
+
+                val ledger =
+                    WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, forceTier2All = true, targetAware = hard)
+                if (ledger.bailedCells.isEmpty()) {
+                    assertThat(ledger.maxCellObjective).isNotNull
+                    assertThat(ledger.maxCellObjective!!)
+                        .describedAs("%s: the certificate must bound the mixed-rune optimum", c.label)
+                        .isGreaterThanOrEqualTo(count.objective)
+                }
+            }
+        }
+        assertThat(diverged).describedAs("cases where the all-or-nothing fold (≤ v61) misses the mixed optimum (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
+    }
+
+    // ---- General fold: required rows, floors, the survivability floor ------------------------------------------------
+
+    /**
+     * Small general-fold pools (no sublimation, so no secondary cap masks a row): a few 4-socket items of fire mastery
+     * with HP / per-element / "all resistances" / random-element resistance / dodge lines — negative in most pools — and
+     * one of five request shapes, each reaching the fold through a different threshold read:
+     *  0. an "all resistances" row of 0 (a floor; max-damage keeps it unsplit) with negative lines — the row's key (a);
+     *  1. an "all resistances" row with a positive target — the row's key (a);
+     *  2. a per-element resistance row of 0 with negative AGGREGATE / random-element lines — the negative source (b);
+     *  3. the survivability floor (HP × resistances through `min(EHP, floor)`) beside an "all resistances" 0 row (c);
+     *  4. HP and dodge rows with negative HP / dodge lines (the rule as first shipped).
+     */
+    private fun generalCase(seed: Long): Case {
+        val rng = java.util.Random(seed * 7_919L + 3L)
+        val shape = (seed % 5).toInt()
+        val level = listOf(20, 35, 50, 80, 110)[rng.nextInt(5)]
+        val fire = Characteristic.RESISTANCE_ELEMENTARY_FIRE
+        val allRes = Characteristic.RESISTANCE_ELEMENTARY
+        val negative = shape != 3 && rng.nextInt(4) != 0
+        var id = 830_000 + (seed % 1_000).toInt() * 10
+        val items =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS, ItemType.AMULET).take(3 + rng.nextInt(2)).map { type ->
+                val stats = mutableMapOf<Characteristic, Int>(Characteristic.MASTERY_ELEMENTARY_FIRE to 40 + rng.nextInt(level * 3))
+                if (negative && rng.nextInt(3) == 0) {
+                    when (shape) {
+                        0, 1 -> stats[if (rng.nextBoolean()) allRes else fire] = -(10 + rng.nextInt(120))
+                        2 -> stats[if (rng.nextBoolean()) allRes else Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT] = -(10 + rng.nextInt(120))
+                        else -> stats[if (rng.nextBoolean()) Characteristic.HP else Characteristic.DODGE] = -(10 + rng.nextInt(level * 4))
+                    }
+                }
+                if (rng.nextInt(3) == 0) stats[Characteristic.HP] = (stats[Characteristic.HP] ?: 0) + rng.nextInt(level * 3)
+                id++
+                item(id, type, level, stats.filterValues { it != 0 }, listOf(2, 3, 4, 4)[rng.nextInt(4)])
+            }
+        val distance = TargetStat(Characteristic.MASTERY_DISTANCE, 1)
+        val baseHp = 50 + level * 10
+        val (targets, scenario) =
+            when (shape) {
+                0 -> listOf(distance, TargetStat(allRes, 0)) to DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                1 -> listOf(distance, TargetStat(allRes, 5 + rng.nextInt(level * 2))) to DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                2 -> listOf(distance, TargetStat(fire, 0)) to DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                3 ->
+                    listOf(distance, TargetStat(allRes, 0)) to
+                        DamageScenario(
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            survivabilityFloor = true,
+                            minEffectiveHp = baseHp + rng.nextInt(baseHp)
+                        )
+                else ->
+                    listOf(distance, TargetStat(Characteristic.HP, baseHp + rng.nextInt(level * 6)), TargetStat(Characteristic.DODGE, 0)) to
+                        DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+            }
+        return Case(
+            "general seed$seed shape$shape lvl$level negative=$negative items=${items.map { it.characteristics }} targets=${targets.map { it.characteristic to it.target }} " +
+                "ehp=${scenario.minEffectiveHp}",
+            params(level, scenario, targets).copy(useSublimations = false),
+            items.groupBy { it.itemType },
+            emptyList()
+        )
+    }
+
+    /**
+     * The general fold (a non-damage rune type in the request) against the count model on [generalCase] pools, both legs:
+     * the fold with count carriers proves the count optimum, and the all-or-nothing fold misses it often enough to keep the
+     * lock sensitive. RED without each of the three general-fold reads (an "all resistances" row keyed on its four
+     * elements, a negative aggregate resistance line expanded onto them, the survivability floor).
+     */
+    @Test
+    fun `the general fold proves the count-model optimum under rows, floors and the survivability floor`() {
+        var diverged = 0
+        val divergedShapes = HashSet<Int>()
+        for (seed in 0L until 15L) {
+            val c = generalCase(seed)
+            for (hard in listOf(false, true)) {
+                val count = solve(c.params, c.pool, c.subs, count = true, hard = hard)
+                if (!count.hasSolution) continue
+                val fixed = solve(c.params, c.pool, c.subs, hard = hard)
+                val oldFold = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
+                println(
+                    "MIXED_GENERAL ${c.label} hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} " +
+                        "count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}"
+                )
+                assertThat(count.isOptimal).describedAs("%s hard=%s: the count model proves its optimum", c.label, hard).isTrue()
+                assertThat(fixed.isOptimal).describedAs("%s hard=%s: the fold proves its optimum", c.label, hard).isTrue()
+                assertThat(fixed.objective).describedAs("%s hard=%s: the fold's optimum is the count model's", c.label, hard).isEqualTo(count.objective)
+                if (oldFold.isOptimal && oldFold.objective < count.objective) {
+                    diverged++
+                    divergedShapes += (seed % 5).toInt()
+                }
+            }
+        }
+        println("MIXED_GENERAL diverged=$diverged shapes=$divergedShapes")
+        assertThat(divergedShapes).describedAs("request shapes where the all-or-nothing fold misses the optimum").contains(0, 1)
+        assertThat(diverged).isGreaterThanOrEqualTo(4)
+    }
+
+    /**
+     * The review's repros of the three general-fold threshold reads the first rule missed (no sublimation; CRA fire /
+     * distance / face). Level 200: helmet A (500 fire + a negative resistance line), helmet B (200 fire), chest and boots
+     * (300 fire), all level 200 with 4 sockets.
+     *  (a) an "all resistances" 0-row (max-damage keeps it unsplit) with −105 FIRE resistance on helmet A — and −160 on
+     *      every element: the row is keyed on the four per-element runes;
+     *  (b) a FIRE resistance 0-row with −105 on EVERY element (an aggregate line): the negative source is expanded;
+     *  (c) the survivability floor (level 20, three 4-socket items of 60 fire, an "all resistances" 0-row, no negative line)
+     *      swept over its EHP floor.
+     * Each: the all-or-nothing fold proves less than the count model, the fold with count carriers proves the same.
+     */
+    @Test
+    fun `an aggregate resistance row, an aggregate negative line and the survivability floor are thresholds`() {
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val fireRes = Characteristic.RESISTANCE_ELEMENTARY_FIRE
+        val allRes = Characteristic.RESISTANCE_ELEMENTARY
+
+        fun level200Pool(negative: Pair<Characteristic, Int>) =
+            listOf(
+                item(840_001, ItemType.HELMET, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500, negative)),
+                item(840_002, ItemType.HELMET, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200)),
+                item(840_003, ItemType.CHEST_PLATE, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)),
+                item(840_004, ItemType.BOOTS, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300))
+            ).groupBy { it.itemType }
+
+        fun check(
+            label: String,
+            p: WakfuBestBuildParams,
+            pool: Map<ItemType, List<Equipment>>,
+        ): Boolean {
+            var missed = false
+            for (hard in listOf(false, true)) {
+                val oldFold = solve(p, pool, emptyList(), mixed = false, hard = hard)
+                val count = solve(p, pool, emptyList(), count = true, hard = hard)
+                val fixed = solve(p, pool, emptyList(), hard = hard)
+                println(
+                    "MIXED_THRESHOLD $label hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}"
+                )
+                if (!count.hasSolution) continue
+                for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).describedAs("%s hard=%s", label, hard).isTrue()
+                assertThat(fixed.objective).describedAs("%s hard=%s: the fold reaches the count optimum", label, hard).isEqualTo(count.objective)
+                if (oldFold.objective < count.objective) missed = true
+            }
+            return missed
+        }
+        val distance = TargetStat(Characteristic.MASTERY_DISTANCE, 1)
+        val rows = { row: TargetStat -> params(200, scenario, listOf(distance, row)).copy(useSublimations = false) }
+        assertThat(check("(a) all-res 0, -105 fire", rows(TargetStat(allRes, 0)), level200Pool(fireRes to -105))).isTrue()
+        assertThat(check("(a) all-res 0, -160 all", rows(TargetStat(allRes, 0)), level200Pool(allRes to -160))).isTrue()
+        assertThat(check("(b) fire-res 0, -105 all", rows(TargetStat(fireRes, 0)), level200Pool(allRes to -105))).isTrue()
+
+        val small =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(840_101 + i, type, 20, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60)) }
+                .groupBy { it.itemType }
+        var survivabilityMissed = 0
+        for (floor in 420..520 step 20) {
+            val p =
+                params(20, scenario.copy(survivabilityFloor = true, minEffectiveHp = floor), listOf(distance, TargetStat(allRes, 0)))
+                    .copy(useSublimations = false)
+            if (check("(c) survivability $floor", p, small)) survivabilityMissed++
+        }
+        assertThat(survivabilityMissed).describedAs("EHP floors where the all-or-nothing fold misses the optimum").isGreaterThan(0)
+    }
+
+    /**
+     * An item STAT GATE (AGENTS.md §4 "Item equip conditions", landed on main after the fold fix was written) reads the
+     * out-of-combat sheet, runes included: `x_item ⇒ distance mastery ≤ T` is a threshold on the distance rune exactly like
+     * a choosable cap — wearing the item takes it. CRA 110 fire / distance, no sublimation, a strong amulet gated on
+     * distance mastery and three 4-socket items: under the gate's budget a part-filled item (some distance runes, the
+     * rest elemental) can beat every whole-item fill. The fold must keep counts on the gated stat's carriers.
+     * Measured (2026-10-11, CERTIFIER_VERSION 62): caps 230 and 270 — all-or-nothing fold 320,170 / 323,200, count model and
+     * the fixed fold 320,675 / 323,705. Before the gate was a rune read at all, the choice collapse pruned the elemental
+     * rune for the (larger) distance one on every carrier, so a gated amulet could only be worn with no rune fill that met
+     * its gate: at cap 20 the fold, with or without count carriers, PROVED 178,265 against the count model's 302,495.
+     */
+    @Test
+    fun `an item stat gate on a rune stat is a threshold a part-filled item fills`() {
+        val level = 110
+        val distance = Characteristic.MASTERY_DISTANCE
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val p = params(level, scenario).copy(useSublimations = false)
+
+        fun pool(cap: Int) =
+            (
+                listOf(
+                    item(
+                        850_001,
+                        ItemType.AMULET,
+                        level,
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600),
+                        gates = listOf(ItemStatGate(distance, false, CriterionComparison.LE, cap))
+                    )
+                ) +
+                    listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                        .mapIndexed { i, type -> item(850_011 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)) }
+            ).groupBy { it.itemType }
+        // The pruning half: a gate the distance runes of one item already break must leave the elemental choice on the table.
+        val tight = pool(20)
+        val tightCount = solve(p, tight, emptyList(), count = true)
+        assertThat(tightCount.objective).describedAs("cap 20: the count-model optimum (the gated amulet worn, runes elemental)").isEqualTo(302_495L)
+        for (mixed in listOf(false, true)) {
+            val fold = solve(p, tight, emptyList(), mixed = mixed)
+            assertThat(fold.isOptimal).isTrue()
+            assertThat(fold.objective).describedAs("cap 20, count carriers %s: the fold keeps the elemental choice", mixed).isEqualTo(tightCount.objective)
+        }
+        var missed = 0
+        for (cap in (200..280 step 10)) {
+            val pool = pool(cap)
+            val oldFold = solve(p, pool, emptyList(), mixed = false)
+            val count = solve(p, pool, emptyList(), count = true)
+            val fixed = solve(p, pool, emptyList())
+            println("MIXED_GATE cap=$cap oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+            for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).describedAs("cap=%s", cap).isTrue()
+            assertThat(fixed.objective).describedAs("cap=%s: the fold with count carriers reaches the count optimum", cap).isEqualTo(count.objective)
+            if (oldFold.objective < count.objective) missed++
+        }
+        assertThat(missed).describedAs("gate caps where the all-or-nothing fold misses the optimum (the lock's sensitivity)").isGreaterThan(0)
+    }
+
+    // ---- The hybrid: the search on the fold, the count model polishes and verifies ----------------------------------
+
+    private val hybridTuning = tuning.copy(mixedRuneHybrid = true)
+
+    /** The production leg ([WakfuBuildSolver.optimize]) under [t]: its final emission (the leg's result). */
+    private fun leg(
+        p: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        subs: List<Sublimation>,
+        t: WakfuBuildSolver.SolverTuning,
+        hard: Boolean = false,
+    ) = runBlocking { WakfuBuildSolver.optimize(p, pool, runes, subs, t, hardConstraints = hard).toList() }.lastOrNull { !it.greedyWarmStartEmission }
+
+    /**
+     * [WakfuBuildSolver.mixedRuneHybrid] on the minimal repro and the HP-row case: the fold alone PROVES a value below the
+     * request's optimum (the wrong badge the hybrid exists to avoid), the hybrid's leg ends on the count optimum — polished
+     * from the fold's items, then VERIFIED by the count model under `objective ≥ p + 1` — and stamps it proven. With the verify
+     * stage off, the fold's OPTIMAL must NOT become a proof: the leg ends unproven, never below the fold.
+     */
+    @Test
+    fun `the hybrid ends on the count optimum and never stamps the fold's OPTIMAL`() {
+        val p = params(reproLevel, reproScenario)
+        val subs = listOf(neutralite)
+        val fold = leg(p, reproPool, subs, tuning.copy(runeMixedCarriers = false))!!
+        assertThat(fold.isOptimal).describedAs("the all-or-nothing fold proves its own optimum").isTrue()
+        assertThat(fold.maxDamageObjective).isEqualTo(1_382_985L)
+        val hybrid = leg(p, reproPool, subs, hybridTuning)!!
+        println("MIXED_HYBRID repro fold=${fold.maxDamageObjective} hybrid=${hybrid.maxDamageObjective}/${hybrid.isOptimal}")
+        assertThat(hybrid.maxDamageObjective).describedAs("the hybrid reaches the count optimum").isEqualTo(1_408_170L)
+        assertThat(hybrid.isOptimal).describedAs("the count model's verify stage proves it").isTrue()
+        val unverified = leg(p, reproPool, subs, hybridTuning.copy(mixedRuneHybridVerify = false))!!
+        assertThat(unverified.isOptimal).describedAs("a fold OPTIMAL is never a proof of the request").isFalse()
+        assertThat(unverified.maxDamageObjective!!).describedAs("the polish never ends below the fold").isGreaterThanOrEqualTo(fold.maxDamageObjective!!)
+
+        // The HP row (no sublimation): both legs.
+        val level = 50
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val pool =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(820_001 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)) }
+                .groupBy { it.itemType }
+        val hp =
+            params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
+                .copy(useSublimations = false)
+        for ((hard, expectedFold, expected) in listOf(Triple(true, 117_000L, 117_500L), Triple(false, 117_000_000_000L, 117_500_000_000L))) {
+            val foldHp = leg(hp, pool, emptyList(), tuning.copy(runeMixedCarriers = false), hard)!!
+            val hybridHp = leg(hp, pool, emptyList(), hybridTuning, hard)!!
+            val unverifiedHp = leg(hp, pool, emptyList(), hybridTuning.copy(mixedRuneHybridVerify = false), hard)!!
+            println("MIXED_HYBRID hp hard=$hard fold=${foldHp.maxDamageObjective}/${foldHp.isOptimal} hybrid=${hybridHp.maxDamageObjective}/${hybridHp.isOptimal}")
+            assertThat(foldHp.maxDamageObjective).describedAs("hard=%s: the fold", hard).isEqualTo(expectedFold)
+            assertThat(foldHp.isOptimal).isTrue()
+            assertThat(hybridHp.maxDamageObjective).describedAs("hard=%s: the hybrid reaches the count optimum", hard).isEqualTo(expected)
+            assertThat(hybridHp.isOptimal).describedAs("hard=%s: proven by the count model", hard).isTrue()
+            assertThat(unverifiedHp.isOptimal).describedAs("hard=%s: the fold's OPTIMAL alone proves nothing", hard).isFalse()
+            assertThat(unverifiedHp.maxDamageObjective).describedAs("hard=%s: the polish tops the row up on the fold's items", hard).isEqualTo(expected)
+        }
+    }
+
+    /**
+     * The seeded lock's pools (secondary budgets: free, forced, rowed hard leg), the general fold's (rows, floors, the
+     * survivability floor; both legs) and the stat-gate caps, through the hybrid's production leg: it ends on the count
+     * model's optimum, proven, on every case the count model proves — where the all-or-nothing fold alone proves less on many.
+     */
+    @Test
+    fun `the hybrid proves the count optimum on the seeded, general-fold and gate pools`() {
+        val cases = ArrayList<Pair<Case, Boolean>>()
+        for (seed in listOf(1L, 2L, 9L, 18L, 23L, 30L, 38L)) {
+            for ((forced, rows) in listOf(false to false, true to false, false to true)) cases += case(seed, forced, rows) to rows
+        }
+        for (seed in 0L until 10L) {
+            val c = generalCase(seed)
+            cases += c to false
+            cases += c to true
+        }
+        var foldBelow = 0
+        var checked = 0
+        for ((c, hard) in cases) {
+            val count = solve(c.params, c.pool, c.subs, count = true, hard = hard)
+            if (!count.hasSolution || !count.isOptimal) continue
+            val hybrid = leg(c.params, c.pool, c.subs, hybridTuning, hard)
+            println("MIXED_HYBRID ${c.label} hard=$hard count=${count.objective} hybrid=${hybrid?.maxDamageObjective}/${hybrid?.isOptimal}")
+            assertThat(hybrid).describedAs("%s hard=%s: a build", c.label, hard).isNotNull
+            assertThat(hybrid!!.maxDamageObjective).describedAs("%s hard=%s: the count optimum", c.label, hard).isEqualTo(count.objective)
+            // A prefiltered request (a positive "all resistances" row wants every element) is never badged, whatever proves it.
+            assertThat(hybrid.isOptimal).describedAs("%s hard=%s: proven", c.label, hard).isEqualTo(!WakfuBuildSolver.needsItemPrefilter(c.params.targetStats))
+            val fold = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
+            if (fold.isOptimal && fold.objective < count.objective) foldBelow++
+            checked++
+        }
+        println("MIXED_HYBRID checked=$checked foldBelow=$foldBelow")
+        assertThat(foldBelow).describedAs("cases where the fold alone proves less (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
+
+        val level = 110
+        val gateParams = params(level, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)).copy(useSublimations = false)
+        for (cap in listOf(20, 230, 270)) {
+            val pool =
+                (
+                    listOf(
+                        item(
+                            850_001,
+                            ItemType.AMULET,
+                            level,
+                            mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600),
+                            gates = listOf(ItemStatGate(Characteristic.MASTERY_DISTANCE, false, CriterionComparison.LE, cap))
+                        )
+                    ) +
+                        listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                            .mapIndexed { i, type -> item(850_011 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)) }
+                ).groupBy { it.itemType }
+            val count = solve(gateParams, pool, emptyList(), count = true)
+            val hybrid = leg(gateParams, pool, emptyList(), hybridTuning)!!
+            assertThat(hybrid.maxDamageObjective).describedAs("gate cap %s: the count optimum", cap).isEqualTo(count.objective)
+            assertThat(hybrid.isOptimal).describedAs("gate cap %s: proven", cap).isTrue()
+        }
+    }
+
+    /**
+     * The hybrid's fold stage prunes the choice collapse WITHOUT the item stat gates (the ≤ v61 collapse: a smaller search
+     * model), so on the gate pool (cap 20, where main proved 178,265) it drops the elemental choice for the larger distance
+     * one — exactly the fill the gate forbids. That is sound only because every carrier the lean pruning changes is
+     * recorded fold-inexact: the stage's OPTIMAL proves nothing, and the verify stage (the exact count model, which keeps the
+     * elemental choice) proves the real optimum, 302,495.
+     */
+    @Test
+    fun `the hybrid's fold stage prunes without the stat gates and records every carrier it changes`() {
+        val level = 110
+        val gateParams = params(level, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)).copy(useSublimations = false)
+        val pool =
+            (
+                listOf(
+                    item(
+                        850_001,
+                        ItemType.AMULET,
+                        level,
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600),
+                        gates = listOf(ItemStatGate(Characteristic.MASTERY_DISTANCE, false, CriterionComparison.LE, 20))
+                    )
+                ) +
+                    listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                        .mapIndexed { i, type -> item(850_011 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)) }
+            ).groupBy { it.itemType }
+        val stages = ArrayList<Pair<String, RuneModel>>()
+        val t = hybridTuning.copy(runeCountClasses = false, mixedRuneHybridStageObserverForTest = { stage, rm -> stages += stage to rm })
+        val result = leg(gateParams, pool, emptyList(), t)!!
+        println("MIXED_HYBRID_LEAN stages=${stages.map { it.first }} hybrid=${result.maxDamageObjective}/${result.isOptimal}")
+        val fold = stages.single { it.first == "fold" }.second
+        val verify = stages.single { it.first == "verify" }.second
+        var changed = 0
+        for ((equip, exact) in verify.runeVars) {
+            val searched = fold.runeVars.getValue(equip).keys
+            println("MIXED_HYBRID_LEAN ${equip.equipmentId} ${equip.itemType} exact=${exact.keys} fold=$searched")
+            // The gate makes distance mastery opaque: the exact model keeps the distance AND the elemental choice on every
+            // carrier (and crit beside them); without the gate read the larger of the M-feeding runes dominates the rest.
+            assertThat(
+                exact.keys
+            ).describedAs("%s: the exact model keeps both choices", equip.equipmentId).contains(Characteristic.MASTERY_ELEMENTARY, Characteristic.MASTERY_DISTANCE)
+            assertThat(searched).describedAs("%s: the fold stage keeps one (no gate read)", equip.equipmentId).hasSize(1)
+            if (searched != exact.keys) {
+                changed++
+                assertThat(fold.foldInexactCarriers).describedAs("%s: a changed carrier is fold-inexact", equip.equipmentId).contains(equip)
+            }
+        }
+        assertThat(changed).describedAs("carriers the lean pruning changed").isEqualTo(4)
+        // The elemental choice the gated amulet's wearer needs is gone from at least one fold-stage carrier.
+        assertThat(fold.runeVars.values.count { Characteristic.MASTERY_ELEMENTARY !in it.keys }).isGreaterThan(0)
+        assertThat(result.maxDamageObjective).describedAs("the count optimum (the gated amulet worn, runes elemental)").isEqualTo(302_495L)
+        assertThat(result.isOptimal).describedAs("proven by the verify stage").isTrue()
+    }
+
+    /**
+     * A fold proven INFEASIBLE proves nothing: two rows read two rune types of ONE item (lock and dodge, CRA 50, one 4-socket
+     * helmet), each needing part of its sockets — no single-type fill meets both, a mixed fill does. The hard leg
+     * must find that build (the count model decides once the fold is infeasible), not fall back to the soft leg.
+     */
+    @Test
+    fun `a fold proven infeasible hands the hard leg to the count model`() {
+        val level = 50
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val pool = listOf(item(860_001, ItemType.HELMET, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200))).groupBy { it.itemType }
+        val lock = Characteristic.LOCK
+        val dodge = Characteristic.DODGE
+
+        fun rows(t: Int) =
+            params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(lock, t), TargetStat(dodge, t))).copy(useSublimations = false)
+        // The largest common target the count model meets (both stats ≥ t): a mixed fill.
+        var lo = 0
+        var hi = 4_000
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (solve(rows(mid), pool, emptyList(), count = true, hard = true).hasSolution) lo = mid else hi = mid - 1
+        }
+        val p = rows(lo)
+        val fold = solve(p, pool, emptyList(), mixed = false, hard = true)
+        println("MIXED_HYBRID infeasible-fold t=$lo foldHasSolution=${fold.hasSolution}")
+        assertThat(fold.hasSolution).describedAs("t=%s: no single-type fill meets both rows", lo).isFalse()
+        val result =
+            runBlocking { MaxDamageSearch.optimizeHardThenSoft(p, pool, runes, emptyList(), hybridTuning).toList() }
+                .last { !it.greedyWarmStartEmission }
+        assertThat(result.maxDamageHardConstraintsMet).describedAs("the hard leg's build, not the soft fallback's").isTrue()
+        println("MIXED_HYBRID infeasible-fold result=${result.maxDamageObjective}/${result.isOptimal} hard=${result.maxDamageHardConstraintsMet}")
+        assertThat(result.isOptimal).isTrue()
+        val runesWorn =
+            result.individual.runes.values
+                .flatten()
+                .map { it.characteristic }
+                .toSet()
+        assertThat(runesWorn).contains(lock, dodge)
+    }
+
+    // ---- The hybrid × count classes (perf/mixed-runes-integrated) ------------------------------------------------------
+
+    /**
+     * Every COUNT stage of the hybrid (polish with the sublimations pinned, polish free, verify, the fold-INFEASIBLE fallback)
+     * searches the count CLASSES ([RuneCountClass]) when [WakfuBuildSolver.SolverTuning.runeCountClasses] is on — no count
+     * carrier keeps per-carrier count vars there — while the FOLD stage stays the plain fold (no count carrier, no class). On
+     * the repro pools (the minimal repro, the HP row, the lock/dodge helmet whose fold is INFEASIBLE), the first two also with
+     * interchangeable TWINS (a weaker helmet listed before the worn one, a second ring of the same class), the leg still ends
+     * on the per-stat count model's optimum, proven, and its build fills every socket of every worn carrier: a class spanning
+     * an unworn carrier (the weaker twin) splits its counts over the worn ones only ([RuneCountClass.distribute]). With the
+     * classes off, the same stages run per-carrier counts and reach the same optimum.
+     */
+    @Test
+    fun `the hybrid's count stages search the count classes and reach the count optimum`() {
+        val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+        val lowScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+
+        class Shape(
+            val label: String,
+            val params: WakfuBestBuildParams,
+            val pool: Map<ItemType, List<Equipment>>,
+            val subs: List<Sublimation>,
+            val hard: Boolean,
+            val twins: Boolean,
+        )
+        val shapes = ArrayList<Shape>()
+        val reproTwins =
+            listOf(
+                // The weaker helmet first (by list and by id): the worn one is its class's SECOND carrier.
+                item(809_001, ItemType.HELMET, 236, mapOf(Characteristic.MASTERY_ELEMENTARY to 380, melee to -102)),
+                item(810_001, ItemType.HELMET, 236, mapOf(Characteristic.MASTERY_ELEMENTARY to 414, melee to -102)),
+                item(810_002, ItemType.BELT, 219, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 365, back to -214)),
+                item(810_003, ItemType.CHEST_PLATE, 215, mapOf(Characteristic.MASTERY_ELEMENTARY to 369)),
+                item(810_004, ItemType.RING, 208, mapOf(Characteristic.MASTERY_ELEMENTARY to 159, melee to -58)),
+                item(811_004, ItemType.RING, 208, mapOf(Characteristic.MASTERY_ELEMENTARY to 140, back to -40))
+            ).groupBy { it.itemType }
+        for (hard in listOf(false, true)) {
+            shapes += Shape("repro", params(reproLevel, reproScenario), reproPool, listOf(neutralite), hard, twins = false)
+            shapes += Shape("repro+twins", params(reproLevel, reproScenario), reproTwins, listOf(neutralite), hard, twins = true)
+        }
+        val hpLevel = 50
+        val hpParams =
+            params(hpLevel, lowScenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
+                .copy(useSublimations = false)
+        val hpPool =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(820_001 + i, type, hpLevel, mapOf(fire to 300)) }
+        val hpTwins =
+            (
+                listOf(item(819_001, ItemType.HELMET, hpLevel, mapOf(fire to 250))) + hpPool +
+                    listOf(
+                        item(821_011, ItemType.RING, hpLevel, mapOf(fire to 120)),
+                        item(821_012, ItemType.RING, hpLevel, mapOf(fire to 110, Characteristic.HP to 20))
+                    )
+            ).groupBy { it.itemType }
+        for (hard in listOf(false, true)) {
+            shapes += Shape("hp", hpParams, hpPool.groupBy { it.itemType }, emptyList(), hard, twins = false)
+            shapes += Shape("hp+twins", hpParams, hpTwins, emptyList(), hard, twins = true)
+        }
+        // The lock / dodge helmet: two rows each needing part of one 4-socket helmet, at the largest common target the count
+        // model meets — the fold is INFEASIBLE on the hard leg and the count model decides.
+        val lockPool = listOf(item(860_001, ItemType.HELMET, hpLevel, mapOf(fire to 200))).groupBy { it.itemType }
+
+        fun lockRows(t: Int) =
+            params(hpLevel, lowScenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.LOCK, t), TargetStat(Characteristic.DODGE, t)))
+                .copy(useSublimations = false)
+        var lo = 0
+        var hi = 4_000
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (solve(lockRows(mid), lockPool, emptyList(), count = true, hard = true).hasSolution) lo = mid else hi = mid - 1
+        }
+        shapes += Shape("lock/dodge", lockRows(lo), lockPool, emptyList(), hard = true, twins = false)
+
+        var sharedClassInVerify = 0
+        var fallbackRuns = 0
+        for (shape in shapes) {
+            val reference = solve(shape.params, shape.pool, shape.subs, count = true, hard = shape.hard)
+            assertThat(reference.isOptimal).describedAs("%s hard=%s: the count model proves its optimum", shape.label, shape.hard).isTrue()
+            for (classes in listOf(true, false)) {
+                val stages = ArrayList<Pair<String, RuneModel>>()
+                val t = hybridTuning.copy(runeCountClasses = classes, mixedRuneHybridStageObserverForTest = { stage, rm -> stages += stage to rm })
+                val result = leg(shape.params, shape.pool, shape.subs, t, shape.hard)!!
+                val tag = "${shape.label} hard=${shape.hard} classes=$classes"
+                println(
+                    "MIXED_HYBRID_CLASSES $tag stages=${stages.map { (s, rm) ->
+                        "$s:${rm.countClasses.map { it.carriers.size }}/${rm.runeVars.keys.count { it in rm.countCarriers }}"
+                    }} " +
+                        "count=${reference.objective} hybrid=${result.maxDamageObjective}/${result.isOptimal}"
+                )
+                val fold = stages.filter { it.first == "fold" }.map { it.second }
+                assertThat(fold).describedAs("%s: one fold stage", tag).hasSize(1)
+                assertThat(fold.single().foldInexactCarriers).describedAs("%s: the fold is inexact (the hybrid owns the leg)", tag).isNotEmpty()
+                assertThat(fold.single().countCarriers).describedAs("%s: the fold stage is the plain fold", tag).isEmpty()
+                assertThat(fold.single().countClasses).describedAs("%s: the fold stage aggregates nothing", tag).isEmpty()
+                val countStages = stages.filter { it.first != "fold" }
+                assertThat(countStages).describedAs("%s: count stages ran", tag).isNotEmpty()
+                for ((stage, rm) in countStages) {
+                    val perCarrierCounts = rm.runeVars.keys.filter { it in rm.countCarriers }
+                    if (classes) {
+                        assertThat(rm.countClasses).describedAs("%s %s: searches the count classes", tag, stage).isNotEmpty()
+                        assertThat(perCarrierCounts).describedAs("%s %s: no per-carrier count var left", tag, stage).isEmpty()
+                        assertThat(rm.countClasses.flatMap { it.carriers }.toSet()).describedAs("%s %s: every count carrier in a class", tag, stage).isEqualTo(rm.countCarriers)
+                    } else {
+                        assertThat(rm.countClasses).describedAs("%s %s: classes off", tag, stage).isEmpty()
+                        assertThat(perCarrierCounts).describedAs("%s %s: per-carrier counts", tag, stage).isNotEmpty()
+                    }
+                }
+                if (classes && shape.twins) {
+                    sharedClassInVerify += countStages.count { (stage, rm) -> stage == "verify" && rm.countClasses.any { it.carriers.size >= 2 } }
+                }
+                if (countStages.any { it.first == "count-fallback" }) fallbackRuns++
+                assertThat(result.maxDamageObjective).describedAs("%s: the count optimum", tag).isEqualTo(reference.objective)
+                assertThat(result.isOptimal).describedAs("%s: proven by the count model", tag).isTrue()
+                val build = result.individual
+                for (equip in build.equipments.filter { it.maxShardSlots > 0 }) {
+                    assertThat(build.runes[equip].orEmpty()).describedAs("%s: %s's sockets", tag, equip.equipmentId).hasSize(equip.maxShardSlots)
+                }
+                assertThat(build.runes.keys).describedAs("%s: runes only on worn items", tag).allMatch { it in build.equipments }
+            }
+        }
+        assertThat(sharedClassInVerify).describedAs("verify stages whose model holds a class of several carriers (the lock's reach)").isGreaterThan(0)
+        assertThat(fallbackRuns).describedAs("legs where the fold was INFEASIBLE and the count model decided").isEqualTo(2)
+    }
+}

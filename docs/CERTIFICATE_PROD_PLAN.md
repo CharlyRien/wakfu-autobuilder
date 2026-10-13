@@ -7,7 +7,8 @@
 > **Status (2026-10-11): complete; still the live architecture record.** Later extensions are logged in place (P5.4
 > GUI-default rows, v44; P5.4b, v48; P5.5 paired Major MP, v49; P5.6 target-aware hard-leg ledger, v52); since then
 > equip conditions (v57/58), spell costs (v59) and sublimation family levels (v60/61, `SUBLIMATION_STACKING_PLAN.md`
-> §12) moved it to **`CERTIFIER_VERSION` 61**. The P3 "memory-aware scheduler" deferral shipped as
+> §12) moved it to **`CERTIFIER_VERSION` 61**. P7 (2026-10-12, below) made the level-245 badge reachable on a
+> 4-core laptop again (pure speed-ups, no version change). The P3 "memory-aware scheduler" deferral shipped as
 > `WakfuBuildSolver.certifierThreadsForHeap` (heap-bounded worker count, now also capped by `ComputeBudget`).
 > Genuinely still open (each a sound bail today): boss / multi-element proofs via the certificate (P4 note), and
 > the remaining forced-shape bails listed under P5.3 — unverified whether any of the latter have since been lifted.
@@ -1307,6 +1308,63 @@ under-count fix it surfaced, `CERTIFIER_VERSION` 2→3), P6.2 version-pinned lvl
 (AGENTS.md §4 + campaign final state), P6.4 checklist. The certificate is production-ready: badge wired
 in GUI + CLI, forced-item / forced-sub coverage, bail-first soundness, and CI + nightly regression
 guards. The whole 6-phase plan (P0–P6) is now done.
+
+### P7 — the level-245 badge on a 4-core laptop (2026-10-12, no `CERTIFIER_VERSION` change)
+
+**Problem.** With the v57 requirement split (12 normal worlds at level 245) and v58–v61, the post-search proof of the
+E0 fixtures `MD245F` / `MD245` (60 s search, `-XX:ActiveProcessorCount=4`, 3 GB heap) hit its 120 s cap in every run:
+badge **Unavailable**. Profile (`CertificateCostHarnessTest`, `WAKFU_MAX_DAMAGE_CERT_TIMING=1`, MD245F at its 60 s
+incumbent): fast tier ~31 s (2 threads), tier-1.5 ~10 s, then the EXACT pass of the top cell ~170 s on the one exact
+thread a 3 GB heap allows — of which the six sword-bundle worlds alone took 15–33 s EACH to return 0 (their tier-1.5
+rows were all 0, and the per-world c-loop prune compares a row with that world's OWN best, so a row of 0 pruned
+nothing). MD245 (the GUI rows, target-aware, a weak hard-leg incumbent): tier-1.5 of the top cell ~70 s (six worlds
+with real step-1 segments to run) before the same exact pass. Also: the search-time warm-up only started at CP-SAT's
+first solution (30–60 s into a level-245 search), so its incumbent-free fast tier trailed the search end.
+
+**Levers (each value-identical; locks in `WakfuBuildSolverTest`):**
+1. **Cross-world exact prune** (`worldPruneOrder`, `cPruneFloor`): a cell's worlds run by descending row maximum and a
+   world skips every crit step whose row sits below a value another world of the cell already reached (live floor in
+   the parallel queue). The cell max and its lowest-index argmax world/crit step cannot move. MD245F ledger 204 → 45 s,
+   MD245 278 → 116 s (alternating arms, one JVM).
+2. **Exact-first probe** in the cascade: before paying a survivor's tier-1.5 pass, run the exact pass of its most
+   promising world alone on tier-1's step-8 rows; when that world already beats the incumbent, tier-1.5 cannot clear the
+   cell, so it is skipped and the cell is confirmed exactly on the tier-1 rows (the probed world reused). Only the
+   superseded tier-1.5 value of a probed cell is not computed. MD245 tier-1.5 + exact 73 → 8.5 s (ledger 122 → 56 s);
+   MD245F 13 → 6.5 s.
+3. **Warm-up on the first emission**: the warm-up starts on the greedy warm start (no proxy); its incumbent read,
+   right before elimination, waits for a feasible proxy (a search without one cancels it). Kill switch
+   `WAKFU_MD_WARMUP_FIRST_EMISSION=0` (A/B only).
+4. **Cascade reconstruction**: a cascade proof that joins the warm-up's cascade reconstructs with the cascade's loop
+   (cached exact decides and ends it above the incumbent) instead of the batch rules, which always failed after a
+   cascade and rebuilt the model for a recompute that ran no DP (~5 s).
+
+**E0 after the four levers** (final confirmation, one JVM, `WAKFU_E0_REPS=3`, 60 s search, 4 cores / 3 GB; the machine
+was shared with other agents' CPU-heavy runs, and searches on `fix/mixed-runes-exact` find weaker incumbents than on
+`main`, so absolute times are noisy): MD245F badge 3.8 / 8.3 / 3.0 s after the search end (ProvenWithin 10.1 / 9.7 /
+5.7 %), E8 proven optimum 15.4 / 21.4 / 15.2 s after it; MD245 badge 16.9 / 14.9 / 8.4 s (ProvenWithin 98 / 52 / 42 %:
+the 60 s hard-leg incumbent is far from the target-aware ledger). Before: Unavailable at the 120 s cap in every run.
+
+**Calm-machine E0 on the integrated branch (2026-10-12, `perf/mixed-runes-integrated`,
+`docs/MIXED_RUNE_SECONDARY_BUDGET.md` "Wall clock").** Two pinned JVMs at a time (4 physical cores of one CCD each),
+fixtures MD110 → MD245 → MD200 → MD245F per JVM. With the shipped default: MD245F ProvenWithin 1.44 % at +0.01–1.0 s after the
+search end and the E8-proven optimum 20,328,360 at +11.3–12.1 s (6 runs); MD245 within 23–39 % at +4.5–5.4 s; MD200 within
+56–165 % at +8.7–10.2 s. main (v61): Unavailable at the 120 s cap on MD245 and MD245F in 9 of 9 runs, MD200 within 91–665 % at
++79–86 s. **Lever 3 re-measured** (warm-up at CP-SAT's first solution, `WAKFU_MD_WARMUP_FIRST_EMISSION=0`, 3 runs against 3
+paired default runs, before the fold-stage change): the search does not gain (medians 1,447,330 / 5,128,350 / 15,319,050 /
+19,479,750 against 1,447,330 / 5,610,450 / 15,319,050 / 19,479,750 for MD110 / MD200 / MD245 / MD245F) and every badge comes
+later — MD245 +18.5–23.5 s against +5.1–5.7 s, MD245F +14.6–15.0 s (E8 proof +25.5–26.0 s) against +2.4–3.7 s (+13.8–15.2 s),
+MD200 +29.8–30.9 s against +9.9–10.5 s. The warm-up stays on the first emission. (A first, CPU-shared session had pointed at
+it; the calm re-run did not reproduce that session's search regression.)
+
+**What dominates now:** the fast tier (12 normal worlds × 2.5–6 s + the relaxed aux world ~17 s on its own thread,
+~45–50 s on the one thread the warm-up holds during the search). It overlaps the search; the badge waits for it only
+when the machine is loaded. Next levers, by expected gain: share the item-stage prefix between each world's
+no-sword / sword-bundle halves (only the weapon and ring stages differ — needs the wide stages moved last, measure the
+state-count cost), a heap-aware second exact worker on 3 GB (the exact pass is ~1–7 s now, so only for many-survivor
+shapes), per-stage micro-costs (`Frontier.add` ~21 % self in a JFR profile of the ledger). Tried and DROPPED: decoding
+each stage's cost cells once into arrays instead of re-iterating the `HashMap` per live state (JFR showed ~3 % in its
+iterator) — pure fast tier at level 245, serial, alternating arms: 118 / 117 and 149 / 140 s against 124 / 122 and
+137 / 132 s, inside the ±10 % noise.
 
 ---
 

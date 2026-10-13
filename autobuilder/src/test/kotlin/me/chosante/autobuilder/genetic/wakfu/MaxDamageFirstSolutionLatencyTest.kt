@@ -27,17 +27,21 @@ import kotlin.time.Duration.Companion.seconds
  * Measured with the deterministic protocol (1 worker + interleave + seed 1: det time does not depend on the machine) on the
  * production pool (domination on), stopped at the first solution.
  *
- * This lock only guards against FURTHER growth: [DET_BUDGET] sits above today's cost, which was accepted as the price of the
- * exact Neutralité model, so it would not have caught that change itself (det 17.6 when it landed). A tighter budget — about
- * 6, twice the det ≈ 2.7 before it — only makes sense once the search splits into a cap-free and a capped world (the open
- * follow-up in the same §E entry), whose cap-free world is the old compact collapse. A model change that needs more raises
+ * This lock only guards against FURTHER growth: [DET_BUDGET] sits above today's cost. It stood at 20 while the exact
+ * Neutralité model cost det 10–17.6 (so it would not have caught that change itself); the rune count classes brought the
+ * first solution back to det ≈ 2.5, and the budget down to 6. A model change that needs more raises
  * [DET_BUDGET] with a measured reason, and checks that the short-search proof tests (`WakfuBuildSolverTest`, @Tag("slow"))
  * still have the budget they need. An OR-Tools bump can move det time: re-measure before raising.
  */
 class MaxDamageFirstSolutionLatencyTest {
     private companion object {
-        // Measured 14.6 (CERTIFIER_VERSION 56, Wakfu data 1.93, OR-Tools as pinned); ~35 % headroom.
-        const val DET_BUDGET = 20.0
+        // Measured 14.6 (CERTIFIER_VERSION 56, Wakfu data 1.93, OR-Tools as pinned); 8.95 / 10.27 with the mixed-rune count
+        // carriers (PR #251 on CERTIFIER_VERSION 57, before / after merging the item equip conditions); 10.30 once ported as
+        // CERTIFIER_VERSION 62 (16.60 in the same session with `WAKFU_MD_MIXED_RUNES=0`); 2.48 with the rune count classes
+        // (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Count classes": the search model is a fifth of the size, so presolve no longer
+        // dominates). A tuned solve varies between JVM runs (AGENTS.md §9): the budget keeps ~2.4× headroom — the "about 6,
+        // twice the det ≈ 2.7 before the collapse" this lock was waiting for.
+        const val DET_BUDGET = 6.0
     }
 
     @Test

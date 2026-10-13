@@ -95,6 +95,12 @@ object MaxDamageSearch {
     internal fun certificateWarmupCancelledForTest(): Boolean? = activeWarmupCancelled.get()?.get()
 
     /**
+     * The certificate warm-up starts on the search's FIRST emission (the greedy warm start, no damage proxy) rather than
+     * CP-SAT's first solution. Kill switch (A/B only): `WAKFU_MD_WARMUP_FIRST_EMISSION=0`.
+     */
+    private val warmupOnFirstEmission = System.getenv("WAKFU_MD_WARMUP_FIRST_EMISSION") != "0"
+
+    /**
      * The params-only certificate-support gates, mirroring [proveOptimality]'s early returns (prefiltered
      * pool / forced runes / survivability floor / multi-element ⇒ the proof never consults the certificate,
      * so warming it would be wasted work). Keep in sync with [proveOptimality].
@@ -332,10 +338,21 @@ object MaxDamageSearch {
                 }
             }
 
+            // The live incumbent the warm-up eliminates against. Its tier-1 fast pass is incumbent-FREE, so the warm-up
+            // starts on the very first emission — the greedy warm start, which carries no damage proxy — instead of
+            // CP-SAT's first solution (~30 s into a level-245 search on 4 cores: the fast pass then trailed the search
+            // end). Elimination needs a feasible proxy, so this read WAITS for one; a search that ends without any
+            // cancels the warm-up instead (see its isCancelled), never certifying without an incumbent.
+            fun awaitWarmupIncumbent(): Long? {
+                while (latestProxy.get() == Long.MIN_VALUE && !searchDone.get() && !warmupCancelled.get()) Thread.sleep(50)
+                return latestProxy.get().takeIf { it != Long.MIN_VALUE }
+            }
+
             fun maybeStartCertificateWarmup(result: SolverResult<BuildCombination>) {
                 if (tuning != null || !certificateWarmupEligible(baseParams)) return
-                val proxy = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return
-                latestProxy.getAndUpdate { maxOf(it, proxy) }
+                val proxy = result.maxDamageRawProxy ?: result.maxDamageObjective
+                if (proxy == null && !warmupOnFirstEmission) return
+                if (proxy != null) latestProxy.getAndUpdate { maxOf(it, proxy) }
                 if (!warmupLaunched.compareAndSet(false, true)) return
                 warmupJobForTest.set(
                     warmupScope.launch {
@@ -361,12 +378,12 @@ object MaxDamageSearch {
                                             else -> WakfuBuildSolver.certifierDefaultThreads(baseParams.computeBudget)
                                         }
                                     },
-                                    incumbentProvider = { latestProxy.get().takeIf { it != Long.MIN_VALUE } },
+                                    incumbentProvider = ::awaitWarmupIncumbent,
                                     // Cascade (short-search rescue): confirm survivors one cell at a time so a
                                     // WEAK incumbent does not pay a tier-1.5 pass for every survivor; the
                                     // construct below finishes the job (or the full fallback does).
                                     cascadeTier15 = true,
-                                    isCancelled = { warmupCancelled.get() },
+                                    isCancelled = { warmupCancelled.get() || (searchDone.get() && latestProxy.get() == Long.MIN_VALUE) },
                                     targetAware = warmupTargetAware
                                 )
                             if (ledger != null) {
@@ -1188,7 +1205,7 @@ object MaxDamageCertificateCache {
 
         while (true) {
             // Fast path: a cached entry can reconstruct this incumbent's ledger from the raw parts (no DP, no build).
-            cache[key]?.let { entry -> reconstruct(entry, incumbentObjective)?.let { return it } }
+            cache[key]?.let { entry -> reconstruct(entry, incumbentObjective, cascadeTier15)?.let { return it } }
             if (isCancelled()) return null
 
             val myLatch = java.util.concurrent.CountDownLatch(1)
@@ -1205,7 +1222,7 @@ object MaxDamageCertificateCache {
                 // Double-check under the flight slot: the entry may have completed between the reconstruct
                 // attempt above and claiming the slot.
                 val existing = cache[key]
-                existing?.let { entry -> reconstruct(entry, incumbentObjective)?.let { return it } }
+                existing?.let { entry -> reconstruct(entry, incumbentObjective, cascadeTier15)?.let { return it } }
 
                 // Miss, or a survivor not yet cached: recompute (this incumbent) and merge the raw parts into the
                 // entry. A cancelled (B8) / bailed-to-null run returns null and caches nothing. B6: when an entry
@@ -1429,6 +1446,9 @@ object MaxDamageCertificateCache {
     private fun reconstruct(
         entry: RawEntry,
         incumbent: Long?,
+        // The caller's cascade flag: a CASCADE compute stops at its first exact confirm above the incumbent, so the
+        // reconstruction of a cascade request mirrors that loop (below) instead of the batch path's.
+        cascade: Boolean = false,
     ): CertLedger? {
         if (entry.bailed.isNotEmpty()) return CertLedger(emptyMap(), entry.bailed, emptySet(), null)
         val fastObj = entry.fastObjectives
@@ -1443,7 +1463,28 @@ object MaxDamageCertificateCache {
         // and only the rest go to the exact tier (B1 early-stop). With incumbent == null (oracle path) tier-1.5 is
         // not run — every survivor is confirmed exactly.
         val stillSurviving = ArrayList<Int>()
-        if (incumbent != null) {
+        if (incumbent != null && cascade) {
+            // Mirror the CASCADE loop of [StatBuilder.certifyLedger] on this cache: per survivor (descending fast bound) a
+            // cached exact decides it and ends the cascade above the incumbent; a cached tier-1.5 at or below the incumbent
+            // clears it; anything else is work the cascade would do now ⇒ recompute. So a proof that arrives after the
+            // warm-up's cascade (same shape, a stronger final incumbent: a subset of its survivors, the same break cell)
+            // reads its ledger from the cache instead of rebuilding the model for a recompute that would run no DP.
+            for (a in survivors) {
+                val exact = entry.exactByCell[a]
+                if (exact != null) {
+                    usedExact[a] = exact
+                    if (exact > incumbent) break else continue
+                }
+                val t15 = entry.tier15ByCell[a]
+                if (t15 != null) usedTier15[a] = t15
+                if (t15 != null && t15 <= incumbent) continue
+                if (a in entry.exactBailed) {
+                    reconBailed += a // exact bailed here (known) ⇒ keep tier-1.5/fast, not tier-2
+                    continue
+                }
+                return null // the cascade would confirm this survivor now ⇒ recompute
+            }
+        } else if (incumbent != null) {
             for (a in survivors) {
                 // Mirror the compute path's cache reuse: a cached EXACT decides a survivor outright —
                 // the cascaded compute never produces a tier-1.5 value for such cells, so requiring one
