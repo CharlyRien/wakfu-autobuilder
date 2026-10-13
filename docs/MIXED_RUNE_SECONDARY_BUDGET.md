@@ -842,8 +842,8 @@ Both have exactly the solutions of `Σ_t q_t = Σ_c x_c` (projected on q and x),
 the same stat totals, the same reachable domains, `distribute`, and certificates untouched (they never see a class). Production
 now builds pick classes into every max-damage search fold (no size rule). Seams: `SolverTuning.runePickClassLinear` (the 1.18.0
 encoding), `runePickClassMinPickVars` with `PICK_CLASS_MIN_PICK_VARS_1_18` (1.18.0's rule; harness arm `hybridAuto118`), kill
-switch `WAKFU_MD_RUNE_PICK_CLASSES=0` (per-carrier picks). No `CERTIFIER_VERSION` change; the unreleased
-`ENGINE_RESULTS_VERSION` 6 history entry is extended (the returned builds change). Lock: `RunePickClassTest` proves both
+switch `WAKFU_MD_RUNE_PICK_CLASSES=0` (per-carrier picks). No `CERTIFIER_VERSION` change; `ENGINE_RESULTS_VERSION`
+6 → 7 (6 shipped in 1.18.0, and the returned builds change). Lock: `RunePickClassTest` proves both
 encodings equal to the per-carrier fold's optimum on its seeded pools (ring classes of 2–3 carriers included).
 
 ### Wall clock (E0, pooled)

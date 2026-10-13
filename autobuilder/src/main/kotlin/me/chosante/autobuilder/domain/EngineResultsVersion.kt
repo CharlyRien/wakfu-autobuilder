@@ -27,8 +27,11 @@ package me.chosante.autobuilder.domain
  * the count model. Every count model the search builds groups interchangeable carriers into exact count classes (one count
  * per rune type per class; the certificates keep per-carrier counts). The fold the search runs prunes its rune choices without
  * the item stat gates, as v61 did (the count model decides every carrier that changes), and keeps 2 s of the budget for the
- * polish instead of 6. Its interchangeable single-type carriers share exact pick classes (one var per rune type per class,
- * posted as exactly-ones — two ring-slot layers for rings — so CP-SAT's feasibility pump keeps finding solutions), on every
- * fold, so the search reaches a build meeting the rows much sooner. A re-run may find a better build.
+ * polish instead of 6. On a large fold (the GUI-default rows from level ~170) its interchangeable single-type carriers share
+ * exact pick classes (one var per rune type per class), so the search reaches a build meeting the rows much sooner. A re-run
+ * may find a better build.
+ * 7: the fold's pick classes are built on EVERY fold (no size rule) and posted literally — exactly-ones, two ring-slot layers
+ * for rings — instead of one linear equation per class, so CP-SAT's feasibility pump keeps finding solutions (it found none on
+ * the linear form). Same solutions, a different search trajectory: a time-limited search may return another build.
  */
-const val ENGINE_RESULTS_VERSION: Int = 6
+const val ENGINE_RESULTS_VERSION: Int = 7

@@ -1189,7 +1189,7 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
 
 ### Status 2026-10-11 (audit of this section against the code at `6f0c6d2b`)
 
-Engine today: **CERTIFIER_VERSION 62** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 6**
+Engine today: **CERTIFIER_VERSION 62** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 7**
 (`domain/EngineResultsVersion.kt`). The body below was written for v38–v56. Bumps since then that this section does not
 describe: v57 for equip conditions and exclusivity groups (`0d20246f`, `81621547`); v58 for domination ignoring gates
 that cannot fail (`b2295eca`); v59 for spell costs from the client (`77f9a393`); v61 for sublimation stacking to the
