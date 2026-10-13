@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.18.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.17.0...wakfu-autobuilder-1.18.0) (2026-10-13)
+
+
+### Features
+
+* sublimations stack to their level cap, and forced sublimations take a level ([#269](https://github.com/CharlyRien/wakfu-autobuilder/issues/269)) ([6f0c6d2](https://github.com/CharlyRien/wakfu-autobuilder/commit/6f0c6d2bba7098804a174dfffbc71935132cfc80))
+
+
+### Bug Fixes
+
+* **solver:** exact mixed max-damage runes, faster than v61, and level-245 badges again ([#275](https://github.com/CharlyRien/wakfu-autobuilder/issues/275)) ([1c0c6d2](https://github.com/CharlyRien/wakfu-autobuilder/commit/1c0c6d24ac55e3a41fbc683f472f17cac81bd183))
+
 ## [1.17.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.16.0...wakfu-autobuilder-1.17.0) (2026-10-08)
 
 
