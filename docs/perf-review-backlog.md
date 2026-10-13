@@ -1267,8 +1267,12 @@ either way was found in the repo.
    aggregated into exact pick classes on folds of ≥ 24,000 pick vars (`PICK_CLASS_MIN_PICK_VARS`; levels ~170+ of the GUI
    default): wall-clock E0 MD200 4.84 M → 8.69 M (first CP-SAT solution 33.7 s → 17.3 s), MD245 15.32 M → 15.63 M (6 runs
    with classes: 15.5–17.3 M), MD110 / MD245F unchanged (the per-carrier fold, below the threshold). Kill switch
-   `WAKFU_MD_RUNE_PICK_CLASSES=0`. Still open: below the threshold the per-carrier fold's LNS beats the class model on the
-   3-worker portfolio (level 110: 1.44 M vs 1.32 M) although the class model is far ahead on one worker — why is unexplained.
+   `WAKFU_MD_RUNE_PICK_CLASSES=0`. **Follow-up 2026-10-13** (same doc, "Pick classes and the feasibility pump"): the level-110
+   loss was CP-SAT's feasibility pump, which finds no solution on the LINEAR class equations (so no `rins_pump_lns` /
+   `rens_pump_lns`, which carry the per-carrier fold's 3-worker search). Posted literally (exactly-ones, two ring-slot
+   layers), the classes keep the pump and now apply on every fold: pooled E0 medians over 15 fixtures (6–10 runs per arm)
+   from −3.0 % (MDG170, ranges overlap) and −1.1 % (MD110) to +19.6 % (MDG140), first CP-SAT solution 2.5–3.5× sooner below
+   level 170.
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does
