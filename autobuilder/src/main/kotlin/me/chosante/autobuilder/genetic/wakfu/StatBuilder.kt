@@ -261,9 +261,13 @@ internal class StatBuilder(
         equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
         skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skillCaps.getValue(skill), "skill_${skill.name}") }
         runeModel.runeVars.forEach { (equip, perStat) ->
-            // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model ⇒ 0..slots.
-            val runeHi = if (runeModel.singleTypePerItem) 1L else equip.maxShardSlots.toLong()
+            // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model / count carrier ⇒ 0..slots.
+            val runeHi = runeModel.runeVarHi(equip)
             perStat.forEach { (stat, v) -> tracker.seed(v, 0L..runeHi, "rune_${equip.equipmentId}_${stat.name}") }
+        }
+        // A count class's var holds the runes of every carrier of the class the build wears ([RuneCountClass.hi]).
+        runeModel.countClasses.forEach { rc ->
+            rc.vars.forEach { (stat, v) -> tracker.seed(v, 0L..rc.hi, "runeClass_${rc.carriers.first().equipmentId}_${stat.name}") }
         }
         subModel.subVars.forEach { (sub, v) -> tracker.seed(v, 0L..1L, "sub_${sub.stateId}") }
     }
@@ -299,6 +303,18 @@ internal class StatBuilder(
         val rangesByCarrier = LinkedHashMap<Equipment, LongRange>()
         val rangesBySub = LinkedHashMap<Sublimation, LongRange>()
         for (term in terms) {
+            val runeClass = runeModel.countClassByVar[term.variable]
+            if (runeClass != null) {
+                // A count class's var: each worn carrier of the class holds at most `slots` of its runes (one unit of a pick
+                // class), so its share rides that carrier's range exactly like a per-carrier count var or pick (sound: the
+                // class splits into per-carrier fills, [RuneCountClass]).
+                val perCarrier = term.scaledRange(0L..runeClass.unitsPerCarrier)
+                for (equip in runeClass.carriers) {
+                    val current = rangesByCarrier[equip] ?: (0L..0L)
+                    rangesByCarrier[equip] = current.first + perCarrier.first..current.last + perCarrier.last
+                }
+                continue
+            }
             val equip = carrierByVar[term.variable]
             if (equip != null) {
                 val d = tracker.of(term.variable)
@@ -2512,13 +2528,20 @@ internal class StatBuilder(
             // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
             val coefficient = runeModel.coefficientFor(equip, char)
             // Fold model: runeVar is a boolean PICK — one pick fills all `slots` sockets, so it
-            // contributes slots·coeff. Count model: runeVar is the count and contributes coeff each.
-            val multiplier = if (runeModel.singleTypePerItem) equip.maxShardSlots.toLong() else 1L
+            // contributes slots·coeff. Count model (or a fold's count carrier): runeVar is the count, coeff each.
+            val multiplier = runeModel.runeVarMultiplier(equip)
             if (coefficient != 0L) {
                 terms.add(Term(runeVar, coefficient * multiplier))
             }
         }
         terms.addAll(runeModel.extraTerms[char].orEmpty())
+        // Count classes ([RuneCountClass]): one count per type for the whole class, coeff each (a class shares its values);
+        // a pick class's unit is a whole carrier of that type, `slots` runes.
+        for (rc in runeModel.countClasses) {
+            val classVar = rc.vars[char] ?: continue
+            val coefficient = rc.coefficients[char] ?: 0L
+            if (coefficient != 0L) terms.add(Term(classVar, coefficient * rc.unit))
+        }
 
         terms.addAll(skillTerms.fixed[char].orEmpty())
         val base = baseValues[char]?.toLong() ?: 0L

@@ -3,10 +3,13 @@ package me.chosante.autobuilder.genetic.wakfu
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.IntVar
 import com.google.ortools.sat.LinearExpr
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ItemType
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationKind
@@ -40,6 +43,28 @@ internal fun CpModel.createRuneModel(
     // pruning), resp. posts no choice gate. Production keeps both on.
     choicePruning: Boolean = true,
     choiceGating: Boolean = true,
+    // The rune types a single-type fill cannot represent exactly ([MaxDamageRuneReads.mixedStats]): a fold carrier
+    // offering one of them beside another type gets per-type COUNTS instead of picks. Empty ⇒ the pure fold.
+    mixedStats: Set<Characteristic> = emptySet(),
+    // The mixed-rune HYBRID's fold stage ([WakfuBuildSolver.mixedRuneHybrid]): false keeps every carrier [mixedStats] would
+    // make a count carrier on its single-type picks, and only RECORDS it ([RuneModel.foldInexactCarriers]) — the fast fold,
+    // which knows it is not exact. (No count carrier then, so [aggregateCountClasses] has nothing to aggregate.)
+    materializeCountCarriers: Boolean = true,
+    // The hybrid's fold stage only (with [materializeCountCarriers] false): the reads its choice collapse prunes with — the
+    // request's reads WITHOUT the item stat gates ([statGateRuneReads]), i.e. the ≤ v61 collapse. Every carrier whose kept
+    // choices or choice gates differ from [reads]' is recorded in [RuneModel.foldInexactCarriers]: the stage is a search
+    // heuristic whose builds are all real (every gate is still posted), never a proof. Null = prune with [reads].
+    foldSearchReads: MaxDamageRuneReads? = null,
+    // The SEARCH model: count carriers that share an item type, a socket count and their choices (same values) hold one
+    // count per type for the whole class ([RuneCountClass], exact). Never in a model a certificate reads.
+    aggregateCountClasses: Boolean = false,
+    // The SEARCH model: the fold's multi-choice PICK carriers that share an item type, a socket count and their choices hold
+    // one var per type for the whole class, counting its worn carriers filled with that type ([RuneCountClass] with
+    // `unit = slots`, exact). Never in a model a certificate reads.
+    aggregatePickClasses: Boolean = false,
+    // ...only when the per-carrier fold would hold at least this many such pick vars: below it the per-carrier fold searched
+    // better on production's portfolio (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes"). 0 = always.
+    pickClassMinPickVars: Int = 0,
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -111,7 +136,15 @@ internal fun CpModel.createRuneModel(
     // The solver still chooses the type per item (build-dependent: mastery vs crit-mastery, elemental vs a
     // secondary for the secondary=0 subs) and items still differ — only the never-optimal intra-item mix is
     // dropped. Gated to where it is provably sound; forced runes / secondary-cap>0 subs keep the count model.
+    // That premise holds only while the rune's every reader is LINEAR in its count (the damage objective). A
+    // threshold read — a `secondary ≤ t` cap with a budget (an item's NEGATIVE line of that secondary, or t > 0), a
+    // forced condition, a required row — can make a PART-fill optimal (3 rear runes absorbed by a −120-rear line, the
+    // 4th socket elemental): such carriers keep per-type COUNTS ([mixedStats], CERTIFIER_VERSION 62).
     val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
+    // The fold carriers modelled with per-type counts (0..slots each, Σ = slots·selected) instead of picks.
+    val countCarriers = LinkedHashSet<Equipment>()
+    // The carriers [mixedStats] would make count carriers, kept on picks ([materializeCountCarriers] false).
+    val foldInexactCarriers = LinkedHashSet<Equipment>()
     val maxDamageMasteryRuneStats =
         if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             buildSet {
@@ -138,30 +171,123 @@ internal fun CpModel.createRuneModel(
     val suppressedBy = HashMap<Pair<Equipment, Characteristic>, IntVar>()
     // Insertion-ordered: the gates are posted in this order (a hash order of IntVar keys would vary between JVMs).
     val choiceGates = LinkedHashMap<IntVar, Set<Sublimation>>()
+    // The count carriers' vars → their socket count (a count var's gate is `count ≤ slots·Σ subVar`).
+    val countVarSlots = HashMap<IntVar, Long>()
     val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
+
+    // Count carriers awaiting their class ([aggregateCountClasses]): the carrier, its choices (type → rune, per-socket
+    // value) and its choice gates (type → subs).
+    data class PendingCount(
+        val equip: Equipment,
+        val choices: Map<Characteristic, Pair<RuneType, Long>>,
+        val gates: Map<Characteristic, Set<Sublimation>>,
+    )
+
+    // The choice collapse's plan for one carrier (pure: no model change), read twice — by the pick-class size check and the model.
+    class CollapsePlan(
+        val exactKept: List<RuneChoice>,
+        val choiceGatesOfKept: Map<Characteristic, Set<Sublimation>>,
+        val narrowed: Boolean,
+        val choices: LinkedHashMap<Characteristic, Pair<RuneType, Long>>,
+    )
+
+    fun collapsePlan(equip: Equipment): CollapsePlan? {
+        // Pure max-damage reads a rune of these types through the damage objective (the M-feeding masteries —
+        // elemental / range / rear / berserk / healing — all enter the same M sum; critical mastery is K) and
+        // through whatever else [reads] lists (a sub condition's stat sum, a conversion source, …). Offer every
+        // candidate type, minus each one another candidate on THIS carrier beats on every read
+        // ([MaxDamageRuneReads.paretoChoices]): without such a read that leaves the best M-feeding rune and,
+        // when larger, the crit one — the original collapse; a capped secondary read also keeps the cheaper
+        // choices (elemental, a smaller secondary, crit) a budget can need, and — the cap holding EACH secondary on
+        // its own — every secondary type on its own budget (an equal rear and distance rune are two choices).
+        val candidates =
+            (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
+                runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
+            }
+        val exactKept = if (choicePruning) reads.paretoChoices(candidates) else candidates
+        if (exactKept.isEmpty()) return null
+        val exactGates = if (choiceGating) reads.choiceGates(exactKept) else emptyMap()
+        // The hybrid's fold stage prunes with [foldSearchReads] (no item stat gate) instead: a carrier whose choices or
+        // choice gates that changes is recorded as fold-inexact, so the stage's OPTIMAL / INFEASIBLE is never trusted.
+        val searchReads = foldSearchReads?.takeIf { !materializeCountCarriers && choicePruning }
+        val kept = searchReads?.paretoChoices(candidates) ?: exactKept
+        val choiceGatesOfKept =
+            if (searchReads == null) {
+                exactGates
+            } else if (choiceGating) {
+                searchReads.choiceGates(kept)
+            } else {
+                emptyMap()
+            }
+        val narrowed = kept.map { it.stat } != exactKept.map { it.stat } || choiceGatesOfKept != exactGates
+        val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+        kept.forEach { choices[it.stat] = it.rune to it.value }
+        return CollapsePlan(exactKept, choiceGatesOfKept, narrowed, choices)
+    }
+
+    // A multi-choice pick carrier joins a pick class — not the crit-swap shape (one bool, no class needed).
+    fun pickClassMember(choices: Map<Characteristic, *>) = choices.size >= 2 && !(choices.size == 2 && choices.containsKey(Characteristic.MASTERY_CRITICAL))
+    val generalFoldPicks =
+        singleTypePerItem && !maxDamageRuneChoiceCollapse && runeStats.size >= 2 && !(materializeCountCarriers && runeStats.any { it in mixedStats })
+    // Pick classes only on a large fold ([pickClassMinPickVars]): count the pick vars the per-carrier fold would hold first.
+    val pickClassesOn =
+        aggregatePickClasses &&
+            (
+                pickClassMinPickVars <= 0 ||
+                    allEquips.filter { it.maxShardSlots > 0 }.sumOf { equip ->
+                        when {
+                            maxDamageRuneChoiceCollapse ->
+                                collapsePlan(equip)
+                                    ?.takeIf { plan ->
+                                        !(materializeCountCarriers && plan.exactKept.size >= 2 && plan.exactKept.any { it.stat in mixedStats }) &&
+                                            pickClassMember(plan.choices)
+                                    }?.choices
+                                    ?.size ?: 0
+                            generalFoldPicks -> runeStats.size
+                            else -> 0
+                        }
+                    } >= pickClassMinPickVars
+            )
+    val pendingCounts = mutableListOf<PendingCount>()
+    // Pick carriers awaiting their class ([pickClassesOn]), in the same shape.
+    val pendingPicks = mutableListOf<PendingCount>()
     for (equip in allEquips) {
         val slots = equip.maxShardSlots
         if (slots <= 0) continue
         if (maxDamageRuneChoiceCollapse) {
-            // Pure max-damage reads a rune of these types through the damage objective (the M-feeding masteries —
-            // elemental / range / rear / berserk / healing — all enter the same M sum; critical mastery is K) and
-            // through whatever else [reads] lists (a sub condition's stat sum, a conversion source, …). Offer every
-            // candidate type, minus each one another candidate on THIS carrier beats on every read
-            // ([MaxDamageRuneReads.paretoChoices]): without such a read that leaves the best M-feeding rune and,
-            // when larger, the crit one — the original collapse; a capped secondary read also keeps the cheaper
-            // choices (elemental, a smaller secondary, crit) a budget can need, and — the cap holding EACH secondary on
-            // its own — every secondary type on its own budget (an equal rear and distance rune are two choices).
-            val candidates =
-                (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
-                    runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
-                }
-            val kept = if (choicePruning) reads.paretoChoices(candidates) else candidates
-            if (kept.isEmpty()) continue
-            val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
-            kept.forEach { choices[it.stat] = it.rune to it.value }
+            val plan = collapsePlan(equip) ?: continue
+            val exactKept = plan.exactKept
+            val choiceGatesOfKept = plan.choiceGatesOfKept
+            val narrowed = plan.narrowed
+            val choices = plan.choices
 
+            // A carrier whose choices include a type a single-type fill cannot represent exactly ([mixedStats]: a
+            // threshold read with a budget) keeps per-type COUNTS over its kept types: the per-socket Pareto argument
+            // and the gates hold rune by rune, so pruning stays exact; only the all-or-nothing fill goes.
+            val inexact = exactKept.size >= 2 && exactKept.any { it.stat in mixedStats }
+            if ((inexact || narrowed) && !materializeCountCarriers) foldInexactCarriers += equip
+            val mixed = inexact && materializeCountCarriers
+            if (mixed && aggregateCountClasses) {
+                countCarriers += equip
+                pendingCounts += PendingCount(equip, LinkedHashMap(choices), choiceGatesOfKept)
+                continue
+            }
+            // A multi-choice pick carrier (not the crit-swap shape, which needs one bool) joins its pick class.
+            if (!mixed && pickClassesOn && pickClassMember(choices)) {
+                pendingPicks += PendingCount(equip, LinkedHashMap(choices), choiceGatesOfKept)
+                continue
+            }
             val perStat =
-                if (choices.size == 1) {
+                if (mixed) {
+                    countCarriers += equip
+                    val vars = choices.keys.associateWith { stat -> newIntVar(0, slots.toLong(), "runeCount_${equip.equipmentId}_${stat.name}") }
+                    val capExpr = LinearExpr.newBuilder()
+                    vars.values.forEach { capExpr.addTerm(it, 1L) }
+                    capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
+                    addEquality(capExpr.build(), 0L)
+                    vars.values.forEach { countVarSlots[it] = slots.toLong() }
+                    vars
+                } else if (choices.size == 1) {
                     // The single surviving choice is forced whenever the item is equipped: substitute the
                     // equipment variable directly and skip a redundant rune bool + equality.
                     mapOf(choices.keys.single() to equipVars.getValue(equip))
@@ -196,14 +322,22 @@ internal fun CpModel.createRuneModel(
             // A choice kept only because a CHOOSABLE conditional sub reads it (the elemental rune on a
             // secondary-best carrier: only a secondary cap prefers it) is useless while none of those subs is
             // taken — gate it on them (posted once the sub model exists, see [RuneModel.choiceGates]).
-            if (choiceGating) {
-                for ((stat, subs) in reads.choiceGates(kept)) {
-                    val v = perStat.getValue(stat)
-                    if (v != equipVars.getValue(equip)) choiceGates[v] = subs
-                }
+            for ((stat, subs) in choiceGatesOfKept) {
+                val v = perStat.getValue(stat)
+                if (v != equipVars.getValue(equip)) choiceGates[v] = subs
             }
             runeVars[equip] = perStat
-        } else if (singleTypePerItem) {
+        } else if (singleTypePerItem && !(materializeCountCarriers && runeStats.size >= 2 && runeStats.any { it in mixedStats })) {
+            if (runeStats.size >= 2 && runeStats.any { it in mixedStats }) foldInexactCarriers += equip
+            if (pickClassesOn && runeStats.size >= 2) {
+                val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+                for (stat in runeStats) {
+                    val rune = runeByCharacteristic.getValue(stat)
+                    choices[stat] = rune to rune.valueOn(equip.itemType, equip.level).toLong()
+                }
+                pendingPicks += PendingCount(equip, choices, emptyMap())
+                continue
+            }
             // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
             val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
             val pickExpr = LinearExpr.newBuilder()
@@ -212,6 +346,18 @@ internal fun CpModel.createRuneModel(
             addEquality(pickExpr.build(), 0L)
             runeVars[equip] = perStat
         } else {
+            // The count model — or, under the general fold, a carrier offering a [mixedStats] type (exact: every type
+            // counted, `= slots·selected` like the fold's picks).
+            if (singleTypePerItem) countCarriers += equip
+            if (singleTypePerItem && aggregateCountClasses) {
+                val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+                for (stat in runeStats) {
+                    val rune = runeByCharacteristic.getValue(stat)
+                    choices[stat] = rune to rune.valueOn(equip.itemType, equip.level).toLong()
+                }
+                pendingCounts += PendingCount(equip, choices, emptyMap())
+                continue
+            }
             val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
             // Sockets only count when the item is equipped: Σ runeCount {= max-damage | ≤ other modes} slots·selected.
             val capExpr = LinearExpr.newBuilder()
@@ -220,6 +366,80 @@ internal fun CpModel.createRuneModel(
             if (fillSockets) addEquality(capExpr.build(), 0L) else addLessOrEqual(capExpr.build(), 0L)
             runeVars[equip] = perStat
         }
+    }
+    // The count classes ([RuneCountClass]): one count per type per class, `Σ_t m_t = slots · Σ_c x_c`. Grouped in
+    // allEquips order (the first carrier names the class), so the model is JVM-independent.
+    val countClasses = mutableListOf<RuneCountClass>()
+    val classGroups =
+        pendingCounts.groupBy { pc ->
+            Triple(pc.equip.itemType, pc.equip.maxShardSlots, pc.choices.map { (stat, choice) -> Triple(stat, choice.first.id, choice.second) })
+        }
+    for ((key, members) in classGroups) {
+        val slots = key.second
+        val first = members.first()
+        // The most of them one build wears: two rings, one of any other type ([addBuildValidityConstraints]; the same
+        // limit [StatBuilder.reachableSumDomain] reads).
+        val maxWorn = minOf(members.size, if (key.first == ItemType.RING) 2 else 1)
+        val hi = slots.toLong() * maxWorn
+        val vars =
+            first.choices.keys.associateWith { stat ->
+                newIntVar(0, hi, "runeClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+            }
+        val capExpr = LinearExpr.newBuilder()
+        vars.values.forEach { capExpr.addTerm(it, 1L) }
+        members.forEach { capExpr.addTerm(equipVars.getValue(it.equip), -slots.toLong()) }
+        addEquality(capExpr.build(), 0L)
+        for ((stat, choice) in first.choices) {
+            val v = vars.getValue(stat)
+            runeTypeByVar[v] = choice.first
+            coefficientByVar[v] = choice.second
+        }
+        // Same kept choices ⇒ same gates on every member ([MaxDamageRuneReads.choiceGates] reads the choices only).
+        for ((stat, subs) in first.gates) vars[stat]?.let { choiceGates[it] = subs }
+        countClasses +=
+            RuneCountClass(
+                carriers = members.map { it.equip },
+                slots = slots,
+                vars = vars,
+                coefficients = first.choices.mapValues { it.value.second },
+                runeTypes = first.choices.mapValues { it.value.first },
+                maxWorn = maxWorn
+            )
+    }
+    // The pick classes: one var per type per class counting its worn carriers filled with that type (0..maxWorn), `Σ_t q_t =
+    // Σ_c x_c` — the fold's `Σ_t pick_{c,t} = x_c` summed over the class. Same grouping and naming order as the count classes.
+    val pickGroups =
+        pendingPicks.groupBy { pc ->
+            Triple(pc.equip.itemType, pc.equip.maxShardSlots, pc.choices.map { (stat, choice) -> Triple(stat, choice.first.id, choice.second) })
+        }
+    for ((key, members) in pickGroups) {
+        val slots = key.second
+        val first = members.first()
+        val maxWorn = minOf(members.size, if (key.first == ItemType.RING) 2 else 1)
+        val vars =
+            first.choices.keys.associateWith { stat ->
+                newIntVar(0, maxWorn.toLong(), "runePickClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+            }
+        val capExpr = LinearExpr.newBuilder()
+        vars.values.forEach { capExpr.addTerm(it, 1L) }
+        members.forEach { capExpr.addTerm(equipVars.getValue(it.equip), -1L) }
+        addEquality(capExpr.build(), 0L)
+        for ((stat, choice) in first.choices) {
+            val v = vars.getValue(stat)
+            runeTypeByVar[v] = choice.first
+            coefficientByVar[v] = choice.second
+        }
+        for ((stat, subs) in first.gates) vars[stat]?.let { choiceGates[it] = subs }
+        countClasses +=
+            RuneCountClass(
+                carriers = members.map { it.equip },
+                slots = slots,
+                vars = vars,
+                coefficients = first.choices.mapValues { it.value.second },
+                runeTypes = first.choices.mapValues { it.value.first },
+                maxWorn = maxWorn,
+                unit = slots
+            )
     }
     // Global forced runes must be socketed at least once across the build.
     for (stat in globalForcedRuneStats) {
@@ -261,7 +481,11 @@ internal fun CpModel.createRuneModel(
         extraTerms,
         suppressedBy,
         maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse,
-        choiceGates = choiceGates
+        choiceGates = choiceGates,
+        countCarriers = countCarriers,
+        countVarSlots = countVarSlots,
+        foldInexactCarriers = foldInexactCarriers,
+        countClasses = countClasses
     )
 }
 
@@ -292,25 +516,79 @@ internal data class RuneChoice(
  *    wins (the moved part is worth (400 + c) in M against 5c in K, and the rest stays in K); any other source is
  *    [opaque];
  *  - a per-stat-step ramp's source, a %-skill's stat, a required target row's stat, the per-element masteries a best-
- *    element concentration compares: [opaque] (never pruned, never pruning — none of them is a candidate today).
+ *    element concentration compares: [opaque] (never pruned, never pruning — none of them is a candidate today);
+ *  - an item STAT GATE of the pool (`x_item ⇒ outOfCombatStat ⋚ value`, AGENTS.md §4 "Item equip conditions": the
+ *    out-of-combat sheet counts runes) — distance mastery, lock and dodge in the data: [opaque] and a threshold
+ *    ([mixedStats]). A gate on distance mastery reads the distance rune where the elemental one is free, so the
+ *    elemental choice must not fall to it (the wearer of the gated item may need it) and a part-fill can meet the gate.
  */
 internal class MaxDamageRuneReads(
     private val damageStats: Set<Characteristic>,
     private val bounds: List<Bound>,
     private val opaque: Set<Characteristic>,
+    // The sources of a modelled conversion that is NOT opaque (crit mastery → an M-feeding stat at ≤ 100 %): a rune of
+    // such a type is worth something to the objective even while a `≤ 0` cap holds its own stat at or below 0.
+    private val convertedSources: Set<Characteristic> = emptySet(),
+    // The opaque types whose reader is NOT linear in the rune count — a per-stat-step ramp's source, a best-element
+    // concentration's masteries: a part-fill can cross one of their thresholds.
+    private val thresholdReads: Set<Characteristic> = emptySet(),
+    // The required target rows (stat → target): the shortfall penalty / the hard leg's `actual ≥ target` is a threshold.
+    private val rowTargets: Map<Characteristic, Long> = emptyMap(),
 ) {
     internal enum class Side { LOWER, HIGHER, EXACT }
 
     /**
      * One stat of a modelled condition: `stat ⋚ threshold` (a multi-stat condition — the Neutralité family's six
      * secondaries — is one [Bound] per stat, each held on its own), the side the build prefers, and its CHOOSABLE sub
-     * (null when forced).
+     * (null when forced). [comparison] / [threshold] are the condition's own (read by [mixedStats]).
      */
     internal data class Bound(
         val stat: Characteristic,
         val side: Side,
         val choosableSub: Sublimation?,
+        val comparison: ConditionComparison = ConditionComparison.AT_MOST,
+        val threshold: Long = 0L,
     )
+
+    /**
+     * The rune types a single-type fill can NOT represent exactly (CERTIFIER_VERSION 62): a carrier offering one of them
+     * beside another type gets per-type counts ([createRuneModel]). The fold's premise — fill an item with its best type
+     * — holds while every reader of a rune is linear in its count: the damage objective is (`Graw` is linear in M and
+     * K at a fixed crit rate, convex through its `max(0, ·)` clamps, so a vertex — one type — maximises it over a
+     * carrier's fills). A THRESHOLD read breaks it:
+     *  - a CHOOSABLE `stat ≤ t` cap (the Neutralité family, Critical Secret) while it is taken leaves the stat's runes a
+     *    BUDGET — `t` minus everything else on the read — that a part-fill can match where a whole item overshoots:
+     *    rear 3 × 33 absorbed by an item's −120 rear line, the 4th socket elemental. The budget can be positive only if
+     *    `t > 0` or some source can make the stat NEGATIVE ([negativeSources]: an item line, a sub effect — skills and
+     *    the base never are); with neither, a taken cap holds every rune of the stat at 0 and the other types stay
+     *    linear. The runes the budget buys must also be WORTH something: an M-feeding type always is; critical
+     *    mastery while a `≤ t ≤ 0` cap holds it is clamped to 0 in `Graw` (`5c·max(0, K)`) unless a conversion moves it
+     *    into M ([convertedSources]) or t > 0. While the cap is not taken it restricts nothing: the fill is linear;
+     *  - a FORCED condition (its effect gated by the condition, possibly a malus) or a non-`≤` comparison: the build may
+     *    want to cross the threshold from either side — always mixed;
+     *  - [thresholdReads]: a ramp's steps, a per-element compare, an item stat gate's stat;
+     *  - a required target row (`actual ≥ target` on the hard leg, the shortfall penalty on the soft one; a 0-target row
+     *    is a floor) whose target is positive or whose stat a source can make negative — else every build meets it
+     *    whatever its runes. Keyed per rune type: an "all resistances" row reads the four per-element resistances;
+     *  - the survivability floor (HP and the four resistances), a non-crit conversion's source (its rounding step).
+     * The set is exact for the candidate types of the collapse and for the general fold's types alike: a stat no
+     * threshold reads is one more linear read.
+     */
+    fun mixedStats(negativeSources: Set<Characteristic>): Set<Characteristic> {
+        val out = LinkedHashSet<Characteristic>(thresholdReads)
+        for ((stat, target) in rowTargets) if (target > 0 || stat in negativeSources) out += stat
+        for (b in bounds) {
+            val s = b.stat
+            if (b.choosableSub == null || b.comparison != ConditionComparison.AT_MOST) {
+                out += s
+                continue
+            }
+            val budget = b.threshold > 0 || s in negativeSources
+            val worth = s in damageStats || b.threshold > 0 || s in convertedSources || s in opaque
+            if (budget && worth) out += s
+        }
+        return out
+    }
 
     /**
      * Whether choice [q] is at least as good as choice [p] ON THE SAME CARRIER (same socket count) for every read
@@ -400,12 +678,36 @@ internal fun maxDamageRuneReads(
     params: WakfuBestBuildParams,
     sublimations: List<Sublimation>,
     percentSkillStats: Set<Characteristic>,
+    // The rune keys the pool's item stat gates read ([statGateRuneReads]).
+    gatedStats: Set<Characteristic> = emptySet(),
 ): MaxDamageRuneReads {
     if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return MaxDamageRuneReads.NONE
     val damageStats = scenarioMasteryStats(params.damageScenario).toSet()
     val bounds = mutableListOf<MaxDamageRuneReads.Bound>()
     val opaque = HashSet<Characteristic>(percentSkillStats)
-    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach { opaque += it.characteristic }
+    val converted = HashSet<Characteristic>()
+    val thresholds = HashSet<Characteristic>()
+    val rows = LinkedHashMap<Characteristic, Long>()
+    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach { row ->
+        // Keyed like the rune types ([relevantRuneStats]): an "all resistances" row (max-damage keeps it unsplit) reads
+        // each per-element resistance rune.
+        for (stat in runeKeysOf(row.characteristic)) {
+            opaque += stat
+            rows[stat] = maxOf(rows[stat] ?: Long.MIN_VALUE, row.target.toLong())
+        }
+    }
+    // The survivability floor reads HP and the four resistances through `min(EHP, floor)` and a bucket table: a
+    // threshold on each of them (see [StatBuilder]'s effective-HP proxy).
+    val scenario = params.damageScenario
+    if (scenario.survivabilityFloor && scenario.minEffectiveHp > 0) {
+        thresholds += Characteristic.HP
+        thresholds += ELEMENTARY_RESISTANCES
+    }
+    // An item stat gate reads its stat on the out-of-combat sheet, runes included, against a threshold (either side): it
+    // never prunes nor is pruned (a choice reading less of it can be what lets the gated item be worn), and a part-fill can
+    // be what meets it.
+    opaque += gatedStats
+    thresholds += gatedStats
     val (forced, choosable) = modelledSublimations(params, sublimations)
     for (sub in forced + choosable) {
         // A combat-conditional sub is never credited, so its condition is never reified (buildSublimationTerms).
@@ -422,20 +724,103 @@ internal fun maxDamageRuneReads(
                 }
             // EACH stat is its own bound (the Neutralité family holds every secondary mastery ≤ t separately, never
             // their sum): a choice dominates another only if it reads no more of ANY of them.
-            for (stat in spec.stats.distinct()) bounds += MaxDamageRuneReads.Bound(stat, side, if (isForced) null else sub)
+            for (stat in spec.stats.distinct()) {
+                bounds += MaxDamageRuneReads.Bound(stat, side, if (isForced) null else sub, spec.comparison, spec.threshold.toLong())
+            }
         }
         sub.conversion?.let { conversion ->
             val critIntoDamage =
                 conversion.from == Characteristic.MASTERY_CRITICAL &&
                     conversion.to.foldedToUsableStat() in damageStats &&
                     conversion.percent in 0..100
-            if (!critIntoDamage) opaque += conversion.from
+            if (critIntoDamage) {
+                converted += conversion.from
+            } else {
+                // Any other conversion moves `floor(pct · stat)`: a rounding step a part-fill can land on.
+                opaque += conversion.from
+                thresholds += conversion.from
+            }
         }
-        sub.perStatStep?.let { opaque += it.source }
-        if (sub.bestElementConcentration != null) opaque += ELEMENT_MASTERY_CHARACTERISTICS
+        sub.perStatStep?.let {
+            opaque += it.source
+            thresholds += it.source
+        }
+        if (sub.bestElementConcentration != null) {
+            opaque += ELEMENT_MASTERY_CHARACTERISTICS
+            thresholds += ELEMENT_MASTERY_CHARACTERISTICS
+        }
     }
-    return MaxDamageRuneReads(damageStats, bounds, opaque)
+    return MaxDamageRuneReads(damageStats, bounds, opaque, converted, thresholds, rows)
 }
+
+/**
+ * The characteristics some source of this request can make NEGATIVE on the sheet a modelled condition reads — an item
+ * of [allEquips] (already resolved to the wearer's level) or a modelled sub's stat effect (every timing and gate: a
+ * superset). Skills, runes and the base never are. Read by [MaxDamageRuneReads.mixedStats]: a `≤ t ≤ 0` cap leaves a
+ * stat's runes a budget only if one of these exists.
+ */
+internal fun negativeStatSources(
+    allEquips: List<Equipment>,
+    sublimations: List<Sublimation>,
+    characterLevel: Int,
+): Set<Characteristic> {
+    val out = HashSet<Characteristic>()
+    for (equip in allEquips) {
+        for ((stat, value) in equip.characteristics) if (value < 0) out += negativeTargets(stat)
+    }
+    for (sub in sublimations) {
+        for (effect in sub.effects.filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>()) {
+            // Any family level a stacked / forced-level sub can take (CERTIFIER_VERSION 61: its value is read per level).
+            if (effect.magnitudeAtLevel(characterLevel) < 0 || effect.valuesByLevel.any { it < 0 }) out += negativeTargets(effect.characteristic)
+        }
+    }
+    return out
+}
+
+/**
+ * The per-element stats a negative line of [stat] can lower: an aggregate or random-element resistance (mastery) line
+ * lands on the four elements (16 catalog items carry a negative "all resistances" line), any other line on its own
+ * (MAX_* folded) stat.
+ */
+private fun negativeTargets(stat: Characteristic): Set<Characteristic> =
+    when (stat) {
+        Characteristic.RESISTANCE_ELEMENTARY,
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        -> ELEMENTARY_RESISTANCES.toSet() + stat
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        -> ELEMENTARY_MASTERIES.toSet() + stat
+        else -> setOf(stat.foldedToUsableStat())
+    }
+
+/**
+ * The rune keys the item STAT GATES of [allEquips] read (`GetCharac("MASTERY_DISTANCE") <= 150`, lock / dodge bands, …;
+ * read on the out-of-combat sheet, runes included — [StatBuilder.outOfCombatStat]). Every gate counts, whether or not it can
+ * fail: a superset only keeps more choices and more count carriers, both exact. [allEquips] is the model's own pool (after the
+ * prefilter and domination: an evicted gated item reads nothing).
+ *
+ * Narrowing it to the gates that can fail was measured and changes nothing (2026-10-12): every catalog gate on a rune stat
+ * (distance mastery ≥ 400 / ≤ 500, lock ≥ 400 / ≥ 500 / ≤ 500 / ≤ 600, dodge ≥ 500 / ≤ 600) is posted by the model on the
+ * level-200 / 245 pools that hold it (its reach crosses the value: [StatBuilder.applyItemStatGates]), and the gates that can
+ * never fail (the 89 `critical hit > −10`) read no rune type. Both sides of the distance band are in those pools, so a side-aware
+ * read would be the same as opaque. On requests with non-damage rune rows (the GUI default) the general fold offers every
+ * type on every carrier and reads nothing here; the only model it grows is the free collapse (MD245F: 28,107 → 31,049 vars),
+ * and the hybrid's fold stage prunes without it ([createRuneModel]'s `foldSearchReads`).
+ */
+internal fun statGateRuneReads(allEquips: List<Equipment>): Set<Characteristic> =
+    allEquips.flatMapTo(LinkedHashSet()) { equip -> equip.statGates.flatMap { runeKeysOf(it.sheetCharacteristic) } }
+
+/** The rune types a target row on [stat] reads — the same keys as [relevantRuneStats]. */
+private fun runeKeysOf(stat: Characteristic): List<Characteristic> =
+    when (stat) {
+        Characteristic.RESISTANCE_ELEMENTARY -> ELEMENTARY_RESISTANCES.toList()
+        Characteristic.MASTERY_ELEMENTARY, in ELEMENTARY_MASTERIES -> listOf(Characteristic.MASTERY_ELEMENTARY)
+        else -> listOf(stat)
+    }
 
 /**
  * The rune-coverable stats worth modelling for this request: requested stats that have a rune.
