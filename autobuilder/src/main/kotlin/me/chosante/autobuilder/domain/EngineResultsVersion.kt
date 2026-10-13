@@ -19,7 +19,7 @@ package me.chosante.autobuilder.domain
  * from the AP-only rotations and certificate throughput tables. Saved searches need a re-run.
  * 5: CERTIFIER_VERSION 60 — sublimation families reach their level cap with partial shards and shared conditional gates.
  * 6: CERTIFIER_VERSION 61 — shard tiers never overshoot the cap; derived conditional debits retain an optimistic zero.
- * 7: CERTIFIER_VERSION 62 — max-damage runes can MIX on an item: a carrier offering a rune type a threshold reads (a
+ * Still 6 (61 never shipped; both land in 1.18.0): CERTIFIER_VERSION 62 — max-damage runes can MIX on an item: a carrier offering a rune type a threshold reads (a
  * secondary cap with a budget, a required row or floor, the survivability floor, an item stat gate) keeps per-type counts
  * instead of one type per item, and an item stat gate's stat no longer lets the rune choice collapse prune the choice the
  * gated item needs. The search itself runs on the fast single-type fold where it is inexact, then re-solves the count
@@ -31,4 +31,4 @@ package me.chosante.autobuilder.domain
  * exact pick classes (one var per rune type per class), so the search reaches a build meeting the rows much sooner. A re-run
  * may find a better build.
  */
-const val ENGINE_RESULTS_VERSION: Int = 7
+const val ENGINE_RESULTS_VERSION: Int = 6

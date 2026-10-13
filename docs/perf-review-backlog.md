@@ -1189,7 +1189,7 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
 
 ### Status 2026-10-11 (audit of this section against the code at `6f0c6d2b`)
 
-Engine today: **CERTIFIER_VERSION 62** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 7**
+Engine today: **CERTIFIER_VERSION 62** (`WakfuBuildSolver.kt`) and **ENGINE_RESULTS_VERSION 6**
 (`domain/EngineResultsVersion.kt`). The body below was written for v38–v56. Bumps since then that this section does not
 describe: v57 for equip conditions and exclusivity groups (`0d20246f`, `81621547`); v58 for domination ignoring gates
 that cannot fail (`b2295eca`); v59 for spell costs from the client (`77f9a393`); v61 for sublimation stacking to the
@@ -1242,7 +1242,7 @@ either way was found in the repo.
    still skips the post-search check when `prefilteredRequest` is set. Phase 0 numbers are single samples. AGENTS.md
    ("The multi-element item pre-filter") points here.
 2. **Single-type rune fold under a positive secondary budget**: the SOUNDNESS gap is closed by the mixed-rune count
-   carriers (PR #251, ported as CERTIFIER_VERSION 62 / ENGINE_RESULTS_VERSION 7: `MaxDamageRuneReads.mixedStats`,
+   carriers (PR #251, ported as CERTIFIER_VERSION 62 / ENGINE_RESULTS_VERSION 6: `MaxDamageRuneReads.mixedStats`,
    `RuneModel.countCarriers`, re-measured per stat (v56 reading) in `docs/MIXED_RUNE_SECONDARY_BUDGET.md`; lock
    `MixedRuneSecondaryBudgetTest`). Its SEARCH COST was open: requests whose rows make every rune type a threshold read
    (the GUI default: HP 2000, 0-rows with negative lines, the Neutralité budget) turn every socketed carrier into integer
@@ -1575,7 +1575,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     the gates' sub sets, forced / opaque readers; pruned + gated == full-choice == general fold on 24 seeded pools,
     mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
 - **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — ✅ SOUNDNESS FIXED (PR #251, written 2026-10-06 against
-  v56/57, ported onto main 2026-10-11 as CERTIFIER_VERSION 62 / ENGINE_RESULTS_VERSION 7; found 2026-10-04 by the #226
+  v56/57, ported onto main 2026-10-11 as CERTIFIER_VERSION 62 / ENGINE_RESULTS_VERSION 6; found 2026-10-04 by the #226
   review). Its SEARCH COST was OPEN (below and status block OPEN #2; closed 2026-10-12 on `perf/mixed-runes-integrated`, docs/MIXED_RUNE_SECONDARY_BUDGET.md "Wall clock").** The max-damage fold (and the collapse built on it) filled each item with ONE rune
   type, on the premise that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE secondary
   line gives that stat's cap (each secondary is capped on its own since v56) a positive budget, which a mixed item (part

@@ -400,7 +400,7 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   flag is part of the certificate cache key (memory and disk); soft-leg and free results keep the target-blind ledger.
   Kill switch `WAKFU_MD_TARGET_AWARE=0`; locks in `MaxDamageTargetAwareCertificateTest` (oracle: the pinned hard-leg
   CP-SAT optimum per AP cell).
-- **Rune fold vs mixed items (CERTIFIER_VERSION 62, ENGINE_RESULTS_VERSION 7).** Max-damage fills a socketed item with ONE rune type (a pick
+- **Rune fold vs mixed items (CERTIFIER_VERSION 62, ENGINE_RESULTS_VERSION 6).** Max-damage fills a socketed item with ONE rune type (a pick
   bool per type) — exact only while every reader of a rune is linear in its count. A threshold read breaks it: a
   `secondary ≤ 0` cap with a budget (an item's NEGATIVE line of that secondary), a forced condition, a required row or
   floor (keyed per rune type: an "all resistances" row reads the four resistance runes; a negative aggregate line lowers

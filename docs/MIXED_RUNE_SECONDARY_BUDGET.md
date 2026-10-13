@@ -3,8 +3,11 @@
 2026-10-06 · Wakfu data 1.93.1.62 · written against `CERTIFIER_VERSION` 57 / `ENGINE_RESULTS_VERSION` 2 (PR #251). "v56
 fold" below = the all-or-nothing fold this replaces; the measurements below were taken on that code.
 
-**Ported onto main on 2026-10-11 as `CERTIFIER_VERSION` 62 / `ENGINE_RESULTS_VERSION` 7** (61 / 6 shipped with 1.18.0, so
-the change takes the next numbers, AGENTS.md §4). What the port changed:
+**Ported onto main on 2026-10-11 as `CERTIFIER_VERSION` 62 / `ENGINE_RESULTS_VERSION` 6** (AGENTS.md §4; it ships in
+1.18.0 beside 61 / 6, which no release had shipped: `ENGINE_RESULTS_VERSION` reuses the unreleased 6 and extends its
+history entry, while `CERTIFIER_VERSION` takes the next number because the model admits more builds — a mixed item — so a
+v61 bound cached on disk must not be served. The branch first carried 62 / 7, assuming 1.18.0 would ship before it.)
+What the port changed:
 - **Item stat gates** (landed on main meanwhile, v57/v58) read the out-of-combat sheet, runes included, so they are rune
   readers too: `statGateRuneReads` (RuneModelBuilder.kt) feeds every gated stat of the pool into `maxDamageRuneReads` as an
   OPAQUE stat (never pruned, never pruning) and a threshold (`mixedStats`). Without it the choice collapse pruned the
@@ -278,7 +281,7 @@ objective, deterministic time and wall time).
   construct crowns a build only by reaching that bound, and runs on the count model (tuned path, no opt-in). The soft
   certificate's no-condition oracle (`timedMaxDamageProfileForTest`) builds the count model by default.
 - **Versions.** No certifier change: `CERTIFIER_VERSION` 62 stays. The engine's results change (the polish), so the unreleased
-  `ENGINE_RESULTS_VERSION` 7 history entry was extended (AGENTS.md §4).
+  `ENGINE_RESULTS_VERSION` 6 history entry was extended (AGENTS.md §4).
 
 ### Deterministic A/B (1 worker, seed 1, interleave, det 120; production pool, domination on; greedy warm start on)
 
@@ -492,7 +495,7 @@ Both features stay on together:
 - **Certificates** keep per-carrier counts: every model built for one is built without classes, and the certifier bails on a
   model with classes. The **E8 construct** re-solves on the tuned path (hybrid off), so as on branch 3 it searches the exact
   count model with classes. It only returns solutions of that model, which are real builds.
-- No certifier change: `CERTIFIER_VERSION` 62 / `ENGINE_RESULTS_VERSION` 7 (unreleased; history entry extended).
+- No certifier change: `CERTIFIER_VERSION` 62 / `ENGINE_RESULTS_VERSION` 6 (unreleased; history entry extended).
 
 Arms for an A/B (production path, env vars read at JVM start):
 
@@ -714,7 +717,7 @@ one), with `Σ_t q_t = Σ_{c ∈ class} x_c`; one unit of `q_t` is a whole carri
 - **Certificates untouched**: like the count classes, every model built for a certificate keeps per-carrier vars, and the
   certifier bails on a model with classes. The fold stage's `OPTIMAL` was never trusted (`foldInexactCarriers`); where the
   fold is exact (no inexact carrier) the direct solve's `OPTIMAL` is a proof of the same model, aggregated. No
-  `CERTIFIER_VERSION` change; the unreleased `ENGINE_RESULTS_VERSION` 7 history entry is extended (search trajectories, and so
+  `CERTIFIER_VERSION` change; the unreleased `ENGINE_RESULTS_VERSION` 6 history entry is extended (search trajectories, and so
   the returned builds, change).
 - **Where**: production builds pick classes into any max-damage search model (the hybrid's fold stage and count stages, the
   direct solve) whose per-carrier fold would hold at least `PICK_CLASS_MIN_PICK_VARS` = 24,000 multi-choice pick vars; below
