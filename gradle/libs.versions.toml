@@ -12,7 +12,7 @@
 jvm = "25"
 # Kotlin: drives the kotlin-jvm / kotlin-serialization / compose-compiler plugins (they are released
 # in lockstep with the Kotlin version) across every module.
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 # OR-Tools: the JVM lib (autobuilder) and the per-OS native artifacts (gui-compose packaging) share
 # this version, also read via libs.versions.ortools for the Conveyor machine configs.
 ortools = "9.15.6755"
