@@ -29,6 +29,9 @@ What the port changed:
 - **Pick classes** (2026-10-12, section "The hard leg since 1.14.2, and pick classes"): why the GUI-default hard leg slowed
   after 1.14.2 (bisected; the old builds are illegal today), and the fold stage's pick carriers aggregated into exact classes
   on large folds — MD200 4.84 M → 8.69 M at 60 s.
+- **The search's basin** (2026-10-14, section "Pick classes and the search's basin"): on a small hard-leg fold the greedy CP-SAT
+  hint picks the build's EPIC-item basin, and the target rows keep the search inside it; such folds now search "LNS first"
+  (no hint, one full subsolver). E0 MD110 median 1,441,270 (1.18.0) → 1,445,815 over 10 runs, first CP-SAT solution 13.3 → 5.0 s.
 
 ## The gap
 
@@ -719,7 +722,8 @@ one), with `Σ_t q_t = Σ_{c ∈ class} x_c`; one unit of `q_t` is a whole carri
   fold is exact (no inexact carrier) the direct solve's `OPTIMAL` is a proof of the same model, aggregated. No
   `CERTIFIER_VERSION` change; the unreleased `ENGINE_RESULTS_VERSION` 6 history entry is extended (search trajectories, and so
   the returned builds, change).
-- **Where**: production builds pick classes into any max-damage search model (the hybrid's fold stage and count stages, the
+- **Where** (1.18.0; superseded 2026-10-13, see "Pick classes and the feasibility pump" below: every fold, literal encoding):
+  production builds pick classes into any max-damage search model (the hybrid's fold stage and count stages, the
   direct solve) whose per-carrier fold would hold at least `PICK_CLASS_MIN_PICK_VARS` = 24,000 multi-choice pick vars; below
   that the model is the same as before. Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`; tuned opt-in `SolverTuning.runePickClasses`
   (with `runePickClassMinPickVars`, default 0 = always).
@@ -750,7 +754,7 @@ The 3-worker harness (`w60`, `WAKFU_MIXED_WORKERS=3 WAKFU_MIXED_INTERLEAVE=0`, p
 → 1,320,660: the class model reaches its first solution at 2.9 s instead of 10.7 s, then its LNS stalls near 1.33 M where the
 per-carrier fold's `graph_arc_lns` / `rins_pump_lns` climb to 1,447,330) and places the crossover (seeds 1–3): level 140
 (21,007 pick vars) 2,449,920 → 2,440,900 (even), level 170 (28,287) 4,000,400 → 4,261,740 (+6.5 %); free 245 has 20,632 (even).
-Hence the 24,000-var threshold: levels 110 and 140 and the free requests keep the per-carrier fold; 170, 200 and 245 get
+Hence the 24,000-var threshold (superseded 2026-10-13: the cause was the linear encoding, see "Pick classes and the feasibility pump"): levels 110 and 140 and the free requests keep the per-carrier fold; 170, 200 and 245 get
 pick classes (`PICK_SHAPE` mode of the harness prints a request's count).
 
 **Wall clock, the shipped rule** (`PerfBaselineE0Test`, the production path: 60 s, `-XX:ActiveProcessorCount=4`, 3 GB, proof capped at
@@ -782,6 +786,228 @@ and above those releases' (illegal) medians.
   60 / 120, the stage's det not counted, vs 13.92 M / 15.85 M). Superseded by pick classes, which make the first solution
   cheap with one model.
 - **No hint at all**: MD200's first solution at det 33 (the hint was the dead end), but MD245 falls to 10.96 M at det 120.
+
+## Pick classes and the feasibility pump (2026-10-13)
+
+`perf/pick-classes-110`. Question: why did the pick classes find the level-110 GUI-default build ~3× sooner but end ~8 % below
+the per-carrier fold on production's 3-worker portfolio (while leading on the 1-worker deterministic protocol)? Protocol:
+`MixedRuneCountsPerfHarnessTest` with `WAKFU_MIXED_WORKERS=3 WAKFU_MIXED_INTERLEAVE=0`, budget `w60`, the greedy hint,
+`WAKFU_MIXED_LOGDIR` (CP-SAT's search log), one JVM per 4 physical cores (`start /affinity FF` / `FF0000`, two at a time);
+then `PerfBaselineE0Test` (the production path, 60 s, `-XX:ActiveProcessorCount=4`, 3 GB, proof / E8 capped at 10 s) on 15
+fixtures: the GUI-default rows at levels 50 / 80 / 110 / 140 / 170 / 200 / 245 (`MDG<level>`, `MD110`, `MD200`, `MD245`), the
+free CRA requests (`MD110F`, `MD245F`), an Iop melee request (`IOP<level>`: AP 11, MP 4, crit 25, melee mastery, HP 2000, wind
+resistance 0, dodge 0), a Sacrieur melee one (`SAC<level>`: AP 11, MP 5, crit 20, melee mastery, HP 3000, lock 0) and the GUI
+default with Neutralité III forced (`MDN<level>`). Both harnesses now take these ids.
+
+### Diagnosis: the per-carrier fold's search runs on the feasibility pump; the linear classes starve it
+
+MD110, 3 workers, seeds 1–6 (fold stage): per-carrier 1,429,150 / 1,440,260 / 1,305,870 / 1,419,050 / 1,415,010 / 1,427,130;
+linear pick classes 1,354,190 / 1,303,260 / 1,301,665 / 1,296,300 / 1,262,370 / 1,325,880. The search logs:
+- **Same portfolio** in both: 2 full workers `[default_lp, fixed]`, interleaved `[feasibility_pump, graph_arc/cst/dec/var_lns,
+  ls, rins/rens, rnd_cst/var_lns]`. Not a portfolio difference.
+- **Not the hint.** Production hints the equipment vars only, so both models get the same hint. The class model even completes
+  it (`default_lp [hint]` at 2.9 s, 328–380 k); the per-carrier fold never does (`default_lp` runs one 51 s task without a
+  solution).
+- **Not the LNS neighbourhoods as such.** Both improve through the same graph / random LNS families. What differs is where
+  RINS / RENS take their reference point. The per-carrier fold's improving solutions come from `rens_pump_lns` (the first
+  solution, 1,216,040 at ~11 s, in 5 of 6 seeds) and `rins_pump_lns` (2–8 improving solutions per run, including the late ones
+  that reach 1.42–1.44 M). The class model has no pump solution at all ("Solution repositories": `'pump' 0 0` in 6 of 6 runs,
+  against 120–250 added in the per-carrier runs), so its RINS / RENS run on LP solutions (`rins_lp_lns`) and stall at
+  1.26–1.35 M. The one per-carrier seed whose pump only fired at 42 s ended at 1,305,870, with the class runs.
+- **Why the pump fails.** The per-carrier fold's `Σ_t pick_{c,t} = x_c` presolve into exactly-ones (2,022 `kExactlyOne`), which
+  the pump's propagation-assisted rounding satisfies. The class equation `Σ_t q_t = Σ_c x_c` stays a linear constraint over
+  every carrier of the class, with integer class vars (0..2) for rings. Encodings tried (all exact, same solutions; presolved
+  vars at MD110, runs where the pump fired, 3-worker finals after the polish):
+
+| Encoding | vars | pump fired | MD110 final (seeds) |
+|---|---|---|---|
+| per carrier (1.18.0 at 110) | ~16,480 | 5 of 6 (1 late), 3 of 4 | 1.43 / 1.44 / 1.33 / 1.42 / 1.42 / 1.43 M; 1.45 / 1.14 / 1.45 / 1.42 M |
+| linear classes (1.18.0 from 24k) | 2,877 | 0 of 6 | 1.36 / 1.33 / 1.32 / 1.34 / 1.26 / 1.33 M |
+| non-ring classes as exactly-ones, ring classes linear | 2,929 | 0 of 6 | 1.13 / 1.37 / 1.31 / 1.29 / 1.35 / 1.23 M |
+| non-ring classes as exactly-ones, rings per carrier | 4,445 | 10 of 10 | 1.43 / 1.44 / 1.43 / 1.44 / 1.40 / 1.43 / 1.43 / 1.44 / 1.42 / 1.43 M |
+| **literal: exactly-ones, two ring-slot layers (shipped)** | 2,980 | 4 of 4 (~1,000 added each) | 1.43 / 1.45 / 1.45 / 1.43 M |
+
+So one linear ring-class equation is enough to make every pump rounding fail on this request. The pump is shape-dependent,
+though: at SAC200 the per-carrier fold loses it (pump in 1 of 4 runs, finals 10.8–13.5 M) while the linear classes keep it (4 of
+4, 12.7–14.0 M). The literal encoding kept it in every run measured (MD110 4/4, SAC200 4/4; the rings-per-carrier variant
+14/14). At MD50 the pump's LNS matters to no model (0–2 solutions).
+
+### The fix: pick classes on every fold, posted literally (exact, search model only)
+
+`createRuneModel` (RuneModelBuilder.kt, the pick-class loop):
+- a class whose build wears at most one carrier (every non-ring type has a limit of 1; a ring class of one carrier) gets a worn
+  literal w, `ExactlyOne(¬w, q_t…)` and `ExactlyOne(¬w, x_c…)`, every `q_t` a literal. `ExactlyOne(¬w, x_c…)` is
+  `w = Σ_c x_c` because the type limit already caps that sum at 1;
+- a ring class of two or more carriers gets two ring-slot layers: `w2 ⇒ w1`, `w1 + w2 = Σ_c x_c`, `ExactlyOne(¬w1, a_t…)`,
+  `ExactlyOne(¬w2, b_t…)`, `q_t = a_t + b_t`.
+
+Both have exactly the solutions of `Σ_t q_t = Σ_c x_c` (projected on q and x), so everything the pick classes guaranteed holds:
+the same stat totals, the same reachable domains, `distribute`, and certificates untouched (they never see a class). Production
+now builds pick classes into every max-damage search fold (no size rule). Seams: `SolverTuning.runePickClassLinear` (the 1.18.0
+encoding), `runePickClassMinPickVars` with `PICK_CLASS_MIN_PICK_VARS_1_18` (1.18.0's rule; harness arm `hybridAuto118`), kill
+switch `WAKFU_MD_RUNE_PICK_CLASSES=0` (per-carrier picks). No `CERTIFIER_VERSION` change; `ENGINE_RESULTS_VERSION`
+6 → 7 (6 shipped in 1.18.0, and the returned builds change). Lock: `RunePickClassTest` proves both
+encodings equal to the per-carrier fold's optimum on its seeded pools (ring classes of 2–3 carriers included).
+
+### Wall clock (E0, pooled)
+
+Head = 1.18.0's rule (per-carrier below 24,000 pick vars, linear classes above); literal = this change. Four sessions
+(`e1` 09:09–09:59, `e4` 10:57–11:47, `e5` 11:47–12:47, `e6` 12:54–13:16; two JVMs at a time, slots rotated). From 11:25 an
+unpinned process of the user (about one core) ran beside them. The head's medians agree across sessions (MD110 1,447,330 in
+`e1`, 1,438,240 in `e5`; MDG140 2.00 M / 1.89 M; SAC110 2.15 M / 1.96 M), so the sessions are pooled. Medians (min–max) and the
+median first CP-SAT solution:
+
+| Fixture | head runs | head median (range) | literal runs | literal median (range) | Δ | first solution, head → literal |
+|---|---|---|---|---|---|---|
+| MDG50 | 10 | 230,400 (226,400–231,200) | 7 | 230,400 (216,800–230,800) | 0.0 % | 3.1 → 1.2 s |
+| MDG80 | 10 | 709,920 (709,840–720,000) | 7 | 716,400 (703,440–720,720) | +0.9 % | 8.8 → 2.3 s |
+| MD110 | 10 | 1,447,330 (1,429,150–1,447,330) | 7 | 1,431,545 (1,326,750–1,435,210) | −1.1 % | 11.8 → 4.1 s |
+| MDG140 | 10 | 1,998,920 (1,764,180–2,177,280) | 7 | 2,389,760 (2,348,800–2,425,600) | **+19.6 %** | 19.1 → 7.7 s |
+| MDG170 | 9 | 4,184,360 (3,981,510–4,444,240) | 6 | 4,059,945 (3,898,095–4,191,660) | −3.0 % | 14.1 → 12.7 s |
+| MD200 | 9 | 8,701,660 (8,547,000–9,013,015) | 6 | 8,701,660 (8,626,365–8,937,720) | 0.0 % | 18.4 → 16.3 s |
+| MD245 | 9 | 15,643,170 (14,834,950–17,161,750) | 6 | 15,586,755 (15,319,050–17,152,250) | −0.4 % | 22.8 → 22.8 s |
+| MD245F | 10 | 19,750,500 (19,494,000–20,276,070) | 7 | 19,729,125 (19,353,875–19,881,125) | −0.1 % | 22.2 → 17.1 s |
+| MD110F | 10 | 1,409,102 (1,301,520–1,467,835) | 7 | 1,541,260 (1,411,490–1,571,560) | **+9.4 %** | 7.7 → 2.8 s |
+| IOP110 | 10 | 1,490,188 (1,453,860–1,530,805) | 7 | 1,532,250 (1,394,710–1,551,905) | +2.8 % | 11.8 → 3.7 s |
+| IOP200 | 9 | 8,853,845 (8,354,340–9,920,100) | 6 | 9,614,565 (9,329,460–9,904,250) | **+8.6 %** | 17.6 → 18.0 s |
+| SAC110 | 10 | 2,057,680 (1,885,725–2,163,975) | 7 | 2,052,650 (1,934,855–2,174,650) | −0.2 % | 12.2 → 3.7 s |
+| SAC200 | 9 | 13,005,135 (12,573,150–13,449,050) | 6 | 13,017,120 (12,154,100–13,790,300) | +0.1 % | 15.3 → 19.5 s |
+| MDN110 | 10 | 1,346,330 (1,327,450–1,352,390) | 7 | 1,352,390 (1,252,800–1,364,510) | +0.5 % | 12.9 → 4.5 s |
+| MDN245 | 9 | 14,887,620 (14,340,120–15,534,875) | 6 | 14,916,090 (14,692,710–16,399,375) | +0.2 % | 20.6 → 20.0 s |
+
+- Below level 170 the literal classes find the first build 2.5–3.8× sooner on every request, and end at or above the per-carrier
+  fold except on MD110: −1.1 %, systematic (the per-carrier fold reaches 1,447,330 in 6 of 10 runs, the literal classes stop at
+  1,431,545 in 5 of 7, and one run of 7 ended at 1,326,750), though inside the head's own range (its low runs: 1,429,150).
+- From level 170 they replace the linear classes: even on MD200 / MD245 / SAC200 / MDN245, +8.6 % on IOP200, −3.0 % on MDG170
+  (the ranges overlap; the head's runs spread over 3.98–4.44 M). SAC200's first solution comes later (15.3 → 19.5 s).
+- The rings-per-carrier variant (7 / 3 runs per fixture) gave the same picture with larger swings (MDG50 −1.7 %, SAC110 −3.1 %,
+  SAC200 −4.7 %, MDG170 +4.6 %, MD245 +5.1 %). Not shipped.
+
+3-worker harness (finals after the polish, each stage up to 60 s): MD50 per carrier 226,400 / 230,400 ×3, literal 225,600 /
+230,400 / 231,200 ×2; SAC110 per carrier 2.15–2.16 M, linear 2.15–2.20 M, rings per carrier 1.99–2.18 M; SAC200 per carrier
+10.8–13.5 M (8 runs), linear 12.7–14.0 M, rings per carrier 12.4–13.2 M, literal 12.7–13.8 M.
+
+Deterministic protocol (1 worker, interleave, det 60, seeds 1–3, hybrid on pick classes; per seed, then the median), literal
+against linear: MD110 1,339,865 / 1,447,330 / 1,387,740 (1,387,740) vs 1,431,545 / 1,377,110 / 1,420,085 (1,420,085, −2.3 %);
+MD200 6,570,780 / 6,046,620 / 6,815,220 (6,570,780) vs 7,288,880 / 6,045,040 / 5,917,000 (6,045,040, +8.7 %); MD245 17,198,430
+/ 14,578,830 / 15,564,330 (15,564,330) vs 14,173,680 / 15,319,050 / 15,148,230 (15,148,230, +2.7 %); MD245F 19,458,375 /
+19,109,250 / 19,551,000 vs 19,477,375 / 19,745,750 / 19,458,375 (−0.1 %). On one interleaved worker the encodings trade
+places within seed noise; the pump's effect is a 3-worker one.
+
+### Open
+
+- MD110's last 1.1 %: the per-carrier fold's pump-driven RINS reaches 1,447,330 more often. The pump alone does not explain it,
+  since both models have it now. **Answered 2026-10-14** ("Pick classes and the search's basin" below): the greedy hint chooses the
+  EPIC-item basin, and the per-carrier fold's first solution lands in the right basin by luck.
+- The pump's success is shape-dependent and invisible to the model builder; a 3-worker search log is the only check (`'pump'`
+  in "Solution repositories"). Any new class or fold structure should stay clause-shaped.
+- The count classes (`Σ_t m_t = slots · Σ_c x_c`: the hybrid's polish / verify / fallback and the direct count search) are still
+  linear. They are not on production's fold path, so they were left as they are.
+
+## Pick classes and the search's basin: "LNS first" on small hard-leg folds (2026-10-14)
+
+`perf/pick-classes-110`, follow-up. A calm E0 re-check (60 s, 4 pinned cores, 5 runs per arm) still put MD110 (the GUI-default
+request, CRA 110) below 1.18.0: 1,431,545 ×3 and 1,331,100 ×2 with the literal classes, 1,429,150–1,447,330 with 1.18.0's
+per-carrier fold. Question: why does the class model stall there, and what fixes it without touching the model?
+
+### Diagnosis: basins of the EPIC-group item, and the greedy hint picks one
+
+Protocol. A throwaway harness ran the production path (`WakfuBestBuildFinderAlgorithm.run`, 60 s, `-XX:ActiveProcessorCount=4`,
+3 GB, 4 JVMs at a time, each pinned to 4 physical cores) and logged every emitted build's items. Its key addition: it shifted
+the main thread's identity-hash sequence before anything else ran. `TargetStats` is a `HashSet` ordered by the
+`Characteristic` constants' identity hashes, so the shift changes the model's row order: "ordering" p0, p1… below (AGENTS.md §9).
+Within one harness the order is almost fixed: each E0 run of a JVM sees the same one. That is why E0's MD110 arms looked
+deterministic (the branch's first CP-SAT solution was 799,515 in 3 of 5 recheck runs). Their gap was the luck of one row order.
+
+- **Three basins, named by the EPIC-group item.** Best build 1,447,330 (Casque Hazieff, EPIC helmet, Anatomie as the epic
+  sublimation, Ailes du Corbeau Blanc as the cape). 1,431,545 (Cape de Visibilité, EPIC cape, with Concentration Élémentaire or
+  Anatomie, and Masque Riktus de Brâkmar as the helmet): it differs from the best build by exactly two items, the helmet and the
+  cape, plus the sublimations. 1,330,230 / 1,331,100 (still Cape de Visibilité, with Plastron Riktus de Brâkmar and Poids Plume
+  III): one item, the chest, away from 1,431,545.
+- **The rows make the basins sticky.** Leaving the EPIC item takes two items, the sublimations and the runes at once. With the
+  Cape build's items hinted and at most 2 new items allowed (local branching, full pool), CP-SAT did not find 1,447,330 in 30 s
+  (LP bound 3.5 M). With the Cape items fixed and every helmet and cape open (496 candidates), it found 1,431,545 in 8 s, never
+  1,447,330. Yet the inner problem is easy: with the Hazieff build's 13 items pinned, both encodings reach 1,447,330 in 2 s.
+  With Cape de Visibilité forbidden, 4 of 4 runs settle in the Hazieff basin.
+- **1.18.0 (per-carrier fold).** The model is large (16,484 vars, 9 s of presolve). Neither the greedy hint (whose basin is
+  Claymore de Fhenris) nor the full workers find anything early. The first solution is always `rens_pump_lns` at ~13 s, worth
+  1,216,040 and already in the Hazieff basin, and the search climbs from there. 16 orderings: median 1,439,755, 7 at 1,447,330,
+  one at 1,327,620.
+- **The class fold (literal).** Presolve takes 2.3 s. `default_lp [hint]` completes the greedy hint at ~3 s (the Claymore /
+  Ceinture du Dieu Ecaflip basin), and the early LNS climbs from there into the Cape basin. Its own pump does not help: run alone
+  (`feasibility_pump` + `rins/rens`), its first solution is 928,290 in the Cape basin. Over 8 orderings, 1 run reached 1,447,330;
+  over 16, 1. The class model is a faster climber, but in the wrong basin.
+
+### Levers measured (MD110 over randomized orderings, then the other fixtures, 3–6 orderings each)
+
+| Lever | MD110 at 1,447,330 | elsewhere | kept |
+|---|---|---|---|
+| no greedy CP-SAT hint | 1 / 8 (5 / 8 end in the Hazieff basin, but below its optimum) | MD245F −34 %, MDG245 −19 %, MDG140 −10 % | only with the next one, small folds |
+| `num_full_subsolvers = 1` (2 threads for LNS / pump instead of 1) | 3 / 8 | MDG140 −3 to −5 %, MDG245 −8 %, MDG170 +8 %, SAC110 +10 % | only with the previous one, small folds |
+| **both: "LNS first"** | 6 / 8, 10 / 16, 8 / 16 (same 16 orderings as 1.18.0's 7 / 16), 11 / 16 | SAC110 +9.5 %, MDN110 +0.9 %, IOP110 / MDG80 / MDG50 / MD110F even, MDG140 −6 %, 245 −9 to −21 % | **yes, hard leg, ≤ 18,000 pick-class vars** |
+| `ignore_subsolvers = fixed` + no hint | 5 / 8 | MDG245 −29 % | no |
+| `solution_pool_size = 10`, `diversify_lns_params` | 1 / 8, 1 / 8 (with the hint); 9 / 16 on LNS first | — | no |
+| linearization level 1 (LNS first) | 0 / 16 (median 1.25 M) | — | no |
+| greedy hint without the EPIC-group items | 2 / 8 | — | no |
+| EPIC-group items as singleton pick classes | 0 / 8 (one 1,444,300) | — | no |
+| greedy multi-start over the 36 EPIC items, ranked by `rescore` | ranks Ceinture du Dieu Ecaflip (the 1.33 M basin) first, Hazieff second | — | no |
+| fold in two halves, the second forbidding the first's EPIC item | 4 / 16 (each half too short to finish its climb) | — | no |
+| slot swap after the fold (count model on the best items + one slot's pool, cut at `best + 1`) | 9 / 16 vs 8 / 16 | single slots take 0.2–3 s; slot pairs (the move a basin change needs) stay UNKNOWN after 8 s | no |
+| merging the fold's solution history (restricted pool = every item it showed, 53–66 items) | 1 / 6 | — | no |
+| a per-carrier tail / portfolio split | not built: the per-carrier fold wins by its first solution's basin, not by climbing, and a tail hinted with the class incumbent starts in the class incumbent's basin | — | — |
+
+At 7 workers (`-XX:ActiveProcessorCount=8`, 4 orderings) the default portfolio already reached 1,447,330 3 times out of 4, and
+LNS first did so 4 times out of 4.
+
+### The fix: "LNS first" on small hard-leg folds (search only)
+
+`WakfuBuildSolver.lnsFirstSearch`: the max-damage HARD leg whose search fold holds pick classes of at most
+`LNS_FIRST_MAX_PICK_VARS` = 18,000 vars (`pickClassVarCount`, the per-carrier fold's multi-choice pick vars). That covers the
+GUI-default rows up to about level 120: 14,028 at level 110, 15,484 with Neutralité III forced, 12,024 for the Iop request and
+9,875 for the Sacrieur one at 110. It excludes 21,007 at level 140, every larger fold, and the soft leg. Such a leg:
+- leaves out the greedy CP-SAT hint. The greedy build is still shown at once: the first build the user sees does not change;
+- runs its fold (the hybrid's fold stage, or the direct solve) with `num_full_subsolvers = 1` when it has 3 workers or more, so
+  the other workers interleave LNS, the pump and local search.
+
+Same model and same exactness: no certificate reads it, and `CERTIFIER_VERSION` stays 62. `ENGINE_RESULTS_VERSION` 7, still
+unreleased, has its history extended. Kill switch `WAKFU_MD_LNS_FIRST=0`, tuned opt-in `SolverTuning.lnsFirst`. Locks:
+`RunePickClassTest` covers the rule (110 and 110 + Neutralité on; 140 and the soft leg off), and the hybrid lock runs its hard
+legs LNS first.
+
+Why a size rule: on a small fold CP-SAT finds a build that meets the rows within seconds on its own, so the hint only chooses the
+basin. On a large one the hint is what makes the first build reachable. The threshold sits between the measured sides: MD110 /
+MDN110 / IOP110 / SAC110 gain or stay even; MDG140 (21,007) loses 6 % and level 245 loses 9–21 %.
+
+### Wall clock (E0, the acceptance run)
+
+`PerfBaselineE0Test`, 60 s, `-XX:ActiveProcessorCount=4`, 3 GB, proof / E8 capped at 10 s, two JVMs at a time (one per CCD,
+slots swapped every round). 1.18.0 = `ad6c532c` with the branch's harness. Rounds 1–3 ran 9 fixtures (MD110 first). Rounds
+4–10 ran MD110 alone.
+
+| Fixture | 1.18.0 runs | median | this branch | median | Δ | first CP-SAT solution |
+|---|---|---|---|---|---|---|
+| **MD110** (10 / 10) | 1,447,330 ×4, 1,441,270 ×2, 1,440,260 ×2, 1,429,150, 1,427,130 | 1,441,270 | 1,447,330 ×5, 1,444,300, 1,431,545 ×4 | **1,445,815** | +0.3 % | 13.3 → 5.0 s |
+| IOP110 | 1,403,625 / 1,352,405 / 1,354,375 | 1,354,375 | 1,561,400 / 1,541,355 / 1,552,960 | 1,552,960 | +14.7 % | 11.0 → 3.4 s |
+| MD110F | 1,474,520 / 1,522,070 / 1,471,655 | 1,474,520 | 1,521,060 / 1,459,240 / 1,394,610 | 1,459,240 | −1.0 % | 7.3 → 2.6 s |
+| MDG140 | 2,088,460 / 1,882,760 / 1,976,320 | 1,976,320 | 2,366,720 / 2,421,760 / 2,385,920 | 2,385,920 | +20.7 % | 17.5 → 7.3 s |
+| MDG170 | 4,201,880 / 4,077,375 / 4,110,150 | 4,110,150 | 4,432,560 / 4,059,945 / 4,171,100 | 4,171,100 | +1.5 % | 12.0 → 10.8 s |
+| SAC200 | 12,571,195 / 12,796,600 / 13,097,425 | 12,796,600 | 13,799,400 / 12,574,380 / 12,880,350 | 12,880,350 | +0.7 % | 16.1 → 14.7 s |
+| MD200 | 8,701,660 / 8,701,660 / 8,547,000 | 8,701,660 | 8,701,660 / 8,547,000 / 8,728,115 | 8,701,660 | 0.0 % | 15.9 → 14.8 s |
+| MD245 | 15,319,050 / 16,109,640 / 16,603,625 | 16,109,640 | 17,223,500 / 15,750,480 / 17,016,875 | 17,016,875 | +5.6 % | 20.3 → 19.5 s |
+| MD245F | 20,276,070 / 20,213,820 / 20,276,070 | 20,276,070 | 19,714,875 / 19,855,000 / 19,767,125 | 19,767,125 | −2.5 % | 20.5 → 15.4 s |
+
+LNS first applies only to MD110 and IOP110 in this set. MD110F and MD245F are free requests (pump-era literal classes, untouched
+here). The earlier pooled sessions read them at +9.4 % and −0.1 %. MD110 is still bimodal on the branch: Hazieff basin or
+1,431,545. Over 56 orderings with LNS first, 32 runs (57 %) reached 1,447,330, as often as 1.18.0's per-carrier fold on the same
+orderings (7 of 16). Two runs in 56 ended in the 1.33 M basin, against 2 in 24 for 1.18.0. Neither arm hit that basin in this
+E0 run.
+
+### Open
+
+- Basin changes need a two-item move with the rows held. Neither CP-SAT's LNS nor an explicit slot-pair re-solve (8 s UNKNOWN on
+  ~500 candidates) makes it within a 60 s budget. A cheap neighbourhood that does would lift MD110 from ~55 % to ~100 %.
+- The 18,000 threshold is measured on 3 workers. At 7 workers the default portfolio already escapes more often; larger worker
+  counts are unmeasured.
 
 ## Tests
 
@@ -822,13 +1048,18 @@ and above those releases' (illegal) medians.
 `RunePickClassTest` (the pick classes, 2026-10-12):
 - seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under an HP
   row (general fold), a dodge floor beside a lock row, and the Neutralité budget (the collapse's explicit picks and their
-  gates), both legs: the v61 fold with pick classes proves the per-carrier fold's optimum, every shape holding a class of
-  ≥ 2 carriers. Mutation-checked: a class var read at one rune instead of a whole fill fails it (and the domain lock);
+  gates), both legs: the v61 fold with pick classes proves the per-carrier fold's optimum in BOTH encodings (the literal one —
+  exactly-ones, two ring-slot layers for the ring classes of 2–3 carriers — and the linear one), every shape holding a class
+  of ≥ 2 carriers. Mutation-checked: a class var read at one rune instead of a whole fill fails it (and the domain lock);
 - the hybrid with its fold stage on pick classes ends on the per-stat count model's optimum, proven, every socket filled;
 - a build from the pick-class fold fills each worn carrier with ONE type, every socket. Mutation-checked: a class split
   that forgets the unit (one rune per unit) fails it;
-- production's size rule: the GUI-default hard-leg fold stage aggregates at level 200 and stays per carrier at 110;
-- the fold stage's declared reachable domains are the per-carrier fold's (GUI default and free, 110 / 245, both legs).
+- production's rule (2026-10-13): the GUI-default hard-leg fold stage aggregates at every level, 110 included (1.18.0's size
+  rule, still reachable through `PICK_CLASS_MIN_PICK_VARS_1_18`, kept 110 per carrier);
+- the fold stage's declared reachable domains are the per-carrier fold's (GUI default and free, 110 / 245, both legs);
+- "LNS first" (2026-10-14): the hard leg of the GUI default at 110 (14,028 pick-class vars) and with Neutralité III forced (15,484)
+  searches LNS first; level 140 (21,007) and the soft leg do not. The hybrid lock runs its hard legs LNS first, with the same
+  proven optima.
 
 `RuneCountClassTest` (the count classes):
 - seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under the
