@@ -30,5 +30,11 @@ package me.chosante.autobuilder.domain
  * polish instead of 6. On a large fold (the GUI-default rows from level ~170) its interchangeable single-type carriers share
  * exact pick classes (one var per rune type per class), so the search reaches a build meeting the rows much sooner. A re-run
  * may find a better build.
+ * 7: the fold's pick classes are built on EVERY fold (no size rule) and posted literally — exactly-ones, two ring-slot layers
+ * for rings — instead of one linear equation per class, so CP-SAT's feasibility pump keeps finding solutions (it found none on
+ * the linear form). Same solutions, a different search trajectory: a time-limited search may return another build.
+ * Still 7 (unreleased): the hard leg of a small fold (≤ 18,000 pick-class vars: the GUI-default rows up to about level 120)
+ * searches "LNS first" — no greedy CP-SAT hint, one full CP-SAT subsolver — so its search no longer settles in the greedy build's
+ * basin (level 110: 1,431,545 instead of 1,447,330). Search-only: the same model, optimum and proofs.
  */
-const val ENGINE_RESULTS_VERSION: Int = 6
+const val ENGINE_RESULTS_VERSION: Int = 7

@@ -2,6 +2,10 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Character
@@ -77,9 +81,46 @@ class MixedRuneCountsPerfHarnessTest {
             "MD110F" to (params(110, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))) to false)
         )
 
-    /** A named fixture, or `MD<level>` (the GUI-default rows, hard leg) / `MD<level>F` (free) at any other level. */
+    private val melee = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.FACE)
+
+    /**
+     * A named fixture, or `MD<level>` (the GUI-default rows, hard leg) / `MD<level>F` (free) at any other level, or (hard leg,
+     * as [PerfBaselineE0Test]'s) `IOP<level>` (Iop melee: AP 11, MP 4, crit 25, melee mastery, HP 2000, wind resistance 0, dodge
+     * 0), `SAC<level>` (Sacrieur melee: AP 11, MP 5, crit 20, melee mastery, HP 3000, lock 0), `MDN<level>` (the GUI default
+     * with Neutralité III forced).
+     */
     private fun fixture(name: String): Pair<WakfuBestBuildParams, Boolean> =
-        fixtures[name] ?: Regex("""MD(\d+)(F?)""").matchEntire(name)!!.let { m ->
+        fixtures[name] ?: Regex("""(IOP|SAC|MDN)(\d+)""").matchEntire(name)?.let { m ->
+            val level = m.groupValues[2].toInt()
+            when (m.groupValues[1]) {
+                "MDN" -> params(level, guiTargets).copy(forcedSublimations = listOf("Neutralité III")) to true
+                "IOP" ->
+                    params(
+                        level,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 11),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                            TargetStat(Characteristic.CRITICAL_HIT, 25),
+                            TargetStat(Characteristic.MASTERY_MELEE, 1),
+                            TargetStat(Characteristic.HP, 2000),
+                            TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                            TargetStat(Characteristic.DODGE, 0)
+                        )
+                    ).let { it.copy(character = Character(CharacterClass.IOP, level, 0, CharacterSkills(level)), damageScenario = melee) } to true
+                else ->
+                    params(
+                        level,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 11),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 5),
+                            TargetStat(Characteristic.CRITICAL_HIT, 20),
+                            TargetStat(Characteristic.MASTERY_MELEE, 1),
+                            TargetStat(Characteristic.HP, 3000),
+                            TargetStat(Characteristic.LOCK, 0)
+                        )
+                    ).let { it.copy(character = Character(CharacterClass.SACRIEUR, level, 0, CharacterSkills(level)), damageScenario = melee) } to true
+            }
+        } ?: Regex("""MD(\d+)(F?)""").matchEntire(name)!!.let { m ->
             val level = m.groupValues[1].toInt()
             if (m.groupValues[2] == "F") {
                 params(level, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))) to false
@@ -98,12 +139,20 @@ class MixedRuneCountsPerfHarnessTest {
             // The mixed-rune hybrid (fold search, count polish / verify): its count stages on the classes, or per-carrier.
             "hybrid" to { t -> t.copy(runeCountClasses = true, mixedRuneHybrid = true) },
             "hybridPerCarrier" to { t -> t.copy(runeCountClasses = false, mixedRuneHybrid = true) },
-            // The fold / the hybrid with the fold's pick carriers aggregated into PICK classes (production's default).
+            // The fold / the hybrid with the fold's pick carriers aggregated into PICK classes (production: every fold, literal encoding).
             "foldPC" to { t -> t.copy(runeMixedCarriers = false, runeCountClasses = false, runePickClasses = true) },
             "hybridPC" to { t -> t.copy(runeCountClasses = true, mixedRuneHybrid = true, runePickClasses = true) },
-            // Production's rule: pick classes only on a fold of PICK_CLASS_MIN_PICK_VARS pick vars or more.
-            "hybridAuto" to { t ->
-                t.copy(runeCountClasses = true, mixedRuneHybrid = true, runePickClasses = true, runePickClassMinPickVars = WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS)
+            // The pick classes posted linearly (`Σ_t q_t = Σ_c x_c`, 1.18.0's encoding) on every fold.
+            "hybridPCLinear" to { t -> t.copy(runeCountClasses = true, mixedRuneHybrid = true, runePickClasses = true, runePickClassLinear = true) },
+            // 1.18.0's production rule: linear pick classes only on a fold of PICK_CLASS_MIN_PICK_VARS_1_18 pick vars or more.
+            "hybridAuto118" to { t ->
+                t.copy(
+                    runeCountClasses = true,
+                    mixedRuneHybrid = true,
+                    runePickClasses = true,
+                    runePickClassLinear = true,
+                    runePickClassMinPickVars = WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS_1_18
+                )
             }
         )
 

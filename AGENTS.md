@@ -428,11 +428,21 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
     only REMOVES builds from it is sound as long as the carriers it changes are recorded.
   - **PICK classes** (`RuneCountClass` with `unit = slots`): the fold's multi-choice PICK carriers sharing an item type, a socket
     count and their rune choices hold one var per type per class — the number of its worn carriers filled with that type
-    (`Σ_t q_t = Σ_c x_c`), exact like the count classes, never in a certificate's model. Production builds them only where the
-    per-carrier fold would hold ≥ `WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS` (24,000) such pick vars: the GUI-default hard leg
-    from level ~170 (MD200 first CP-SAT solution and final build ~2× better), never at 110 or on the free requests, where the
-    per-carrier fold searched better on the 3-worker portfolio. Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`, tuned seam
-    `SolverTuning.runePickClasses` / `runePickClassMinPickVars`. Lock `RunePickClassTest`. Why the GUI-default hard leg got slow
+    (`Σ_t q_t = Σ_c x_c`), exact like the count classes, never in a certificate's model. Production builds them into EVERY
+    max-damage search fold, posted LITERALLY (`createRuneModel`'s `pickClassLinear = false`): a class whose build wears at most
+    one carrier gets a worn literal w and `ExactlyOne(¬w, q_t…)` + `ExactlyOne(¬w, x_c…)`; a ring class of two or more, two
+    ring-slot layers (`w1 + w2 = Σ_c x_c`, `q_t = a_t + b_t`). The linear form starved CP-SAT's FEASIBILITY PUMP (no pump solution
+    at level 110, so no `rins_pump_lns` / `rens_pump_lns`, which carry the 3-worker portfolio there): that, not the class
+    aggregation, is why 1.18.0 kept folds under 24,000 pick vars per carrier (`PICK_CLASS_MIN_PICK_VARS_1_18`, A/B seam only).
+    Keep any new class / fold structure clause-shaped (exactly-ones over literals) or check the pump in a 3-worker search log
+    (`'pump'` row of "Solution repositories"). Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`, tuned seams
+    `SolverTuning.runePickClasses` / `runePickClassMinPickVars` / `runePickClassLinear`. Lock `RunePickClassTest`
+    (both encodings). On a small fold (≤ `LNS_FIRST_MAX_PICK_VARS` = 18,000 pick-class vars: the GUI-default rows up to ~level
+    120) the HARD leg searches "LNS first" (`lnsFirstSearch`): no greedy CP-SAT hint (the greedy build is still shown) and
+    `num_full_subsolvers = 1`. The hint otherwise picks the EPIC-item basin the target rows then lock in (level 110: 1,431,545
+    vs 1,447,330); on larger folds it is what reaches a first build, so it stays. Search only. Kill switch
+    `WAKFU_MD_LNS_FIRST=0`, tuned seam `SolverTuning.lnsFirst`. Measuring MD110-like searches: TargetStats' row order changes
+    the basin, and it is fixed per harness/JVM, so randomize it across runs (docs "Pick classes and the search's basin"). Why the GUI-default hard leg got slow
     after 1.14.2 (the stat gates broke the greedy hint's completion, the floors and gates grew the model; the old builds were
     illegal anyway: a nation sword without its ring): `docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The hard leg since 1.14.2".
   Wall clock (E0, 60 s, 4 pinned cores, 2026-10-12; the doc's "Wall clock"): the shipped default is at or above main (v61) on

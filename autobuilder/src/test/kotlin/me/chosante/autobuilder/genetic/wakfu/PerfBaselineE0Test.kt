@@ -208,6 +208,60 @@ class PerfBaselineE0Test {
         )
     }
 
+    /**
+     * Parametrized max-damage fixtures, by id (only when named): `MDG<level>` the GUI-default rows (CRA, distance), `MDF<level>`
+     * the free CRA distance request, `MDN<level>` the GUI-default rows with Neutralité III forced, `IOP<level>` an Iop melee
+     * request (AP 11, MP 4, crit 25, melee mastery, HP 2000, wind resistance 0, dodge 0) and `SAC<level>` a Sacrieur melee one
+     * (AP 11, MP 5, crit 20, melee mastery, HP 3000, lock 0) — the pick-class size rule's validation set.
+     */
+    private fun genericFixture(
+        id: String,
+        cfg: Config,
+    ): Fixture? {
+        val m = Regex("""(MDG|MDF|MDN|IOP|SAC)(\d+)""").matchEntire(id.substringBefore('#').substringBefore('@')) ?: return null
+        val level = m.groupValues[2].toInt()
+        val md = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+        val melee = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.FACE)
+        val params =
+            when (m.groupValues[1]) {
+                "MDG" -> params(level, md, guiTargets(), cfg)
+                "MDF" -> params(level, md, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)), cfg)
+                "MDN" -> params(level, md, guiTargets(), cfg).copy(forcedSublimations = listOf("Neutralité III"))
+                "IOP" ->
+                    params(
+                        level,
+                        md,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 11),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                            TargetStat(Characteristic.CRITICAL_HIT, 25),
+                            TargetStat(Characteristic.MASTERY_MELEE, 1),
+                            TargetStat(Characteristic.HP, 2000),
+                            TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                            TargetStat(Characteristic.DODGE, 0)
+                        ),
+                        cfg,
+                        CharacterClass.IOP
+                    ).copy(damageScenario = melee)
+                else ->
+                    params(
+                        level,
+                        md,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 11),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 5),
+                            TargetStat(Characteristic.CRITICAL_HIT, 20),
+                            TargetStat(Characteristic.MASTERY_MELEE, 1),
+                            TargetStat(Characteristic.HP, 3000),
+                            TargetStat(Characteristic.LOCK, 0)
+                        ),
+                        cfg,
+                        CharacterClass.SACRIEUR
+                    ).copy(damageScenario = melee)
+            }
+        return Fixture(id, params)
+    }
+
     @Test
     @Tag("manual")
     fun `manual E0 production baseline`(): Unit =
@@ -269,7 +323,8 @@ class PerfBaselineE0Test {
                         if (selected == null) {
                             fixtures(cfg)
                         } else {
-                            (fixtures(cfg) + extraFixtures(cfg)).filter { it.id in selected }
+                            val named = (fixtures(cfg) + extraFixtures(cfg)).associateBy { it.id }
+                            selected.mapNotNull { id -> named[id] ?: genericFixture(id, cfg) }
                         }.map { it.copy(params = it.params.copy(excludedSublimations = it.params.excludedSublimations + excludedSubs)) }
                     for (fx in chosen) {
                         val suffix = (if (budgets.size > 1) "@${seconds}s" else "") + (if (reps > 1) "#$rep" else "")

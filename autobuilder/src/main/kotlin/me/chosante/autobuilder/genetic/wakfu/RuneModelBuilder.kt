@@ -3,6 +3,7 @@ package me.chosante.autobuilder.genetic.wakfu
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.IntVar
 import com.google.ortools.sat.LinearExpr
+import com.google.ortools.sat.Literal
 import me.chosante.autobuilder.domain.sheetCharacteristic
 import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
@@ -62,9 +63,13 @@ internal fun CpModel.createRuneModel(
     // one var per type for the whole class, counting its worn carriers filled with that type ([RuneCountClass] with
     // `unit = slots`, exact). Never in a model a certificate reads.
     aggregatePickClasses: Boolean = false,
-    // ...only when the per-carrier fold would hold at least this many such pick vars: below it the per-carrier fold searched
-    // better on production's portfolio (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes"). 0 = always.
+    // ...only when the per-carrier fold would hold at least this many such pick vars (an A/B seam: 1.18.0 kept small folds per
+    // carrier). 0 = always, production's rule.
     pickClassMinPickVars: Int = 0,
+    // A/B seam: true posts each pick class as the linear `Σ_t q_t = Σ_c x_c` (1.18.0) instead of its literal encoding (exactly-ones,
+    // see the pick-class loop): the feasibility pump finds no solution on the linear form of the GUI-default request
+    // (docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes and the feasibility pump").
+    pickClassLinear: Boolean = false,
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -416,14 +421,57 @@ internal fun CpModel.createRuneModel(
         val slots = key.second
         val first = members.first()
         val maxWorn = minOf(members.size, if (key.first == ItemType.RING) 2 else 1)
+        // The literal encoding (exact, same solutions as `Σ_t q_t = Σ_c x_c`), which keeps CP-SAT's feasibility pump working:
+        //  - a class whose build wears at most one carrier (every non-ring type has a limit of 1, a ring class of one carrier):
+        //    a worn literal w = Σ_c x_c, `ExactlyOne(¬w, q_t…)` and `ExactlyOne(¬w, x_c…)` (the latter holds because the type
+        //    limit already caps Σ_c x_c at 1), every q_t a literal;
+        //  - a ring class of two or more carriers (up to two worn): two ring-slot layers, w2 ⇒ w1, `w1 + w2 = Σ_c x_c`,
+        //    `ExactlyOne(¬w1, a_t…)`, `ExactlyOne(¬w2, b_t…)` and `q_t = a_t + b_t`.
+        val literal = !pickClassLinear && (key.first != ItemType.RING || maxWorn == 1)
+        val twoSlot = !pickClassLinear && !literal
         val vars =
             first.choices.keys.associateWith { stat ->
-                newIntVar(0, maxWorn.toLong(), "runePickClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+                if (literal) {
+                    newBoolVar("runePickClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+                } else {
+                    newIntVar(0, maxWorn.toLong(), "runePickClass_${first.equip.equipmentId}_${slots}_${stat.name}")
+                }
             }
-        val capExpr = LinearExpr.newBuilder()
-        vars.values.forEach { capExpr.addTerm(it, 1L) }
-        members.forEach { capExpr.addTerm(equipVars.getValue(it.equip), -1L) }
-        addEquality(capExpr.build(), 0L)
+        if (literal) {
+            val worn = newBoolVar("runePickClassWorn_${first.equip.equipmentId}_$slots")
+            addExactlyOne(listOf(worn.not()) + vars.values.map { it as Literal })
+            addExactlyOne(listOf(worn.not()) + members.map { equipVars.getValue(it.equip) as Literal })
+        } else if (twoSlot) {
+            val name = "runePickClassRing_${first.equip.equipmentId}_$slots"
+            val w1 = newBoolVar("${name}_w1")
+            val w2 = newBoolVar("${name}_w2")
+            addImplication(w2, w1)
+            val layerA = vars.mapValues { (stat, _) -> newBoolVar("${name}_a_${stat.name}") }
+            val layerB = vars.mapValues { (stat, _) -> newBoolVar("${name}_b_${stat.name}") }
+            addExactlyOne(listOf(w1.not()) + layerA.values)
+            addExactlyOne(listOf(w2.not()) + layerB.values)
+            for ((stat, q) in vars) {
+                addEquality(
+                    LinearExpr
+                        .newBuilder()
+                        .addTerm(q, 1L)
+                        .addTerm(layerA.getValue(stat), -1L)
+                        .addTerm(layerB.getValue(stat), -1L)
+                        .build(),
+                    0L
+                )
+            }
+            val worn = LinearExpr.newBuilder()
+            members.forEach { worn.addTerm(equipVars.getValue(it.equip), 1L) }
+            worn.addTerm(w1, -1L)
+            worn.addTerm(w2, -1L)
+            addEquality(worn.build(), 0L)
+        } else {
+            val capExpr = LinearExpr.newBuilder()
+            vars.values.forEach { capExpr.addTerm(it, 1L) }
+            members.forEach { capExpr.addTerm(equipVars.getValue(it.equip), -1L) }
+            addEquality(capExpr.build(), 0L)
+        }
         for ((stat, choice) in first.choices) {
             val v = vars.getValue(stat)
             runeTypeByVar[v] = choice.first

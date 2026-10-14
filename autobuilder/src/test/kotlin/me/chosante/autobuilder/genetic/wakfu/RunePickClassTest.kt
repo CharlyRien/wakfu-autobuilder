@@ -133,29 +133,37 @@ class RunePickClassTest {
             for (hard in listOf(false, true)) {
                 if (hard && seed % 3 == 2L) continue // no required row: the hard leg is the free solve
 
-                fun fold(pickClasses: Boolean) =
-                    WakfuBuildSolver.maxDamageSolveForTest(
-                        c.params,
-                        c.pool,
-                        tuning,
-                        tightDomains = true,
-                        runes = runes,
-                        sublimations = c.subs,
-                        hardConstraints = hard,
-                        runeMixedCarriers = false,
-                        runeCountClasses = false,
-                        runePickClasses = pickClasses
-                    )
-                val perCarrier = fold(false)
-                val classes = fold(true)
-                println(
-                    "RUNE_PICK_CLASS ${c.label} hard=$hard classSizes=$sizes perCarrier=${perCarrier.objective}/${perCarrier.isOptimal} classes=${classes.objective}/${classes.isOptimal}"
+                fun fold(
+                    pickClasses: Boolean,
+                    linear: Boolean = false,
+                ) = WakfuBuildSolver.maxDamageSolveForTest(
+                    c.params,
+                    c.pool,
+                    tuning,
+                    tightDomains = true,
+                    runes = runes,
+                    sublimations = c.subs,
+                    hardConstraints = hard,
+                    runeMixedCarriers = false,
+                    runeCountClasses = false,
+                    runePickClasses = pickClasses,
+                    runePickClassLinear = linear
                 )
-                assertThat(classes.hasSolution).describedAs("%s hard=%s", c.label, hard).isEqualTo(perCarrier.hasSolution)
-                if (!perCarrier.hasSolution) continue
-                assertThat(perCarrier.isOptimal).describedAs("%s hard=%s", c.label, hard).isTrue()
-                assertThat(classes.isOptimal).describedAs("%s hard=%s", c.label, hard).isTrue()
-                assertThat(classes.objective).describedAs("%s hard=%s: pick classes = the per-carrier fold", c.label, hard).isEqualTo(perCarrier.objective)
+                val perCarrier = fold(false)
+                // Both encodings of the classes: the literal one (production: exactly-ones, two ring-slot layers) and the linear one.
+                for ((encoding, classes) in listOf("literal" to fold(true), "linear" to fold(true, linear = true))) {
+                    println(
+                        "RUNE_PICK_CLASS ${c.label} hard=$hard $encoding classSizes=$sizes perCarrier=${perCarrier.objective}/${perCarrier.isOptimal} " +
+                            "classes=${classes.objective}/${classes.isOptimal}"
+                    )
+                    assertThat(classes.hasSolution).describedAs("%s hard=%s %s", c.label, hard, encoding).isEqualTo(perCarrier.hasSolution)
+                    if (!perCarrier.hasSolution) continue
+                    assertThat(perCarrier.isOptimal).describedAs("%s hard=%s", c.label, hard).isTrue()
+                    assertThat(classes.isOptimal).describedAs("%s hard=%s %s", c.label, hard, encoding).isTrue()
+                    assertThat(classes.objective)
+                        .describedAs("%s hard=%s %s: pick classes = the per-carrier fold", c.label, hard, encoding)
+                        .isEqualTo(perCarrier.objective)
+                }
             }
         }
         assertThat(sharedClassShapes).describedAs("shapes whose fold holds a pick class of several carriers (the lock's reach)").containsExactlyInAnyOrder(0, 1, 2)
@@ -193,7 +201,8 @@ class RunePickClassTest {
                             c.pool,
                             runes,
                             c.subs,
-                            tuning.copy(mixedRuneHybrid = true, runePickClasses = true),
+                            // The hard leg searches LNS first ([WakfuBuildSolver.lnsFirstSearch]) — a search-only switch.
+                            tuning.copy(mixedRuneHybrid = true, runePickClasses = true, lnsFirst = hard),
                             hardConstraints = hard,
                             onTermination = { outcome = it }
                         ).toList()
@@ -238,12 +247,12 @@ class RunePickClassTest {
         }
 
     /**
-     * Production's size rule ([WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS]): the GUI-default hard-leg fold stage aggregates its
-     * pick carriers at level 200 (37,457 pick vars) and keeps them per carrier at level 110 (14,028), where the per-carrier
-     * fold searched better on production's portfolio.
+     * Production's rule: the GUI-default hard-leg fold stage aggregates its pick carriers at every level — level 110 (14,028
+     * per-carrier pick vars) included, which 1.18.0's size rule ([WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS_1_18]) kept per
+     * carrier — now that the literal encoding keeps CP-SAT's feasibility pump working there.
      */
     @Test
-    fun `production aggregates the fold's pick carriers only on a large fold`() {
+    fun `production aggregates the fold's pick carriers at every level`() {
         val gui =
             listOf(
                 TargetStat(Characteristic.ACTION_POINT, 11),
@@ -273,13 +282,69 @@ class RunePickClassTest {
                 val pool = WakfuBestBuildFinderAlgorithm.poolFor(p)
                 val subs = WakfuBestBuildFinderAlgorithm.sublimations
                 val always = WakfuBuildSolver.foldPickClassShapeForTest(p, pool, runes, subs, hardConstraints = true)
-                val production = WakfuBuildSolver.foldPickClassShapeForTest(p, pool, runes, subs, hardConstraints = true, minPickVars = WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS)
-                println("RUNE_PICK_RULE level=$level always=$always production=$production")
+                val rule118 =
+                    WakfuBuildSolver.foldPickClassShapeForTest(p, pool, runes, subs, hardConstraints = true, minPickVars = WakfuBuildSolver.PICK_CLASS_MIN_PICK_VARS_1_18)
+                println("RUNE_PICK_RULE level=$level production=$always rule118=$rule118")
                 assertThat(always[0]).describedAs("level %s: the fold has multi-choice pick carriers", level).isGreaterThan(0)
-                production[0]
+                assertThat(always[2]).describedAs("level %s: they share classes", level).isLessThan(always[0])
+                rule118[0]
             }
-        assertThat(aggregated.getValue(110)).describedAs("level 110: per-carrier picks").isZero()
-        assertThat(aggregated.getValue(200)).describedAs("level 200: pick classes").isGreaterThan(0)
+        assertThat(aggregated.getValue(110)).describedAs("level 110: per-carrier picks under 1.18.0's rule").isZero()
+        assertThat(aggregated.getValue(200)).describedAs("level 200: pick classes under 1.18.0's rule").isGreaterThan(0)
+    }
+
+    /**
+     * Production's "LNS first" rule ([WakfuBuildSolver.LNS_FIRST_MAX_PICK_VARS]): the HARD leg of a small fold — the GUI default at
+     * level 110 (14,028 pick-class vars), with Neutralité III forced (15,484) — searches without the greedy hint and with one full
+     * CP-SAT subsolver; level 140 (21,007) and the soft leg keep the hint and the default portfolio. A search-only switch: the
+     * model, and so every optimum and proof, is the same.
+     */
+    @Test
+    fun `small hard-leg folds search LNS first`() {
+        val gui =
+            listOf(
+                TargetStat(Characteristic.ACTION_POINT, 11),
+                TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                TargetStat(Characteristic.RANGE, 4),
+                TargetStat(Characteristic.CRITICAL_HIT, 25),
+                TargetStat(Characteristic.MASTERY_DISTANCE, 1),
+                TargetStat(Characteristic.HP, 2000),
+                TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                TargetStat(Characteristic.DODGE, 0)
+            )
+
+        fun params(
+            level: Int,
+            forcedSubs: List<String> = emptyList(),
+        ) = WakfuBestBuildParams(
+            character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+            targetStats = TargetStats(gui),
+            searchDuration = 60.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            useRunes = true,
+            useSublimations = true,
+            forcedSublimations = forcedSubs
+        )
+        val subs = WakfuBestBuildFinderAlgorithm.sublimations
+
+        fun rule(
+            p: WakfuBestBuildParams,
+            hard: Boolean,
+        ) = WakfuBuildSolver.lnsFirstForTest(p, WakfuBestBuildFinderAlgorithm.poolFor(p), runes, subs, hard)
+        val md110 = rule(params(110), hard = true)
+        val mdn110 = rule(params(110, listOf("Neutralité III")), hard = true)
+        val md140 = rule(params(140), hard = true)
+        val md110Soft = rule(params(110), hard = false)
+        println("LNS_FIRST md110=$md110 mdn110=$mdn110 md140=$md140 md110Soft=$md110Soft")
+        assertThat(md110.first).describedAs("level 110, hard leg (%s pick-class vars)", md110.second).isTrue()
+        assertThat(mdn110.first).describedAs("level 110 + Neutralité III, hard leg (%s)", mdn110.second).isTrue()
+        assertThat(md140.first).describedAs("level 140, hard leg (%s)", md140.second).isFalse()
+        assertThat(md140.second).isGreaterThan(WakfuBuildSolver.LNS_FIRST_MAX_PICK_VARS)
+        assertThat(md110Soft.first).describedAs("level 110, soft leg").isFalse()
     }
 
     /**
