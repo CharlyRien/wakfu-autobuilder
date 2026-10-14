@@ -286,7 +286,7 @@ internal object MostMasteriesBoundPrototype {
                                 (cond.type == me.chosante.common.SublimationConditionType.CRITICAL_MASTERY_AT_MOST && Characteristic.MASTERY_CRITICAL in requested)
                         )
                 if (capsObjective) {
-                    objectiveCapT = maxOf(objectiveCapT, (cond?.value ?: 0).toLong())
+                    objectiveCapT = maxOf(objectiveCapT, (cond.value ?: 0).toLong())
                     continue
                 }
                 var m = 0L
@@ -316,7 +316,6 @@ internal object MostMasteriesBoundPrototype {
                         // A conversion INTO a requested mastery would need real modeling — none exists in
                         // the current catalog; bail if one appears rather than under-count.
                         is SublimationEffect.Conversion -> if (eff.to in requested) return null
-                        else -> {}
                     }
                 }
                 if (m == 0L && d == 0) continue

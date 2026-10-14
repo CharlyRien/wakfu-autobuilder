@@ -3041,7 +3041,7 @@ object WakfuBuildSolver {
         // workers, so two concurrent nodes at workers/2 beat one node at full width. All mutable
         // tree state below is guarded by [lock]; in-flight nodes stay part of the open frontier
         // so a timeout that fires mid-solve still reports a sound inconclusive upper.
-        val lock = Object()
+        val lock = Any()
         val queue = java.util.ArrayDeque<Node>()
         queue.add(Node())
         val inFlight = java.util.IdentityHashMap<Node, Unit>()

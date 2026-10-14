@@ -2169,7 +2169,7 @@ internal object MaxDamageSoftCertificate {
                     if (sub.rarity != SublimationRarity.NORMAL ||
                         sub.maxCopies.coerceAtLeast(1) != 1 ||
                         sub.effects.size != 1 ||
-                        sub.effects.single() !== mpDiRamp?.second
+                        sub.effects.single() !== mpDiRamp.second
                     ) {
                         return null
                     }
@@ -2188,7 +2188,7 @@ internal object MaxDamageSoftCertificate {
                 // Objective-capping subs per ARM: plain excludes them; secZero stages sec-cappers
                 // AND critM cappers (cap-ignored — sound); critZero stages critM cappers only.
                 if (capsObjective) {
-                    val secCapper = cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+                    val secCapper = cond.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
                     val staged =
                         armCapFree || armZeroSecondary || (armZeroCritM && !secCapper)
                     if (!staged) continue
@@ -2349,7 +2349,6 @@ internal object MaxDamageSoftCertificate {
                                     }
                                 }
                         }
-                        else -> {}
                     }
                 }
                 if (sub === worldAssume) {
@@ -2451,7 +2450,7 @@ internal object MaxDamageSoftCertificate {
                                 nextSrc?.set(
                                     nk,
                                     listOfNotNull(
-                                        exactSrc?.get(k)?.takeIf(String::isNotEmpty),
+                                        exactSrc[k]?.takeIf(String::isNotEmpty),
                                         o.src.takeIf(String::isNotEmpty)
                                     ).joinToString("+")
                                 )

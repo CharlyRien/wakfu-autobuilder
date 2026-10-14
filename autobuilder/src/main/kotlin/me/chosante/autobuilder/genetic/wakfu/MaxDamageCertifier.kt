@@ -1313,8 +1313,8 @@ internal fun StatBuilder.certifyCellsTier15(
                 fastCellCount = cell + 1,
                 fastCSegmentStep = 1,
                 fastPerCOutHolder = perCHolder,
-                fastSegmentSkipUb = if (skipEnabled) skipUbByWorld?.getOrNull(wi)?.getOrNull(cell) else null,
-                fastSkipBelowRaw = if (skipEnabled) (skipBelowRawByCell?.get(cell) ?: Long.MIN_VALUE) else Long.MIN_VALUE
+                fastSegmentSkipUb = if (skipEnabled) skipUbByWorld.getOrNull(wi)?.getOrNull(cell) else null,
+                fastSkipBelowRaw = if (skipEnabled) (skipBelowRawByCell[cell] ?: Long.MIN_VALUE) else Long.MIN_VALUE
             )
         if (System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1") {
             System.err.println(
@@ -3637,7 +3637,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 (0..cEnumMax step fastCSegmentStep) +
                     keptSubs.mapNotNull { (sub, _) ->
                         val cond = sub.condition ?: return@mapNotNull null
-                        val n = (cond.value ?: 0).toInt()
+                        val n = cond.value ?: 0
                         when (cond.type) {
                             SublimationConditionType.CRIT_AT_MOST -> (n + maxStartCrit.toInt() + 1)
                             SublimationConditionType.CRIT_AT_LEAST -> n
@@ -5034,7 +5034,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 // v52 MP row: the point's mp plus every item-independent MP source (a sound over-estimate of
                 // the build's actual MP) must reach the row — else no build of this point meets it.
                 if (mpRowTarget > 0 && mpRowFree + fr.mp(i) < mpRowTarget) continue
-                val prod = budgetMax(dConstHere + pd, grawConst + forcedCondGrawHere + pg, freeSlots.toInt(), gpExact)
+                val prod = budgetMax(dConstHere + pd, grawConst + forcedCondGrawHere + pg, freeSlots, gpExact)
                 // The tie clause (`prod == best && c < bestC`) exists for the PRUNED order only: the seed
                 // c runs first, so a smaller c tying its value must still win `bestC` — "smallest
                 // max-achieving c", exactly the plain ascending loop's outcome (where the clause can

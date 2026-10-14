@@ -326,9 +326,9 @@ class MostMasteriesPerfExperimentTest {
                     val outcome = subSolve(node.lo..node.hi, folded = true)
                     when {
                         outcome?.status == CpSolverStatus.OPTIMAL && outcome.objectiveValue != null -> {
-                            exactAtBucket[node.lo] = outcome.objectiveValue!!
-                            if (outcome.objectiveValue!! > incumbent) {
-                                incumbent = outcome.objectiveValue!!
+                            exactAtBucket[node.lo] = outcome.objectiveValue
+                            if (outcome.objectiveValue > incumbent) {
+                                incumbent = outcome.objectiveValue
                                 incumbentBucket = node.lo
                             }
                         }
@@ -358,7 +358,7 @@ class MostMasteriesPerfExperimentTest {
             if (!abandoned && incumbentBucket >= 0 && incumbentBucket !in exactAtBucket) {
                 val outcome = subSolve(incumbentBucket..incumbentBucket, folded = true)
                 if (outcome?.status == CpSolverStatus.OPTIMAL && outcome.objectiveValue != null) {
-                    exactAtBucket[incumbentBucket] = outcome.objectiveValue!!
+                    exactAtBucket[incumbentBucket] = outcome.objectiveValue
                 } else {
                     abandoned = true
                 }
@@ -615,9 +615,9 @@ class MostMasteriesPerfExperimentTest {
                     val outcome = subSolve(node.lo..node.hi, folded = true)
                     when {
                         outcome?.status == CpSolverStatus.OPTIMAL && outcome.objectiveValue != null -> {
-                            exactAtFactor[node.lo] = outcome.objectiveValue!!
-                            if (outcome.objectiveValue!! > incumbent) {
-                                incumbent = outcome.objectiveValue!!
+                            exactAtFactor[node.lo] = outcome.objectiveValue
+                            if (outcome.objectiveValue > incumbent) {
+                                incumbent = outcome.objectiveValue
                                 incumbentFactor = node.lo
                             }
                         }
@@ -837,7 +837,7 @@ class MostMasteriesPerfExperimentTest {
                 )
                 println("MM_PERF_BUILD skills=${build.characterSkills.allCharacteristicValues}")
                 println(
-                    "MM_PERF_BUILD objective=${last?.maxDamageObjective} rawProxy=${last?.maxDamageRawProxy} stats=" +
+                    "MM_PERF_BUILD objective=${last.maxDamageObjective} rawProxy=${last.maxDamageRawProxy} stats=" +
                         listOf(
                             Characteristic.ACTION_POINT,
                             Characteristic.MOVEMENT_POINT,

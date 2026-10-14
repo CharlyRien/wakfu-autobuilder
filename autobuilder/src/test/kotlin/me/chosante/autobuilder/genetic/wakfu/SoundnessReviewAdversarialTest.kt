@@ -1040,7 +1040,7 @@ class SoundnessReviewAdversarialTest {
                         failures +=
                             "${c.label} SOFT bound=$softUpper < optimum=$softInc (${"%.2f".format((softInc.toDouble() / softUpper - 1) * 100)}%) " +
                             "negCcCritCap=${c.negCcWithCritCap} targets=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} " +
-                            "subs=${softLast?.individual?.sublimations?.values?.flatten()?.map { it.name.fr }} binding=${bound.bindingState}"
+                            "subs=${softLast.individual.sublimations.values.flatten().map { it.name.fr }} binding=${bound.bindingState}"
                     }
                 } else {
                     notOptimal++
@@ -1058,7 +1058,7 @@ class SoundnessReviewAdversarialTest {
                             failures +=
                                 "${c.label} HARD bound=$hardUpper < optimum=$hardInc negCcCritCap=${c.negCcWithCritCap} " +
                                 "targets=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} " +
-                                "subs=${hardLast?.individual?.sublimations?.values?.flatten()?.map { it.name.fr }} hardBinding=${bound.hardBindingState}"
+                                "subs=${hardLast.individual.sublimations.values.flatten().map { it.name.fr }} hardBinding=${bound.hardBindingState}"
                         }
                     }
                 }

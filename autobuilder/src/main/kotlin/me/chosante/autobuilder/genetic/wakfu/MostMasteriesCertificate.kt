@@ -1886,7 +1886,7 @@ internal object MostMasteriesCertificate {
                         val cur = next[nk]
                         if (cur == null || nm > cur) {
                             next[nk] = nm
-                            nextNames?.set(nk, listOfNotNull(names?.get(k)?.ifEmpty { null }, o.src.ifEmpty { null }).joinToString("+"))
+                            nextNames?.set(nk, listOfNotNull(names[k]?.ifEmpty { null }, o.src.ifEmpty { null }).joinToString("+"))
                         }
                     }
                     frontier = next

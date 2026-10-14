@@ -293,7 +293,7 @@ internal fun MatchHero(
                     // spinner, so a minutes-long proof never looks like a hang.
                     ui.proofState is ProofState.Proving ->
                         ProofProgressIndicator(
-                            progress = (ui.proofState as ProofState.Proving).progress,
+                            progress = ui.proofState.progress,
                             onStop = onStopProof,
                             modifier = Modifier.padding(top = 2.dp)
                         )

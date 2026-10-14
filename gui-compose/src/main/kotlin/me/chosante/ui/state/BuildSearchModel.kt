@@ -1622,7 +1622,7 @@ class BuildSearchModel(
                                         character.clazz,
                                         damageScenario,
                                         includeBerserk = (upAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
-                                        configuredRotationTotal = upRotation?.totalExpectedDamage
+                                        configuredRotationTotal = upRotation.totalExpectedDamage
                                     )
                                 UpgradedBuild(upBuild, upAchieved, upRotation, upScenario, buildRescorer(params, upBuild))
                             }

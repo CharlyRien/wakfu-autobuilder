@@ -1013,7 +1013,6 @@ private fun SublimationPickerModal(
                                         when (effect) {
                                             is me.chosante.common.SublimationEffect.Flat -> effect.copy(value = raw)
                                             is me.chosante.common.SublimationEffect.PercentOfLevel -> effect.copy(percentOfLevel = raw)
-                                            else -> effect
                                         }
                                     }
                                 }
