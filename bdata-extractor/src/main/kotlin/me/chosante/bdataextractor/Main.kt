@@ -127,9 +127,10 @@ fun main(args: Array<String>) {
     }
 
     val equipmentPositions = buildEquipmentPositions(install, fetchEquipmentTypes(version))
+    val positionsJson = Json { prettyPrint = true }
     verifyAndWrite(
         File(repoRoot, "common-lib/src/main/resources/equipment-positions.json"),
-        Json { prettyPrint = true }.encodeToString(EquipmentPositions.serializer(), equipmentPositions),
+        positionsJson.encodeToString(EquipmentPositions.serializer(), equipmentPositions),
         "equipment-positions",
         equipmentPositions.itemPositions.size,
         force
