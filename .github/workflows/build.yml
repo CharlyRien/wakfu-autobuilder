@@ -81,7 +81,7 @@ jobs:
             # each test's stdout / stderr and its duration. Uploaded even when a test failed or timed out.
             -   name: Upload the slow-test results
                 if: always()
-                uses: actions/upload-artifact@v7.0.1
+                uses: actions/upload-artifact@v7.0.2
                 with:
                     name: slow-test-results
                     path: |
