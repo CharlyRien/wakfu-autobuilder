@@ -437,7 +437,12 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
     Keep any new class / fold structure clause-shaped (exactly-ones over literals) or check the pump in a 3-worker search log
     (`'pump'` row of "Solution repositories"). Kill switch `WAKFU_MD_RUNE_PICK_CLASSES=0`, tuned seams
     `SolverTuning.runePickClasses` / `runePickClassMinPickVars` / `runePickClassLinear`. Lock `RunePickClassTest`
-    (both encodings). Why the GUI-default hard leg got slow
+    (both encodings). On a small fold (≤ `LNS_FIRST_MAX_PICK_VARS` = 18,000 pick-class vars: the GUI-default rows up to ~level
+    120) the HARD leg searches "LNS first" (`lnsFirstSearch`): no greedy CP-SAT hint (the greedy build is still shown) and
+    `num_full_subsolvers = 1`. The hint otherwise picks the EPIC-item basin the target rows then lock in (level 110: 1,431,545
+    vs 1,447,330); on larger folds it is what reaches a first build, so it stays. Search only. Kill switch
+    `WAKFU_MD_LNS_FIRST=0`, tuned seam `SolverTuning.lnsFirst`. Measuring MD110-like searches: TargetStats' row order changes
+    the basin, and it is fixed per harness/JVM, so randomize it across runs (docs "Pick classes and the search's basin"). Why the GUI-default hard leg got slow
     after 1.14.2 (the stat gates broke the greedy hint's completion, the floors and gates grew the model; the old builds were
     illegal anyway: a nation sword without its ring): `docs/MIXED_RUNE_SECONDARY_BUDGET.md` "The hard leg since 1.14.2".
   Wall clock (E0, 60 s, 4 pinned cores, 2026-10-12; the doc's "Wall clock"): the shipped default is at or above main (v61) on

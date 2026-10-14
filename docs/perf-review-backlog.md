@@ -1272,7 +1272,9 @@ either way was found in the repo.
    `rens_pump_lns`, which carry the per-carrier fold's 3-worker search). Posted literally (exactly-ones, two ring-slot
    layers), the classes keep the pump and now apply on every fold: pooled E0 medians over 15 fixtures (6–10 runs per arm)
    from −3.0 % (MDG170, ranges overlap) and −1.1 % (MD110) to +19.6 % (MDG140), first CP-SAT solution 2.5–3.5× sooner below
-   level 170.
+   level 170. **Follow-up 2026-10-14** ("Pick classes and the search's basin"): MD110's remaining gap came from the
+   greedy hint choosing the EPIC-item basin. Small hard-leg folds (≤ 18,000 pick-class vars) now search without it and with one
+   full CP-SAT subsolver. E0 MD110 median over 10 runs: 1,441,270 → 1,445,815.
 3. **Rune choice collapse, its search cost**: open. There is no cap-free / capped world split of the search, and
    `MaxDamageFirstSolutionLatencyTest.DET_BUDGET` is still 20. Free FACE requests stay unproven at 120 s.
 4. **Max-damage required-row requests**: the badge is target-aware (2.7–7.0 %) but rarely ProvenOptimal. CP-SAT does

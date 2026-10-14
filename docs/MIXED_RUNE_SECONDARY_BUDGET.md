@@ -29,6 +29,9 @@ What the port changed:
 - **Pick classes** (2026-10-12, section "The hard leg since 1.14.2, and pick classes"): why the GUI-default hard leg slowed
   after 1.14.2 (bisected; the old builds are illegal today), and the fold stage's pick carriers aggregated into exact classes
   on large folds — MD200 4.84 M → 8.69 M at 60 s.
+- **The search's basin** (2026-10-14, section "Pick classes and the search's basin"): on a small hard-leg fold the greedy CP-SAT
+  hint picks the build's EPIC-item basin, and the target rows keep the search inside it; such folds now search "LNS first"
+  (no hint, one full subsolver). E0 MD110 median 1,441,270 (1.18.0) → 1,445,815 over 10 runs, first CP-SAT solution 13.3 → 5.0 s.
 
 ## The gap
 
@@ -894,11 +897,117 @@ places within seed noise; the pump's effect is a 3-worker one.
 ### Open
 
 - MD110's last 1.1 %: the per-carrier fold's pump-driven RINS reaches 1,447,330 more often. The pump alone does not explain it,
-  since both models have it now. Not tried: a per-carrier tail after the class search, LNS parameters for the class model.
+  since both models have it now. **Answered 2026-10-14** ("Pick classes and the search's basin" below): the greedy hint chooses the
+  EPIC-item basin, and the per-carrier fold's first solution lands in the right basin by luck.
 - The pump's success is shape-dependent and invisible to the model builder; a 3-worker search log is the only check (`'pump'`
   in "Solution repositories"). Any new class or fold structure should stay clause-shaped.
 - The count classes (`Σ_t m_t = slots · Σ_c x_c`: the hybrid's polish / verify / fallback and the direct count search) are still
   linear. They are not on production's fold path, so they were left as they are.
+
+## Pick classes and the search's basin: "LNS first" on small hard-leg folds (2026-10-14)
+
+`perf/pick-classes-110`, follow-up. A calm E0 re-check (60 s, 4 pinned cores, 5 runs per arm) still put MD110 (the GUI-default
+request, CRA 110) below 1.18.0: 1,431,545 ×3 and 1,331,100 ×2 with the literal classes, 1,429,150–1,447,330 with 1.18.0's
+per-carrier fold. Question: why does the class model stall there, and what fixes it without touching the model?
+
+### Diagnosis: basins of the EPIC-group item, and the greedy hint picks one
+
+Protocol. A throwaway harness ran the production path (`WakfuBestBuildFinderAlgorithm.run`, 60 s, `-XX:ActiveProcessorCount=4`,
+3 GB, 4 JVMs at a time, each pinned to 4 physical cores) and logged every emitted build's items. Its key addition: it shifted
+the main thread's identity-hash sequence before anything else ran. `TargetStats` is a `HashSet` ordered by the
+`Characteristic` constants' identity hashes, so the shift changes the model's row order: "ordering" p0, p1… below (AGENTS.md §9).
+Within one harness the order is almost fixed: each E0 run of a JVM sees the same one. That is why E0's MD110 arms looked
+deterministic (the branch's first CP-SAT solution was 799,515 in 3 of 5 recheck runs). Their gap was the luck of one row order.
+
+- **Three basins, named by the EPIC-group item.** Best build 1,447,330 (Casque Hazieff, EPIC helmet, Anatomie as the epic
+  sublimation, Ailes du Corbeau Blanc as the cape). 1,431,545 (Cape de Visibilité, EPIC cape, with Concentration Élémentaire or
+  Anatomie, and Masque Riktus de Brâkmar as the helmet): it differs from the best build by exactly two items, the helmet and the
+  cape, plus the sublimations. 1,330,230 / 1,331,100 (still Cape de Visibilité, with Plastron Riktus de Brâkmar and Poids Plume
+  III): one item, the chest, away from 1,431,545.
+- **The rows make the basins sticky.** Leaving the EPIC item takes two items, the sublimations and the runes at once. With the
+  Cape build's items hinted and at most 2 new items allowed (local branching, full pool), CP-SAT did not find 1,447,330 in 30 s
+  (LP bound 3.5 M). With the Cape items fixed and every helmet and cape open (496 candidates), it found 1,431,545 in 8 s, never
+  1,447,330. Yet the inner problem is easy: with the Hazieff build's 13 items pinned, both encodings reach 1,447,330 in 2 s.
+  With Cape de Visibilité forbidden, 4 of 4 runs settle in the Hazieff basin.
+- **1.18.0 (per-carrier fold).** The model is large (16,484 vars, 9 s of presolve). Neither the greedy hint (whose basin is
+  Claymore de Fhenris) nor the full workers find anything early. The first solution is always `rens_pump_lns` at ~13 s, worth
+  1,216,040 and already in the Hazieff basin, and the search climbs from there. 16 orderings: median 1,439,755, 7 at 1,447,330,
+  one at 1,327,620.
+- **The class fold (literal).** Presolve takes 2.3 s. `default_lp [hint]` completes the greedy hint at ~3 s (the Claymore /
+  Ceinture du Dieu Ecaflip basin), and the early LNS climbs from there into the Cape basin. Its own pump does not help: run alone
+  (`feasibility_pump` + `rins/rens`), its first solution is 928,290 in the Cape basin. Over 8 orderings, 1 run reached 1,447,330;
+  over 16, 1. The class model is a faster climber, but in the wrong basin.
+
+### Levers measured (MD110 over randomized orderings, then the other fixtures, 3–6 orderings each)
+
+| Lever | MD110 at 1,447,330 | elsewhere | kept |
+|---|---|---|---|
+| no greedy CP-SAT hint | 1 / 8 (5 / 8 end in the Hazieff basin, but below its optimum) | MD245F −34 %, MDG245 −19 %, MDG140 −10 % | only with the next one, small folds |
+| `num_full_subsolvers = 1` (2 threads for LNS / pump instead of 1) | 3 / 8 | MDG140 −3 to −5 %, MDG245 −8 %, MDG170 +8 %, SAC110 +10 % | only with the previous one, small folds |
+| **both: "LNS first"** | 6 / 8, 10 / 16, 8 / 16 (same 16 orderings as 1.18.0's 7 / 16), 11 / 16 | SAC110 +9.5 %, MDN110 +0.9 %, IOP110 / MDG80 / MDG50 / MD110F even, MDG140 −6 %, 245 −9 to −21 % | **yes, hard leg, ≤ 18,000 pick-class vars** |
+| `ignore_subsolvers = fixed` + no hint | 5 / 8 | MDG245 −29 % | no |
+| `solution_pool_size = 10`, `diversify_lns_params` | 1 / 8, 1 / 8 (with the hint); 9 / 16 on LNS first | — | no |
+| linearization level 1 (LNS first) | 0 / 16 (median 1.25 M) | — | no |
+| greedy hint without the EPIC-group items | 2 / 8 | — | no |
+| EPIC-group items as singleton pick classes | 0 / 8 (one 1,444,300) | — | no |
+| greedy multi-start over the 36 EPIC items, ranked by `rescore` | ranks Ceinture du Dieu Ecaflip (the 1.33 M basin) first, Hazieff second | — | no |
+| fold in two halves, the second forbidding the first's EPIC item | 4 / 16 (each half too short to finish its climb) | — | no |
+| slot swap after the fold (count model on the best items + one slot's pool, cut at `best + 1`) | 9 / 16 vs 8 / 16 | single slots take 0.2–3 s; slot pairs (the move a basin change needs) stay UNKNOWN after 8 s | no |
+| merging the fold's solution history (restricted pool = every item it showed, 53–66 items) | 1 / 6 | — | no |
+| a per-carrier tail / portfolio split | not built: the per-carrier fold wins by its first solution's basin, not by climbing, and a tail hinted with the class incumbent starts in the class incumbent's basin | — | — |
+
+At 7 workers (`-XX:ActiveProcessorCount=8`, 4 orderings) the default portfolio already reached 1,447,330 3 times out of 4, and
+LNS first did so 4 times out of 4.
+
+### The fix: "LNS first" on small hard-leg folds (search only)
+
+`WakfuBuildSolver.lnsFirstSearch`: the max-damage HARD leg whose search fold holds pick classes of at most
+`LNS_FIRST_MAX_PICK_VARS` = 18,000 vars (`pickClassVarCount`, the per-carrier fold's multi-choice pick vars). That covers the
+GUI-default rows up to about level 120: 14,028 at level 110, 15,484 with Neutralité III forced, 12,024 for the Iop request and
+9,875 for the Sacrieur one at 110. It excludes 21,007 at level 140, every larger fold, and the soft leg. Such a leg:
+- leaves out the greedy CP-SAT hint. The greedy build is still shown at once: the first build the user sees does not change;
+- runs its fold (the hybrid's fold stage, or the direct solve) with `num_full_subsolvers = 1` when it has 3 workers or more, so
+  the other workers interleave LNS, the pump and local search.
+
+Same model and same exactness: no certificate reads it, and `CERTIFIER_VERSION` stays 62. `ENGINE_RESULTS_VERSION` 7, still
+unreleased, has its history extended. Kill switch `WAKFU_MD_LNS_FIRST=0`, tuned opt-in `SolverTuning.lnsFirst`. Locks:
+`RunePickClassTest` covers the rule (110 and 110 + Neutralité on; 140 and the soft leg off), and the hybrid lock runs its hard
+legs LNS first.
+
+Why a size rule: on a small fold CP-SAT finds a build that meets the rows within seconds on its own, so the hint only chooses the
+basin. On a large one the hint is what makes the first build reachable. The threshold sits between the measured sides: MD110 /
+MDN110 / IOP110 / SAC110 gain or stay even; MDG140 (21,007) loses 6 % and level 245 loses 9–21 %.
+
+### Wall clock (E0, the acceptance run)
+
+`PerfBaselineE0Test`, 60 s, `-XX:ActiveProcessorCount=4`, 3 GB, proof / E8 capped at 10 s, two JVMs at a time (one per CCD,
+slots swapped every round). 1.18.0 = `ad6c532c` with the branch's harness. Rounds 1–3 ran 9 fixtures (MD110 first). Rounds
+4–10 ran MD110 alone.
+
+| Fixture | 1.18.0 runs | median | this branch | median | Δ | first CP-SAT solution |
+|---|---|---|---|---|---|---|
+| **MD110** (10 / 10) | 1,447,330 ×4, 1,441,270 ×2, 1,440,260 ×2, 1,429,150, 1,427,130 | 1,441,270 | 1,447,330 ×5, 1,444,300, 1,431,545 ×4 | **1,445,815** | +0.3 % | 13.3 → 5.0 s |
+| IOP110 | 1,403,625 / 1,352,405 / 1,354,375 | 1,354,375 | 1,561,400 / 1,541,355 / 1,552,960 | 1,552,960 | +14.7 % | 11.0 → 3.4 s |
+| MD110F | 1,474,520 / 1,522,070 / 1,471,655 | 1,474,520 | 1,521,060 / 1,459,240 / 1,394,610 | 1,459,240 | −1.0 % | 7.3 → 2.6 s |
+| MDG140 | 2,088,460 / 1,882,760 / 1,976,320 | 1,976,320 | 2,366,720 / 2,421,760 / 2,385,920 | 2,385,920 | +20.7 % | 17.5 → 7.3 s |
+| MDG170 | 4,201,880 / 4,077,375 / 4,110,150 | 4,110,150 | 4,432,560 / 4,059,945 / 4,171,100 | 4,171,100 | +1.5 % | 12.0 → 10.8 s |
+| SAC200 | 12,571,195 / 12,796,600 / 13,097,425 | 12,796,600 | 13,799,400 / 12,574,380 / 12,880,350 | 12,880,350 | +0.7 % | 16.1 → 14.7 s |
+| MD200 | 8,701,660 / 8,701,660 / 8,547,000 | 8,701,660 | 8,701,660 / 8,547,000 / 8,728,115 | 8,701,660 | 0.0 % | 15.9 → 14.8 s |
+| MD245 | 15,319,050 / 16,109,640 / 16,603,625 | 16,109,640 | 17,223,500 / 15,750,480 / 17,016,875 | 17,016,875 | +5.6 % | 20.3 → 19.5 s |
+| MD245F | 20,276,070 / 20,213,820 / 20,276,070 | 20,276,070 | 19,714,875 / 19,855,000 / 19,767,125 | 19,767,125 | −2.5 % | 20.5 → 15.4 s |
+
+LNS first applies only to MD110 and IOP110 in this set. MD110F and MD245F are free requests (pump-era literal classes, untouched
+here). The earlier pooled sessions read them at +9.4 % and −0.1 %. MD110 is still bimodal on the branch: Hazieff basin or
+1,431,545. Over 56 orderings with LNS first, 32 runs (57 %) reached 1,447,330, as often as 1.18.0's per-carrier fold on the same
+orderings (7 of 16). Two runs in 56 ended in the 1.33 M basin, against 2 in 24 for 1.18.0. Neither arm hit that basin in this
+E0 run.
+
+### Open
+
+- Basin changes need a two-item move with the rows held. Neither CP-SAT's LNS nor an explicit slot-pair re-solve (8 s UNKNOWN on
+  ~500 candidates) makes it within a 60 s budget. A cheap neighbourhood that does would lift MD110 from ~55 % to ~100 %.
+- The 18,000 threshold is measured on 3 workers. At 7 workers the default portfolio already escapes more often; larger worker
+  counts are unmeasured.
 
 ## Tests
 
@@ -947,7 +1056,10 @@ places within seed noise; the pump's effect is a 3-worker one.
   that forgets the unit (one rune per unit) fails it;
 - production's rule (2026-10-13): the GUI-default hard-leg fold stage aggregates at every level, 110 included (1.18.0's size
   rule, still reachable through `PICK_CLASS_MIN_PICK_VARS_1_18`, kept 110 per carrier);
-- the fold stage's declared reachable domains are the per-carrier fold's (GUI default and free, 110 / 245, both legs).
+- the fold stage's declared reachable domains are the per-carrier fold's (GUI default and free, 110 / 245, both legs);
+- "LNS first" (2026-10-14): the hard leg of the GUI default at 110 (14,028 pick-class vars) and with Neutralité III forced (15,484)
+  searches LNS first; level 140 (21,007) and the soft leg do not. The hybrid lock runs its hard legs LNS first, with the same
+  proven optima.
 
 `RuneCountClassTest` (the count classes):
 - seeded pools of interchangeable carriers (two helmets, three rings — two worn — of one level and socket count) under the

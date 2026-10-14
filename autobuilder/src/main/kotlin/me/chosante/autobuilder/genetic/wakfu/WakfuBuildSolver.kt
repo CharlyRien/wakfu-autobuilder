@@ -480,6 +480,40 @@ object WakfuBuildSolver {
      */
     internal const val PICK_CLASS_MIN_PICK_VARS_1_18: Int = 24_000
 
+    /**
+     * A max-damage HARD leg whose fold holds at most this many pick-class vars (the per-carrier fold's multi-choice pick vars:
+     * 14,028 at level 110 on the GUI-default rows, 15,484 with Neutralité forced, 21,007 at level 140) searches "LNS first"
+     * ([lnsFirstSearch]): no greedy hint, one full CP-SAT subsolver. Such a fold reaches a build meeting the rows in seconds on
+     * its own, so the greedy hint only anchors the search in the greedy's basin (at level 110 the Claymore / Cape de Visibilité
+     * builds, ≤ 1,431,545, while the best one wears Casque Hazieff, 1,447,330), and the LNS threads a full worker gives back
+     * climb out of it. On larger folds the hint is what makes the first build reachable (dropping it cost 8–34 % at level 245):
+     * docs/MIXED_RUNE_SECONDARY_BUDGET.md "Pick classes and the search's basin".
+     */
+    internal const val LNS_FIRST_MAX_PICK_VARS: Int = 18_000
+
+    // Kill switch (production): WAKFU_MD_LNS_FIRST=0 keeps the greedy hint and CP-SAT's default portfolio on every fold.
+    internal val lnsFirstEnabled: Boolean = System.getenv("WAKFU_MD_LNS_FIRST") != "0"
+
+    /** The pick-class vars of [runeModel] (the per-carrier fold's multi-choice pick vars they aggregate); 0 without classes. */
+    internal fun pickClassVarCount(runeModel: RuneModel): Int = runeModel.countClasses.filter { it.unit > 1 }.sumOf { it.carriers.size * it.vars.size }
+
+    /**
+     * Whether a max-damage leg searches "LNS first" (no greedy CP-SAT hint, one full subsolver): the HARD leg of a request whose
+     * search fold holds pick classes of at most [LNS_FIRST_MAX_PICK_VARS] vars — in production (kill switch [lnsFirstEnabled]),
+     * or on a tuned solve that opts in ([SolverTuning.lnsFirst]).
+     */
+    private fun lnsFirstSearch(
+        params: WakfuBestBuildParams,
+        tuning: SolverTuning?,
+        hardConstraints: Boolean,
+        runeModel: RuneModel,
+    ): Boolean {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE || !hardConstraints) return false
+        if (!(if (tuning == null) lnsFirstEnabled else tuning.lnsFirst)) return false
+        val pickVars = pickClassVarCount(runeModel)
+        return pickVars in 1..LNS_FIRST_MAX_PICK_VARS
+    }
+
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
     // cycles from search/proof. Intermediate snapshots are pure progress — re-rendering the in-flight build
@@ -827,6 +861,9 @@ object WakfuBuildSolver {
         val runePickClasses: Boolean = false,
         val runePickClassMinPickVars: Int = 0,
         val runePickClassLinear: Boolean = false,
+        // The "LNS first" search of a small hard-leg fold ([lnsFirstSearch]) on the TUNED path: production applies it by its rule;
+        // a tuned solve opts in, so every existing tuned test keeps the greedy hint and the default portfolio.
+        val lnsFirst: Boolean = false,
         // Measurement seam (manual harnesses): a WALL-clock limit on top of the det budget, to run production's multi-worker
         // portfolio (non-deterministic: `interleaveSearch` off, several workers). Null = none.
         val maxWallSecondsForTest: Double? = null,
@@ -1087,9 +1124,13 @@ object WakfuBuildSolver {
                     // so the search starts from that incumbent instead of near zero. The greedy score also
                     // becomes the intermediate-emission floor — consumers keep the LAST emission, so a later,
                     // WORSE snapshot would visibly regress the displayed build.
-                    warmStart?.let { combination ->
-                        val picked = combination.equipments.toHashSet()
-                        for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
+                    // ...except on a small hard-leg fold, which searches LNS first ([lnsFirstSearch]): the greedy's build is still shown.
+                    val lnsFirst = lnsFirstSearch(params, tuning, hardConstraints, built.runeModel)
+                    if (!lnsFirst) {
+                        warmStart?.let { combination ->
+                            val picked = combination.equipments.toHashSet()
+                            for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
+                        }
                     }
                     // P0.5 oracle seam: hint a previously captured full assignment by var name (advisory,
                     // optimality-neutral; requires greedyWarmStart = false so no var is hinted twice).
@@ -1110,7 +1151,8 @@ object WakfuBuildSolver {
                                 hardConstraints,
                                 built,
                                 warmScore,
-                                solverHandle
+                                solverHandle,
+                                lnsFirst
                             )
                         onTermination?.invoke(outcome)
                         close()
@@ -1131,7 +1173,8 @@ object WakfuBuildSolver {
                             onSolverReady = { solverHandle.set(it) },
                             suppressBelowScore = warmScore,
                             mmObjectiveComparable = mmObjectiveComparable,
-                            mmHardLegMultiplier = mmHardLegMultiplier
+                            mmHardLegMultiplier = mmHardLegMultiplier,
+                            singleFullSubsolver = lnsFirst
                         )
                     // P2b stage 2: the primary is proven — pin it and maximize the overshoot in a short
                     // near-forced solve; its guaranteed final send (same primary ⇒ same score) replaces
@@ -1793,6 +1836,8 @@ object WakfuBuildSolver {
         fold: BuiltModel,
         warmScore: BigDecimal?,
         solverHandle: java.util.concurrent.atomic.AtomicReference<CpSolver?>,
+        // The fold stage searches LNS first ([lnsFirstSearch]): one full CP-SAT subsolver (its greedy hint already left out).
+        lnsFirst: Boolean = false,
     ): SolveOutcome? {
         val legStartMs = System.currentTimeMillis()
         val totalWall = params.searchDuration.inWholeMilliseconds / 1000.0
@@ -1853,7 +1898,8 @@ object WakfuBuildSolver {
                 maxWallSecondsOverride = hybridFoldStageBudget(totalWall),
                 maxDeterministicTimeOverride = tuning?.let { hybridFoldStageBudget(totalDet) },
                 sendFinal = false,
-                progressStartMs = legStartMs
+                progressStartMs = legStartMs,
+                singleFullSubsolver = lnsFirst
             ) ?: return null
         account(foldOutcome)
         if (!scope.isActive) return foldOutcome
@@ -4939,6 +4985,28 @@ object WakfuBuildSolver {
         return listOf(classes.sumOf { it.carriers.size }, classes.sumOf { it.carriers.size * it.vars.size }, classes.size, classes.sumOf { it.vars.size })
     }
 
+    /** Test-only: whether production's leg on [params] searches its fold LNS first ([lnsFirstSearch]), and that fold's pick-class vars. */
+    internal fun lnsFirstForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+    ): Pair<Boolean, Int> {
+        val runeModel =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = true,
+                hardConstraints = hardConstraints,
+                runeMixedHybridFold = mixedRuneHybridApplies(params, null, null),
+                runePickClasses = true
+            ).runeModel
+        return lnsFirstSearch(params, null, hardConstraints, runeModel) to pickClassVarCount(runeModel)
+    }
+
     /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
     internal fun gatedPoolSizeForTest(
         params: WakfuBestBuildParams,
@@ -5795,6 +5863,9 @@ object WakfuBuildSolver {
         sendFinal: Boolean = true,
         //  - the leg's start, which the progress percentage counts from (null = this solve's own start).
         progressStartMs: Long? = null,
+        // "LNS first" ([lnsFirstSearch]): one full subsolver, the other workers for CP-SAT's LNS / pump / local search (with
+        // at least 3 workers; fewer keep the default split).
+        singleFullSubsolver: Boolean = false,
     ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
@@ -5826,6 +5897,7 @@ object WakfuBuildSolver {
                 (maxWallSecondsOverride ?: (params.searchDuration.inWholeMilliseconds.toDouble() / 1000.0)).coerceAtLeast(0.05)
             solver.parameters.numSearchWorkers =
                 params.computeBudget.cap(params.solverWorkers ?: params.computeBudget.searchWorkers)
+            if (singleFullSubsolver && solver.parameters.numSearchWorkers >= 3) solver.parameters.numFullSubsolvers = 1
         } else {
             // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
             // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same
@@ -5833,6 +5905,7 @@ object WakfuBuildSolver {
             // Presolve runs in full here (tests only ever solve the small, prefiltered model) so the
             // optimality proof finishes quickly.
             solver.parameters.numSearchWorkers = tuning.numSearchWorkers
+            if (singleFullSubsolver && tuning.numSearchWorkers >= 3) solver.parameters.numFullSubsolvers = 1
             solver.parameters.randomSeed = tuning.randomSeed
             solver.parameters.maxDeterministicTime = maxDeterministicTimeOverride ?: tuning.maxDeterministicTime
             tuning.maxWallSecondsForTest?.let { solver.parameters.maxTimeInSeconds = it }

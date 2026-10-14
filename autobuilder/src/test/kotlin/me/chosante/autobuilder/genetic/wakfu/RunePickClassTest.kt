@@ -201,7 +201,8 @@ class RunePickClassTest {
                             c.pool,
                             runes,
                             c.subs,
-                            tuning.copy(mixedRuneHybrid = true, runePickClasses = true),
+                            // The hard leg searches LNS first ([WakfuBuildSolver.lnsFirstSearch]) — a search-only switch.
+                            tuning.copy(mixedRuneHybrid = true, runePickClasses = true, lnsFirst = hard),
                             hardConstraints = hard,
                             onTermination = { outcome = it }
                         ).toList()
@@ -290,6 +291,60 @@ class RunePickClassTest {
             }
         assertThat(aggregated.getValue(110)).describedAs("level 110: per-carrier picks under 1.18.0's rule").isZero()
         assertThat(aggregated.getValue(200)).describedAs("level 200: pick classes under 1.18.0's rule").isGreaterThan(0)
+    }
+
+    /**
+     * Production's "LNS first" rule ([WakfuBuildSolver.LNS_FIRST_MAX_PICK_VARS]): the HARD leg of a small fold — the GUI default at
+     * level 110 (14,028 pick-class vars), with Neutralité III forced (15,484) — searches without the greedy hint and with one full
+     * CP-SAT subsolver; level 140 (21,007) and the soft leg keep the hint and the default portfolio. A search-only switch: the
+     * model, and so every optimum and proof, is the same.
+     */
+    @Test
+    fun `small hard-leg folds search LNS first`() {
+        val gui =
+            listOf(
+                TargetStat(Characteristic.ACTION_POINT, 11),
+                TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                TargetStat(Characteristic.RANGE, 4),
+                TargetStat(Characteristic.CRITICAL_HIT, 25),
+                TargetStat(Characteristic.MASTERY_DISTANCE, 1),
+                TargetStat(Characteristic.HP, 2000),
+                TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                TargetStat(Characteristic.DODGE, 0)
+            )
+
+        fun params(
+            level: Int,
+            forcedSubs: List<String> = emptyList(),
+        ) = WakfuBestBuildParams(
+            character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+            targetStats = TargetStats(gui),
+            searchDuration = 60.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            useRunes = true,
+            useSublimations = true,
+            forcedSublimations = forcedSubs
+        )
+        val subs = WakfuBestBuildFinderAlgorithm.sublimations
+
+        fun rule(
+            p: WakfuBestBuildParams,
+            hard: Boolean,
+        ) = WakfuBuildSolver.lnsFirstForTest(p, WakfuBestBuildFinderAlgorithm.poolFor(p), runes, subs, hard)
+        val md110 = rule(params(110), hard = true)
+        val mdn110 = rule(params(110, listOf("Neutralité III")), hard = true)
+        val md140 = rule(params(140), hard = true)
+        val md110Soft = rule(params(110), hard = false)
+        println("LNS_FIRST md110=$md110 mdn110=$mdn110 md140=$md140 md110Soft=$md110Soft")
+        assertThat(md110.first).describedAs("level 110, hard leg (%s pick-class vars)", md110.second).isTrue()
+        assertThat(mdn110.first).describedAs("level 110 + Neutralité III, hard leg (%s)", mdn110.second).isTrue()
+        assertThat(md140.first).describedAs("level 140, hard leg (%s)", md140.second).isFalse()
+        assertThat(md140.second).isGreaterThan(WakfuBuildSolver.LNS_FIRST_MAX_PICK_VARS)
+        assertThat(md110Soft.first).describedAs("level 110, soft leg").isFalse()
     }
 
     /**
