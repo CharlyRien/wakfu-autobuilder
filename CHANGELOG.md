@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.18.0...wakfu-autobuilder-1.18.1) (2026-10-14)
+
+
+### Performance Improvements
+
+* **solver:** literal rune pick classes on every max-damage fold, and LNS-first small hard legs ([#276](https://github.com/CharlyRien/wakfu-autobuilder/issues/276)) ([bc005ef](https://github.com/CharlyRien/wakfu-autobuilder/commit/bc005efdba87a2e0b6933ca211282c34466d6a32))
+
 ## [1.18.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.17.0...wakfu-autobuilder-1.18.0) (2026-10-13)
 
 
