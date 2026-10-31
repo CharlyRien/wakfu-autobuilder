@@ -1219,6 +1219,7 @@ class BuildSearchModel(
                 // Snapshotted HERE, from the request the engine is about to receive (not from the rows as they will be once
                 // the search ends): this result says "no proof is possible" about THAT request, whatever is edited meanwhile.
                 prefilteredRequest = params.targetStats.needsItemPrefilter,
+                resultRequest = snapshot.toRequestSnapshot(),
                 proofState = ProofState.Idle,
                 searchStopped = false,
                 // The new build is found with this app's own game data and engine, whatever the one it replaces was computed with.
@@ -2405,7 +2406,11 @@ class BuildSearchModel(
         // The request this save was computed for — the rows and mode restored just above, never the rows the workspace held before
         // the load — decides whether any search of it could ever have been proven: the stats column explains the missing badge
         // of such a build ([UiState.prefilteredRequest]) instead of suggesting a longer search.
-        val loaded = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false))
+        val loaded =
+            restored.copy(
+                prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false),
+                resultRequest = restored.toRequestSnapshot()
+            )
         ui = loaded.rescored()
         // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still

@@ -16,6 +16,7 @@ import me.chosante.common.Equipment
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
+import me.chosante.common.history.RequestSnapshot
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.label
 import me.chosante.ui.theme.WColor
@@ -324,6 +325,11 @@ data class UiState(
      */
     val prefilteredRequest: Boolean = false,
     /**
+     * The request that produced the build on screen, which a save or an export records. It belongs to the RESULT, like
+     * [prefilteredRequest]: editing the panel after a search must not attach that build and its proof to another request.
+     */
+    val resultRequest: RequestSnapshot? = null,
+    /**
      * Max-damage mode only: the AP-cell certificate's optimality verdict for the finished build (P4.4).
      * Computed asynchronously AFTER the search completes (a full exact solve can take minutes), so it starts
      * [ProofState.Idle], becomes [ProofState.Proving], then resolves. It can prove optimality CP-SAT left
@@ -459,6 +465,7 @@ data class ShownResult(
     val optimal: Boolean = false,
     val maxDamageStructural: Boolean = false,
     val prefilteredRequest: Boolean = false,
+    val resultRequest: RequestSnapshot? = null,
     val proofState: ProofState = ProofState.Idle,
     val searchStopped: Boolean = false,
     val staleDataVersion: String? = null,
@@ -494,6 +501,7 @@ fun UiState.shownResult(): ShownResult =
         optimal = optimal,
         maxDamageStructural = maxDamageStructural,
         prefilteredRequest = prefilteredRequest,
+        resultRequest = resultRequest,
         proofState = proofState,
         searchStopped = searchStopped,
         staleDataVersion = staleDataVersion,
@@ -515,6 +523,7 @@ fun UiState.withResult(result: ShownResult): UiState =
         optimal = result.optimal,
         maxDamageStructural = result.maxDamageStructural,
         prefilteredRequest = result.prefilteredRequest,
+        resultRequest = result.resultRequest,
         proofState = result.proofState,
         searchStopped = result.searchStopped,
         staleDataVersion = result.staleDataVersion,

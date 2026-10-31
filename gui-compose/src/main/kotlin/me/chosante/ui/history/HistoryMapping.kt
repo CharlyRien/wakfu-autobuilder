@@ -70,7 +70,7 @@ fun UiState.toHistoryEntry(
         note = note?.takeIf { it.isNotBlank() },
         dataVersion = dataVersion,
         engineResultsVersion = engineResultsVersion,
-        request = toRequestSnapshot(),
+        request = resultRequest ?: toRequestSnapshot(),
         result =
             ResultSnapshot(
                 equipments = build.equipments,
