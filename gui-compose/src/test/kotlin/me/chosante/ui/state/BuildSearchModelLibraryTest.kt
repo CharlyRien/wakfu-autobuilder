@@ -604,6 +604,69 @@ class BuildSearchModelLibraryTest {
             libraryPreferences = LibraryPreferences(null)
         )
 
+    @Test
+    fun `a save records the request of the search, not the panel as edited since`(
+        @TempDir tempDir: Path,
+    ): Unit =
+        runTest {
+            val scope = backgroundScope
+            val model = model(scope, tempDir)
+            try {
+                model.addForcedSublimation("Dénouement")
+                model.setDuration("1")
+                model.search()
+                assertAfterPendingWork { model.ui.phase == Phase.Done }
+                model.removeForcedSublimation("Dénouement")
+                model.saveBuild(name = "Searched", note = null, asNew = true)
+                assertAfterPendingWork { model.ui.savedBuilds.any { it.name == "Searched" } }
+                val saved = model.ui.savedBuilds.single { it.name == "Searched" }
+                assertThat(saved.request.forcedSublimations).containsExactly("Dénouement")
+                assertThat(saved.result.optimal).isTrue()
+                assertThat(model.ui.forcedSublimations).describedAs("the panel keeps the edit").isEmpty()
+
+                // A new search answers the panel as it is now.
+                model.search()
+                assertAfterPendingWork { model.ui.phase == Phase.Done }
+                model.saveBuild(name = "Edited", note = null, asNew = true)
+                assertAfterPendingWork { model.ui.savedBuilds.any { it.name == "Edited" } }
+                assertThat(
+                    model.ui.savedBuilds
+                        .single { it.name == "Edited" }
+                        .request.forcedSublimations
+                ).isEmpty()
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `updating a loaded build keeps the request that produced it`(
+        @TempDir tempDir: Path,
+    ): Unit =
+        runTest {
+            val scope = backgroundScope
+            val model = model(scope, tempDir)
+            try {
+                model.addForcedSublimation("Dénouement")
+                val id = saveFreshBuild(model, name = "Loaded")
+                model.loadBuild(id)
+                model.removeForcedSublimation("Dénouement")
+                model.saveBuild(name = "Renamed", note = null, asNew = false)
+                assertAfterPendingWork {
+                    model.ui.savedBuilds
+                        .single { it.id == id }
+                        .name == "Renamed"
+                }
+                assertThat(
+                    model.ui.savedBuilds
+                        .single { it.id == id }
+                        .request.forcedSublimations
+                ).containsExactly("Dénouement")
+            } finally {
+                scope.cancel()
+            }
+        }
+
     /** Runs a search to populate a workspace build, then saves it as a new library entry. Returns its id. */
     private fun TestScope.saveFreshBuild(
         model: BuildSearchModel,
