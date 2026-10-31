@@ -102,6 +102,15 @@ These types are the vocabulary of the whole codebase — learn them first.
   six secondary masteries (melee, distance, berserk, rear, critical, healing) is ≤ the threshold on the first-turn sheet —
   never their sum: the game's criterion is an `and` of six per-stat atoms, and `bdata-extractor` fails on any other
   shape. The certificates price it through a SUM budget — a sound relaxation (`secondaryMasteriesSumBound`).
+- **When a condition is tested** (`SublimationCondition.testedAt`, from the trigger of the StaticEffect group carrying the
+  criterion; an unknown trigger fails `bdata-extractor`): 1028 = start of combat (every stat condition, Dénouement's, Inflexibilité
+  II's), 1001 = start of turn (Neutralité III, Ambition III, Prétention III, Abandon II). Three sheets follow: PRE-COMBAT (items, runes,
+  skills, base, permanent subs — what a start-of-combat condition reads, so Ambition's start-of-turn +crit never feeds Dénouement's
+  crit ≥ 40), FIRST-TURN (+ the start-of-combat lines of unconditional FLAT subs + the CONVERSIONS: Ravage's masteries break
+  Neutralité, Dénouement's moved critical mastery does not). Inflexibilité II reads first-turn too although it is tested at start of
+  combat: Ravage lands in the same phase, in an order the client does not state, so it stays conservatively counted. It never meets a
+  conversion, both being EPIC (`ConversionBeforeTurnConditionTest` locks that on the data). Not modelled: Dénouement also requires
+  crit mastery ≥ 2, so a build at exactly 1 crit mastery reads as converted.
 
 `BuildCombination` (in `autobuilder/domain`) = `equipments + characterSkills`, with `isValid()`
 enforcing slot/rarity/weapon rules.

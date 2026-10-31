@@ -142,7 +142,11 @@ internal sealed interface SubConditionSpec {
      * instead checked by the game ON THE FIRST TURN, so they also see the START-OF-COMBAT contributions of
      * unconditional FLAT subs (in-game verified 2026-07-14: Ravage's start-of-combat secondary masteries BREAK
      * Neutralité's `each secondary mastery ≤ 0`, while a start-of-combat +crit does NOT feed a CRIT_AT_MOST —
-     * condition timing is per-type, not global).
+     * condition timing is per-type, not global) and the result of the CONVERSIONS (Dénouement moves critical mastery
+     * out before the check, so the converted mastery does not break Neutralité — [conversionFeedsFirstTurn]). A condition the
+     * client tests at start of turn ([ConditionTestMoment.START_OF_TURN], trigger 1001) reads this sheet. So does Inflexibilité II,
+     * though it is tested at start of combat: Ravage lands in the same phase and the client does not state their order, so its
+     * secondaries stay counted (the conservative read). It never meets a conversion: both are EPIC (locked on the data).
      */
     data class StatBound(
         val stats: List<Characteristic>,
@@ -196,6 +200,18 @@ internal fun subConditionSpec(
         else -> SubConditionSpec.AlwaysApplies // AP_ODD / WEAPON_TYPE_EQUIPPED / HIGHEST_* / OTHER — not solver-modeled
     }
 }
+
+/**
+ * Whether this CONVERSION sub's transfer shows on the FIRST-TURN sheet. Always, except for a conversion whose own condition reads
+ * that sheet: a sub never feeds its own condition (no such sub exists in the data; this keeps the model acyclic if one appears).
+ */
+internal fun Sublimation.conversionFeedsFirstTurn(level: Int): Boolean = (subConditionSpec(condition, level) as? SubConditionSpec.StatBound)?.firstTurn != true
+
+/** What a conversion of [percent]% moves out of a stat worth [from] before sublimations: floored, never negative. */
+internal fun conversionMoved(
+    from: Int,
+    percent: Int,
+): Int = maxOf(0, from * percent / 100)
 
 /**
  * A bound on the SUM of any non-empty subset of the six secondary masteries implied by a Neutralité-family condition

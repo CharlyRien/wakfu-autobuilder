@@ -609,6 +609,9 @@ internal object MaxDamageSoftCertificate {
         //    arm's unconstrained K — over-count, sound);
         //  - "critZero": wK zeroed + wK·(t + own grants) constant; CRITM cappers staged,
         //    sec-cappers excluded (their builds live in secZero).
+        //  - "secConv" (v63): a secZero arm for the builds carrying a sec-capper AND a conversion of critical mastery (Dénouement ×
+        //    Neutralité): the moved mastery leaves the condition's read, so crit mastery is out of the budget and the conversion
+        //    moves up to its full reach. The conversion takes its rarity slot; secZero excludes it.
         worldArm: String? = null,
         // Research seam: W is priced at critCap during the DP. At collapse, rescale that single
         // non-negative weighted sum by the worst coefficient ratio reachable at the state's
@@ -906,6 +909,20 @@ internal object MaxDamageSoftCertificate {
             }
         val hasSecCappers = objCapSubs.any { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
         val hasCritMCappers = objCapSubs.any { capsObjectiveType(it) == SublimationConditionType.CRITICAL_MASTERY_AT_MOST }
+        // The conversion the secConv arm prices. Only the shipped shape (one sub, critical mastery): another source would change
+        // what the arm's weights read, so it bails, as no data reaches it.
+        val secConversionSubs =
+            if (hasSecCappers) {
+                sublimations.filter {
+                    it.solverChoosable &&
+                        it.conversion?.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                        it.conversionFeedsFirstTurn(level)
+                }
+            } else {
+                emptyList()
+            }
+        if (secConversionSubs.size > 1 || secConversionSubs.any { it.conversion?.from != Characteristic.MASTERY_CRITICAL }) return null
+        val secConversionSub = secConversionSubs.singleOrNull()
         val rampPartitionOnly = worldArm == "rampPartition"
         if (worldArm == null || rampPartitionOnly) {
             data class WorldSpec(
@@ -918,6 +935,7 @@ internal object MaxDamageSoftCertificate {
                 buildList {
                     add("plain")
                     if (hasSecCappers) add("secZero")
+                    if (secConversionSub != null) add("secConv")
                     if (hasCritMCappers) add("critZero")
                 }
             val specs =
@@ -1170,7 +1188,8 @@ internal object MaxDamageSoftCertificate {
         }
         val assumeStat = worldAssume?.let { capStatOf(it) }
         val assumeThreshold = worldAssume?.condition?.value ?: -1
-        val armZeroSecondary = worldArm == "secZero"
+        val armSecConv = worldArm == "secConv"
+        val armZeroSecondary = worldArm == "secZero" || armSecConv
         val armZeroCritM = worldArm == "critZero"
         // "capFree": stage every objective-capper sub with NO cap and NO forcing — a single sound
         // cover of all three arms of an assume-world (cap-ignored staging is sound, and with both
@@ -1309,19 +1328,21 @@ internal object MaxDamageSoftCertificate {
                 .filter { it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS }
                 .sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
 
+        // The secondaries outside M that the budget reads: in the secConv arm, not the converted critical mastery.
+        fun inOtherSecondaryBudget(c: Characteristic): Boolean =
+            c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                c !in masteryStats &&
+                !(armSecConv && c == Characteristic.MASTERY_CRITICAL)
+
         fun itemOtherNegativeSecondary(e: Equipment): Long =
             e.characteristics.entries
-                .filter {
-                    it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
-                        it.key !in masteryStats
-                }.sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
+                .filter { inOtherSecondaryBudget(it.key) }
+                .sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
 
         fun itemOtherPositiveSecondary(e: Equipment): Long =
             e.characteristics.entries
-                .filter {
-                    it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
-                        it.key !in masteryStats
-                }.sumOf { (_, v) -> maxOf(v, 0).toLong() }
+                .filter { inOtherSecondaryBudget(it.key) }
+                .sumOf { (_, v) -> maxOf(v, 0).toLong() }
 
         // A real build can socket a scenario-secondary shard whose FULL value exceeds the W the
         // axis credited (the axis prices secondary at wM−μ): its μ complement must ride the S⁺
@@ -2176,6 +2197,17 @@ internal object MaxDamageSoftCertificate {
                     continue
                 }
                 if ("noCondSubs" in diag && sub.condition != null) continue
+                if (secConversionSub != null && armZeroSecondary) {
+                    // secZero covers the builds without the conversion. secConv covers those with it, whose slot it holds.
+                    if (!armSecConv && sub.stateId == secConversionSub.stateId) continue
+                    if (armSecConv &&
+                        sub.stateId != secConversionSub.stateId &&
+                        sub.rarity != SublimationRarity.NORMAL &&
+                        sub.rarity == secConversionSub.rarity
+                    ) {
+                        continue
+                    }
+                }
                 val cond = sub.condition
                 val capsObjective =
                     cond != null &&
@@ -2321,7 +2353,7 @@ internal object MaxDamageSoftCertificate {
                             val movedBase =
                                 when {
                                     armZeroCritM && eff.from == Characteristic.MASTERY_CRITICAL -> armCritMCapRaw
-                                    armZeroSecondary && eff.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS ->
+                                    !armSecConv && armZeroSecondary && eff.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS ->
                                         armSecConversionCapRaw
                                     else -> reachableMax(eff.from).coerceAtLeast(0).toLong()
                                 }
@@ -2337,6 +2369,7 @@ internal object MaxDamageSoftCertificate {
                                         // destination therefore costs only (w_to - wMastery), not full w_to.
                                         val sourceWeight =
                                             if (armZeroSecondary &&
+                                                !armSecConv &&
                                                 coupleSecondaryItemNegative &&
                                                 eff.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
                                             ) {
@@ -3097,6 +3130,9 @@ internal object MaxDamageSoftCertificate {
     private const val PROD_CC_SUPPORT_BAND = 5
     private const val PROD_CRIT_WEIGHT_ANCHOR = 100
     private const val PROD_HIGH_SCALE_LEVEL = 225
+
+    // The weight arms pricing a Neutralité-family carrier ("secConv": beside a conversion of critical mastery).
+    private val SECONDARY_ARMS = setOf("secZero", "secConv")
     private const val PROD_SECZERO_HIGH_SCALE_LEVEL = 175
 
     /** The §9.19 adaptive grid: coarse sweep steps and the fine defaults refinements restore. */
@@ -4112,15 +4148,26 @@ internal object MaxDamageSoftCertificate {
 
             hpStep = if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL) REFINE_HP_STEP else 1000
 
+            // What a capFree world re-splits into: the objective arms of `bound`, on the same shape.
+            val capFreeResplitArms =
+                listOf("plain", "secZero", "critZero") +
+                    if (sublimations.any { it.solverChoosable && it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST } &&
+                        sublimations.any { it.solverChoosable && it.conversion?.from == Characteristic.MASTERY_CRITICAL && it.conversionFeedsFirstTurn(params.character.level) }
+                    ) {
+                        listOf("secConv")
+                    } else {
+                        emptyList()
+                    }
+
             fun supportLambda(world: WorldRead): Long =
                 when {
                     world.rampRequired == true && params.character.level >= PROD_HIGH_SCALE_LEVEL ->
                         PROD_CC_SUPPORT_LAMBDA
                     world.rampRequired == true && params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL ->
                         PROD_SECZERO_MID_SUPPORT_LAMBDA
-                    world.arm == "secZero" && params.character.level >= PROD_HIGH_SCALE_LEVEL ->
+                    world.arm in SECONDARY_ARMS && params.character.level >= PROD_HIGH_SCALE_LEVEL ->
                         PROD_CC_SUPPORT_LAMBDA
-                    world.arm == "secZero" && params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL ->
+                    world.arm in SECONDARY_ARMS && params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL ->
                         PROD_SECZERO_MID_SUPPORT_LAMBDA
                     highScale -> PROD_CC_SUPPORT_LAMBDA
                     else -> PROD_CC_SUPPORT_LAMBDA_LOW
@@ -4177,7 +4224,7 @@ internal object MaxDamageSoftCertificate {
                 val effectiveSecondaryPrice =
                     secondaryPrice ?: if (
                         (world.arm == "rampCover" && armOverride == null) ||
-                        (world.rampRequired == true && effectiveArm == "secZero")
+                        (world.rampRequired == true && effectiveArm in SECONDARY_ARMS)
                     ) {
                         PROD_SECZERO_SECONDARY_SUPPORT_PRICE
                     } else {
@@ -4398,11 +4445,11 @@ internal object MaxDamageSoftCertificate {
                 // fully-refined plain/ramp world already owns the badge.
                 val bestNonSecondary =
                     primaryCandidates
-                        .filter { it.world.arm != "secZero" }
+                        .filter { it.world.arm !in SECONDARY_ARMS }
                         .maxOfOrNull { it.upper } ?: noConditionUpper
                 primaryCandidates
                     .filter {
-                        it.world.arm == "secZero" &&
+                        it.world.arm in SECONDARY_ARMS &&
                             it.upper > refinementFloor &&
                             it.upper > bestNonSecondary
                     }.sortedByDescending { it.upper }
@@ -4478,7 +4525,7 @@ internal object MaxDamageSoftCertificate {
                         val resplitTier = if (candidate.capFreeResplitTier < 0) 0 else tiers.lastIndex
                         val resplitDi = tiers[resplitTier]
                         var resplit = Long.MIN_VALUE
-                        for (arm in listOf("plain", "secZero", "critZero")) {
+                        for (arm in capFreeResplitArms) {
                             val read =
                                 refineWorld(candidate.world, resplitDi, armOverride = arm)
                                     ?: return null
@@ -4498,7 +4545,7 @@ internal object MaxDamageSoftCertificate {
                     for (candidate in loose) {
                         if (!shouldContinue()) return null
                         var resplit = Long.MIN_VALUE
-                        for (arm in listOf("plain", "secZero", "critZero")) {
+                        for (arm in capFreeResplitArms) {
                             val read =
                                 refineWorld(candidate.world, tiers.last(), armOverride = arm)
                                     ?: return null

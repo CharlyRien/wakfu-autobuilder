@@ -687,8 +687,8 @@ internal fun StatBuilder.certifierWorlds(scenario: DamageScenario): List<CertWor
  * - SECONDARY-CAPPED (N): every build on which a Neutralité-family sub ([isSecondaryCapDroppedSub]) is ACTIVE has EACH
  *   of its first-turn secondary masteries ≤ 0, hence their SUM ≤ 0. World N keeps those subs and re-values every
  *   mastery source under that sum budget (see `secondaryCapped` in [certifyMaxPerHitAtApPass]) — a sound relaxation of
- *   the per-stat rule whatever the items' signed secondary lines. A CONVERSION needs no N variant (its gain is priced inside the relaxation); Critical Secret does
- *   (its EPIC slot) ⇒ N and N×C.
+ *   the per-stat rule whatever the items' signed secondary lines. A taken CONVERSION has its own variant, N×U (v63): the moved
+ *   critical mastery leaves the first-turn read, so the budget no longer holds it. Critical Secret does too (its EPIC slot) ⇒ N, N×U and N×C.
  * - BLOCK-ASSUMED (M): the EPIC block sub ([isBlockWorldSub], Mesure) force-taken with its untracked block
  *   condition assumed satisfiable. It holds the single epic sub slot, so no conversion / Critical-Secret special
  *   coexists (both EPIC); combined with N as N×M.
@@ -721,6 +721,9 @@ internal fun StatBuilder.certifierAuxWorlds(scenario: DamageScenario): List<Cert
                 if (m == null && f.critSecretSub != null && f.forcedConv == null && f.specialAllowed(f.critSecretSub)) {
                     worlds += CertWorld(null, f.critSecretSub, null, wr, secondaryCapped = true)
                 }
+                if (m == null && f.convSub != null && f.forcedCs == null && f.specialAllowed(f.convSub) && f.convSub.conversionFeedsFirstTurn(subModel.characterLevel)) {
+                    worlds += CertWorld(f.convSub, null, f.critSecretSub, wr, secondaryCapped = true)
+                }
             }
         }
     }
@@ -747,7 +750,9 @@ internal class AuxPlan(
 
 internal fun StatBuilder.certifierAuxPlan(scenario: DamageScenario): AuxPlan? {
     val exact = certifierAuxWorlds(scenario) ?: return null
-    val capped = exact.filter { it.secondaryCapped }
+    // N×U stays eager: the relaxed world's budget charges critical mastery, which N×U's does not, and it is no far-below world
+    // either — it holds the real Dénouement × Neutralité builds.
+    val capped = exact.filter { it.secondaryCapped && it.conv == null }
     if (capped.isEmpty() || !CertifierTuning.auxRelaxedCappedEnabled) return AuxPlan(exact, null, emptyList())
     val f = certifierWorldFacts(scenario) ?: return null
     // The specials the capped worlds force-take: Critical Secret (N×C) and the block sub (N×M).
@@ -764,7 +769,7 @@ internal fun StatBuilder.certifierAuxPlan(scenario: DamageScenario): AuxPlan? {
             weaponsRelaxed = f.weaponWorlds.size > 1,
             freeCredit = freeCredit
         )
-    return AuxPlan(exact.filterNot { it.secondaryCapped }, relaxed, capped)
+    return AuxPlan(exact.filterNot { it.secondaryCapped && it.conv == null }, relaxed, capped)
 }
 
 /**
@@ -2148,8 +2153,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // a negative secondary line (Great Age-Old Staff −596 rear) frees exactly what it gives. UNREAD sources keep full
     // credit: the passives (outside preCombatStat), non-FLAT subs' own effects, the forced-conditional gates. A
     // conversion (critM → elemental) needs nothing extra: it only re-labels PRE-SUB critM, already credited by
-    // pos(k_s) — so the world runs with the conversion NOT taken. A path that violates S ≤ 0 may score anything;
+    // pos(k_s) — so N covers the builds with no conversion taken. A path that violates S ≤ 0 may score anything;
     // it is a phantom path of a max, so an over-count at worst. Sound for any signed item / rune / sub lines.
+    // World N×U (v63, convTaken set): the conversion is active, so the first-turn K is K − moved and S ≤ 0 no longer bounds the
+    // pre-sub K. But the rule holds D ≤ 0 and O ≤ 0 on their own, and the conversion touches neither (certifierWorldFacts admits
+    // only critical mastery → the scenario element), so D + O ≤ 0 is added instead: k is credited, never debited. Sound: the final
+    // M' = 100 + E + D + moved and K' = K − moved give max(0, M') + max(0, K') ≤ max(0, 100 + E + D) + Σ_s pos(k_s).
     val capCats = if (secondaryCapped) damageMasteryCategories(scenario) ?: return Long.MAX_VALUE else null
     // The split below treats every NON-FLAT sub as UNREAD, while the model's read does carry a non-FLAT sub's
     // PERMANENT effects ([buildPermanentSubTerms]): harmless when ≥ 0 (unread credit ≥ read credit), an under-count if
@@ -2191,7 +2200,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         d: Long,
         k: Long,
         o: Long,
-    ): Long = pos(e + d) + pos(k) - (d + k + o)
+    ): Long = pos(e + d) + pos(k) - (d + (if (convTaken != null) 0L else k) + o)
 
     fun capUnread(
         e: Long,

@@ -36,5 +36,7 @@ package me.chosante.autobuilder.domain
  * Still 7 (unreleased): the hard leg of a small fold (≤ 18,000 pick-class vars: the GUI-default rows up to about level 120)
  * searches "LNS first" — no greedy CP-SAT hint, one full CP-SAT subsolver — so its search no longer settles in the greedy build's
  * basin (level 110: 1,431,545 instead of 1,447,330). Search-only: the same model, optimum and proofs.
+ * 8: CERTIFIER_VERSION 63 — a conversion lands before a start-of-turn condition is tested, so Dénouement × Neutralité / Ambition /
+ * Prétention is legal and a build carrying it can score higher.
  */
-const val ENGINE_RESULTS_VERSION: Int = 7
+const val ENGINE_RESULTS_VERSION: Int = 8

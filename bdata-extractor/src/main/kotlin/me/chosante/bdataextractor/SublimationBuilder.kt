@@ -1,6 +1,7 @@
 package me.chosante.bdataextractor
 
 import me.chosante.common.Characteristic
+import me.chosante.common.ConditionTestMoment
 import me.chosante.common.ScenarioGate
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationCondition
@@ -393,6 +394,21 @@ fun buildSublimations(
             return false
         }
 
+        // The trigger ids of the nearest group (this effect or an ancestor) that has any: when its criterion is tested.
+        fun nearestTriggerIds(startId: Int): List<Int> {
+            var cur = startId
+            val guard = HashSet<Int>()
+            while (cur in subtreeSet && guard.add(cur)) {
+                val e = byEffectId.getValue(cur)
+                val ids = TRIGGER_KEYS.flatMap { (e[it] as List<*>).map { id -> id as Int } }
+                if (ids.isNotEmpty()) return ids
+                val pid = e["parent_id"] as Int
+                if (pid == cur) break
+                cur = pid
+            }
+            return emptyList()
+        }
+
         // True if this effect — or any ancestor group — sits under a "dead" criterion branch: an enemy/target-state
         // gate ([CritAtom.TargetGate], e.g. "the target has Armor") or a literal `False` ([CritAtom.FalseGate], a
         // `… and False` branch that never holds). Such an effect is situational / unreachable, so it is DROPPED
@@ -429,6 +445,7 @@ fun buildSublimations(
         // [Sublimation.zeroesElementalMastery]) rather than as a flat effect, so they don't dirty the sub.
         var zeroesElementalMastery = false
         val conditions = LinkedHashSet<SublimationCondition>()
+        val conditionTriggerIds = LinkedHashSet<Int>()
         val resolved = ArrayList<SublimationEffect>()
         // Tracks each value action+params seen, so the same one in multiple parallel groups (e.g. "-50% damage"
         // twice) is COLLAPSED to a single contribution instead of summed (the magnitude is the per-branch value,
@@ -466,7 +483,10 @@ fun buildSublimations(
             val params = (e["params"] as List<Any?>).map { (it as Float).toDouble() }
             val atoms = parseCriterion(e["effect_criterion"] as String)
             if (atoms.any { it is CritAtom.Unknown }) dirty = true
-            atoms.filterIsInstance<CritAtom.Cond>().forEach { conditions.add(it.condition) }
+            atoms.filterIsInstance<CritAtom.Cond>().forEach {
+                conditions.add(it.condition)
+                conditionTriggerIds += nearestTriggerIds(eid)
+            }
             // Triggers/scripts on a STRUCTURAL group are its execution machinery (a conditional group fires its
             // children via `triggers_not_related_to_executions`), NOT a combat proc — only flag them on a value
             // effect, where they mean "this stat procs on an in-combat event".
@@ -709,7 +729,11 @@ fun buildSublimations(
             cumulable = state?.get("is_cumulable") as? Boolean ?: false,
             kind = kind,
             solverChoosable = solverChoosable,
-            condition = condition,
+            condition =
+                condition?.copy(
+                    // A combat-conditional sub is forced-input only: its condition is never evaluated.
+                    testedAt = if (kind == SublimationKind.COMBAT_CONDITIONAL) null else conditionTestMoment(m.stateId, conditionTriggerIds)
+                ),
             effects = merged + listOfNotNull(perStatStep, conversion, bestElementConcentration),
             zeroesElementalMastery = zeroesElementalMastery,
             // Synthesized English (the client renders sub tooltips dynamically — there is no stored string).
@@ -718,6 +742,33 @@ fun buildSublimations(
             rawText = synthesizeRawText(condition, merged, perStatStep, conversion, bestElementConcentration, zeroesElementalMastery).ifBlank { null }
         )
     }
+}
+
+// ----- condition timing -----
+
+private const val TRIGGER_START_OF_TURN = 1001
+private const val TRIGGER_START_OF_COMBAT = 1028
+
+/** Not a moment of the combat: Expert des armes légères' slot condition (a re-test on an equipment change). Reads no stat. */
+private val SLOT_TEST_TRIGGERS = setOf(1003, 2)
+
+/** The moment a modelled sub's condition is tested. A new trigger id fails the run: its meaning needs a review, like any drift. */
+private fun conditionTestMoment(
+    stateId: Int,
+    triggerIds: Set<Int>,
+): ConditionTestMoment? {
+    val unknown = triggerIds - SLOT_TEST_TRIGGERS - TRIGGER_START_OF_TURN - TRIGGER_START_OF_COMBAT
+    check(unknown.isEmpty()) { "sublimation $stateId: unknown trigger(s) $unknown on its condition — review their timing" }
+    val moments =
+        triggerIds.mapNotNullTo(LinkedHashSet()) {
+            when (it) {
+                TRIGGER_START_OF_TURN -> ConditionTestMoment.START_OF_TURN
+                TRIGGER_START_OF_COMBAT -> ConditionTestMoment.START_OF_COMBAT
+                else -> null
+            }
+        }
+    check(moments.size <= 1) { "sublimation $stateId: its condition is tested at several moments $moments" }
+    return moments.singleOrNull()
 }
 
 // ----- timing diagnostics (env-gated; `WAKFU_SUB_TIMING_DEBUG`) -----

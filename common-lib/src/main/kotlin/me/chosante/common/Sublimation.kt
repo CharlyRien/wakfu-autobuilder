@@ -103,6 +103,20 @@ val SECONDARY_MASTERY_CHARACTERISTICS: Set<Characteristic> =
         Characteristic.MASTERY_HEALING
     )
 
+/**
+ * When the game tests a sublimation's condition, read from the trigger of the StaticEffect group carrying its criterion. The
+ * in-game tooltip says the same: no timing is a permanent bonus, "Start of combat" fires in the placement phase, "Start of turn" on
+ * the first turn of play.
+ */
+@Serializable
+enum class ConditionTestMoment {
+    /** Trigger 1028: the permanent bonuses are on the sheet; the other start-of-combat effects land in the same phase, in an order the client does not state. */
+    START_OF_COMBAT,
+
+    /** Trigger 1001: every start-of-combat effect has landed, conversions included (Neutralité III, Ambition III, Prétention III, Abandon II). */
+    START_OF_TURN,
+}
+
 @Serializable
 data class SublimationCondition(
     val type: SublimationConditionType,
@@ -110,6 +124,8 @@ data class SublimationCondition(
     val value: Int? = null,
     /** Free text payload for non-numeric conditions (e.g. "dagger"/"shield" for WEAPON_TYPE_EQUIPPED). */
     val text: String? = null,
+    /** When the game tests it; null for a slot test (Expert des armes légères), an unmodelled sub or a saved build. */
+    val testedAt: ConditionTestMoment? = null,
 )
 
 /**
