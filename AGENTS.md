@@ -104,7 +104,7 @@ These types are the vocabulary of the whole codebase — learn them first.
   shape. The certificates price it through a SUM budget — a sound relaxation (`secondaryMasteriesSumBound`).
 - **When a condition is tested** (`SublimationCondition.testedAt`, from the trigger of the StaticEffect group carrying the
   criterion; an unknown trigger fails `bdata-extractor`): 1028 = start of combat (every stat condition, Dénouement's, Inflexibilité
-  II's), 1001 = start of turn (Neutralité III, Ambition III, Prétention III, Abandon II). Three sheets follow: PRE-COMBAT (items, runes,
+  II's), 1001 = start of turn (Neutralité III, Ambition III, Prétention III, Abandon II). Two sheets follow: PRE-COMBAT (items, runes,
   skills, base, permanent subs — what a start-of-combat condition reads, so Ambition's start-of-turn +crit never feeds Dénouement's
   crit ≥ 40), FIRST-TURN (+ the start-of-combat lines of unconditional FLAT subs + the CONVERSIONS: Ravage's masteries break
   Neutralité, Dénouement's moved critical mastery does not). Inflexibilité II reads first-turn too although it is tested at start of
@@ -409,6 +409,12 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   flag is part of the certificate cache key (memory and disk); soft-leg and free results keep the target-blind ledger.
   Kill switch `WAKFU_MD_TARGET_AWARE=0`; locks in `MaxDamageTargetAwareCertificateTest` (oracle: the pinned hard-leg
   CP-SAT optimum per AP cell).
+- **Conversion × Neutralité family (CERTIFIER_VERSION 63, ENGINE_RESULTS_VERSION 8):** a taken conversion leaves the first-turn read
+  (§3), so the budget `D + K + O ≤ 0` no longer bounds its source. The AP-cell certifier adds the aux world N×U and the soft
+  certificate the arm `secConv`: both hold the scenario secondaries alone (`D ≤ 0`, implied by the per-stat rule). Keep `O` out of
+  them: a negative off-scenario line paying for scenario masteries lifted the level-245 ledger by 3 % and lost its badge. The
+  most-masteries certificate is unchanged (it only reads requested secondaries, whose final value the cap still bounds). Lock:
+  `ConversionBeforeTurnConditionTest`.
 - **Rune fold vs mixed items (CERTIFIER_VERSION 62, ENGINE_RESULTS_VERSION 6).** Max-damage fills a socketed item with ONE rune type (a pick
   bool per type) — exact only while every reader of a rune is linear in its count. A threshold read breaks it: a
   `secondary ≤ 0` cap with a budget (an item's NEGATIVE line of that secondary), a forced condition, a required row or

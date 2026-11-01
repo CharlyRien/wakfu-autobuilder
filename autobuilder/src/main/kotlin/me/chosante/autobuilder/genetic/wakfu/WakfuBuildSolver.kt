@@ -452,8 +452,8 @@ object WakfuBuildSolver {
      *
      * v63 — a conversion lands before a start-of-turn condition is tested: Dénouement × Neutralité is now legal, the moved
      * critical mastery leaving the first-turn read ([StatBuilder.firstTurnStat]). That RAISES the optimum, so no earlier number
-     * can be reused (a disk-cached bound would be too low). The AP-cell certifier gains world N×U ([certifierAuxWorlds]: crit
-     * mastery out of the secondary budget, the conversion's slot charged), the soft certificate the arm "secConv". The
+     * can be reused (a disk-cached bound would be too low). The AP-cell certifier gains world N×U ([certifierAuxWorlds]: only the
+     * scenario secondaries in the budget, the conversion's slot charged), the soft certificate the arm "secConv". The
      * most-masteries certificate needs nothing: it only reads requested SECONDARY masteries, whose FINAL value the first-turn cap
      * still bounds (the moved mastery leaves the final sheet too).
      */

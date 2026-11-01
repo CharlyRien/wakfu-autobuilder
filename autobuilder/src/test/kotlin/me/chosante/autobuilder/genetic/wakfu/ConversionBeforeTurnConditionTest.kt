@@ -9,6 +9,7 @@ import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -177,12 +178,16 @@ class ConversionBeforeTurnConditionTest {
         assertThat(requireNotNull(certificate?.maxCellObjective)).isGreaterThanOrEqualTo(requireNotNull(result.maxDamageObjective))
     }
 
-    /** Seeded pools with Dénouement and the Neutralité family in play: every bound stays above the CP-SAT optimum. */
+    /**
+     * Seeded pools with Dénouement and the Neutralité family in play: every bound stays above the CP-SAT optimum, with and without
+     * runes, the rear mastery in the scenario or not, one of the pair forced, on the hard leg (target-aware ledger) and the soft leg.
+     */
     @Test
     fun `the AP-cell ledger and the soft certificate stay above the optimum on seeded pools`() {
         val subs = listOf(denouement, neutralite, ambition, subsById.getValue(6933), ravage)
+        val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 4)
         var combos = 0
-        repeat(24) { seed ->
+        repeat(16) { seed ->
             val random = Random(seed)
             val slots = listOf(ItemType.AMULET, ItemType.BELT, ItemType.HELMET, ItemType.BOOTS, ItemType.CAPE, ItemType.CHEST_PLATE)
             val pool =
@@ -197,25 +202,54 @@ class ConversionBeforeTurnConditionTest {
                             item(100 * (slotIndex + 1) + i, slot, stats, if (i == 0 && slotIndex == 0) Rarity.EPIC else Rarity.LEGENDARY)
                         }
                     }.groupBy { it.itemType }
-            val free = maxDamageParams()
-            val freeOptimum = solve(free, pool.values.flatten(), subs)
-            if (freeOptimum.individual.subIds().containsAll(listOf(denouement.stateId, neutralite.stateId))) combos++
-            val ledger = WakfuBuildSolver.maxDamageCertificate(free, pool, emptyList(), subs)
-            assertThat(ledger?.maxCellObjective).describedAs("seed $seed bailed").isNotNull()
-            assertThat(ledger!!.maxCellObjective!!).describedAs("seed $seed").isGreaterThanOrEqualTo(requireNotNull(freeOptimum.maxDamageObjective))
+            val runes = if (seed % 2 == 0) WakfuBestBuildFinderAlgorithm.runes else emptyList()
+            val orientation = if (seed % 3 == 0) Orientation.BACK else Orientation.FACE
+            val free =
+                maxDamageParams().copy(
+                    useRunes = runes.isNotEmpty(),
+                    damageScenario = DamageScenario(SpellElement.FIRE, RangeBand.DISTANCE, orientation)
+                )
+
+            fun optimum(
+                params: WakfuBestBuildParams,
+                hardConstraints: Boolean = false,
+            ): SolverResult<BuildCombination>? =
+                runBlocking { WakfuBuildSolver.optimize(params, pool, runes, subs, tuning, hardConstraints = hardConstraints).toList() }.lastOrNull()
+
+            fun assertLedgerCovers(
+                tag: String,
+                params: WakfuBestBuildParams,
+                result: SolverResult<BuildCombination>?,
+                targetAware: Boolean = false,
+            ) {
+                val objective = result?.maxDamageRawProxy ?: result?.maxDamageObjective ?: return
+                val ledger = WakfuBuildSolver.maxDamageCertificate(params, pool, runes, subs, targetAware = targetAware)
+                assertThat(ledger?.maxCellObjective).describedAs("seed $seed $tag bailed").isNotNull()
+                assertThat(ledger!!.maxCellObjective!!).describedAs("seed $seed $tag").isGreaterThanOrEqualTo(objective)
+            }
+
+            val freeOptimum = optimum(free)
+            if (freeOptimum?.individual?.subIds()?.containsAll(listOf(denouement.stateId, neutralite.stateId)) == true) combos++
+            assertLedgerCovers("free", free, freeOptimum)
+
+            val forced = free.copy(forcedSublimations = listOf(if (seed % 4 < 2) denouement.name.fr else neutralite.name.fr))
+            assertLedgerCovers("forced", forced, optimum(forced))
+
+            val hard = free.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.CRITICAL_HIT, 40))))
+            assertLedgerCovers("hard", hard, optimum(hard, hardConstraints = true), targetAware = true)
 
             val soft = free.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 7))))
             var softOptimum: Long? = null
             runBlocking {
                 WakfuBuildSolver
-                    .optimize(soft, pool, emptyList(), subs, WakfuBuildSolver.SolverTuning(numSearchWorkers = 4), hardConstraints = false)
+                    .optimize(soft, pool, runes, subs, tuning, hardConstraints = false)
                     .collect { softOptimum = it.maxDamageObjective ?: softOptimum }
             }
             val production =
                 MaxDamageSoftCertificate.bound(
                     soft,
                     pool,
-                    emptyList(),
+                    runes,
                     subs,
                     blockGate = false,
                     coupleSecondaryItemNegative = true,
@@ -225,6 +259,20 @@ class ConversionBeforeTurnConditionTest {
             assertThat(production!!.foldedBound).describedAs("seed $seed soft").isGreaterThanOrEqualTo(requireNotNull(softOptimum))
         }
         assertThat(combos).describedAs("the pools must exercise the combo").isGreaterThan(0)
+    }
+
+    /** The N×U budget must not let a negative off-scenario line pay for scenario masteries: the per-stat rule forbids it. */
+    @Test
+    fun `a negative off-scenario secondary does not lift the conversion world's bound`() {
+        val negativeRear = item(10, ItemType.BOOTS, mapOf(Characteristic.MASTERY_BACK to -500))
+        val distance = item(11, ItemType.RING, mapOf(Characteristic.MASTERY_DISTANCE to 500))
+        val params = maxDamageParams()
+        val pool = (basePool + negativeRear + distance).groupBy { it.itemType }
+        val without = (basePool + distance).groupBy { it.itemType }
+        val subs = listOf(denouement, neutralite)
+        val bound = requireNotNull(WakfuBuildSolver.maxDamageCertificate(params, pool, emptyList(), subs)?.maxCellObjective)
+        val boundWithout = requireNotNull(WakfuBuildSolver.maxDamageCertificate(params, without, emptyList(), subs)?.maxCellObjective)
+        assertThat(bound).isEqualTo(boundWithout)
     }
 
     /**
@@ -284,6 +332,9 @@ class ConversionBeforeTurnConditionTest {
                 it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST && it.condition?.testedAt == ConditionTestMoment.START_OF_COMBAT
             }
         assertThat(combatTestedCaps.map { it.stateId }).containsExactly(7256)
+        // Every modelled condition that reads a stat has a moment (the slot test has none).
+        assertThat(modelled.filter { it.condition?.testedAt == null }.map { it.condition?.type }.toSet())
+            .containsExactly(SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
         val conversions = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.kind == SublimationKind.CONVERSION }
         assertThat((combatTestedCaps + conversions).map { it.rarity }.toSet()).containsExactly(SublimationRarity.EPIC)
     }

@@ -113,7 +113,10 @@ enum class ConditionTestMoment {
     /** Trigger 1028: the permanent bonuses are on the sheet; the other start-of-combat effects land in the same phase, in an order the client does not state. */
     START_OF_COMBAT,
 
-    /** Trigger 1001: every start-of-combat effect has landed, conversions included (Neutralité III, Ambition III, Prétention III, Abandon II). */
+    /**
+     * Trigger 1001: the start-of-combat effects have landed, conversions included (Neutralité III, Ambition III, Prétention III,
+     * Abandon II). The engine's first-turn sheet leaves out the conditional subs' own effects: none carries a secondary mastery.
+     */
     START_OF_TURN,
 }
 

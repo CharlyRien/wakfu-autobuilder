@@ -733,7 +733,7 @@ internal fun StatBuilder.certifierAuxWorlds(scenario: DamageScenario): List<Cert
 
 /**
  * CERTIFIER_VERSION 48 — the aux-world SCHEDULE. The exact aux worlds ([certifierAuxWorlds]) run as extra fast passes,
- * serially while a search runs. The SECONDARY-CAPPED ones (N, N×C, N×M × the weapon split — 6 of the 8 on the default
+ * serially while a search runs. The SECONDARY-CAPPED ones without a conversion (N, N×C, N×M × the weapon split — 6 of the 8 such worlds on the default
  * catalog) sit far below the normal worlds on real shapes (~30 % at levels 110 / 245), so ONE relaxed world
  * ([relaxedCapped]) bounds them all: the secondary-capped valuation, the weapon split relaxed (the NO_OFFHAND subs
  * allowed AND a free weapon slot), the specials those worlds force (Critical Secret, the block sub) credited as free
@@ -750,8 +750,8 @@ internal class AuxPlan(
 
 internal fun StatBuilder.certifierAuxPlan(scenario: DamageScenario): AuxPlan? {
     val exact = certifierAuxWorlds(scenario) ?: return null
-    // N×U stays eager: the relaxed world's budget charges critical mastery, which N×U's does not, and it is no far-below world
-    // either — it holds the real Dénouement × Neutralité builds.
+    // N×U stays eager: the relaxed world's budget charges critical mastery and the off-scenario secondaries, which N×U's does not,
+    // so it does not bound N×U.
     val capped = exact.filter { it.secondaryCapped && it.conv == null }
     if (capped.isEmpty() || !CertifierTuning.auxRelaxedCappedEnabled) return AuxPlan(exact, null, emptyList())
     val f = certifierWorldFacts(scenario) ?: return null
@@ -2156,9 +2156,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // pos(k_s) — so N covers the builds with no conversion taken. A path that violates S ≤ 0 may score anything;
     // it is a phantom path of a max, so an over-count at worst. Sound for any signed item / rune / sub lines.
     // World N×U (v63, convTaken set): the conversion is active, so the first-turn K is K − moved and S ≤ 0 no longer bounds the
-    // pre-sub K. But the rule holds D ≤ 0 and O ≤ 0 on their own, and the conversion touches neither (certifierWorldFacts admits
-    // only critical mastery → the scenario element), so D + O ≤ 0 is added instead: k is credited, never debited. Sound: the final
-    // M' = 100 + E + D + moved and K' = K − moved give max(0, M') + max(0, K') ≤ max(0, 100 + E + D) + Σ_s pos(k_s).
+    // pre-sub K. But the rule holds D ≤ 0 on its own and the conversion does not touch it (certifierWorldFacts admits only critical
+    // mastery → the scenario element), so −D ≥ 0 alone is added: k is credited, never debited. Sound: the final M' = 100 + E + D +
+    // moved and K' = K − moved give max(0, M') + max(0, K') ≤ max(0, 100 + E + D) + Σ_s pos(k_s). O stays out on purpose: it is not in
+    // the objective, and a budget D + O ≤ 0 let a negative off-scenario line pay for scenario masteries, which the per-stat rule
+    // forbids (it lifted the level-245 ledger 3 % above the normal worlds and lost the proven-optimal badge).
     val capCats = if (secondaryCapped) damageMasteryCategories(scenario) ?: return Long.MAX_VALUE else null
     // The split below treats every NON-FLAT sub as UNREAD, while the model's read does carry a non-FLAT sub's
     // PERMANENT effects ([buildPermanentSubTerms]): harmless when ≥ 0 (unread credit ≥ read credit), an under-count if
@@ -2200,7 +2202,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         d: Long,
         k: Long,
         o: Long,
-    ): Long = pos(e + d) + pos(k) - (d + (if (convTaken != null) 0L else k) + o)
+    ): Long = pos(e + d) + pos(k) - (if (convTaken != null) d else d + k + o)
 
     fun capUnread(
         e: Long,

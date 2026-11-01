@@ -610,8 +610,8 @@ internal object MaxDamageSoftCertificate {
         //  - "critZero": wK zeroed + wK·(t + own grants) constant; CRITM cappers staged,
         //    sec-cappers excluded (their builds live in secZero).
         //  - "secConv" (v63): a secZero arm for the builds carrying a sec-capper AND a conversion of critical mastery (Dénouement ×
-        //    Neutralité): the moved mastery leaves the condition's read, so crit mastery is out of the budget and the conversion
-        //    moves up to its full reach. The conversion takes its rarity slot; secZero excludes it.
+        //    Neutralité): the moved mastery leaves the condition's read, so the budget holds the scenario secondaries alone and the
+        //    conversion moves up to its full reach. The conversion takes its rarity slot; secZero excludes it.
         worldArm: String? = null,
         // Research seam: W is priced at critCap during the DP. At collapse, rescale that single
         // non-negative weighted sum by the worst coefficient ratio reachable at the state's
@@ -1328,11 +1328,9 @@ internal object MaxDamageSoftCertificate {
                 .filter { it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS }
                 .sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
 
-        // The secondaries outside M that the budget reads: in the secConv arm, not the converted critical mastery.
-        fun inOtherSecondaryBudget(c: Characteristic): Boolean =
-            c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
-                c !in masteryStats &&
-                !(armSecConv && c == Characteristic.MASTERY_CRITICAL)
+        // The secondaries outside M that the budget reads. None in the secConv arm: the per-stat rule holds the scenario secondaries
+        // ≤ t on their own, so S ≤ t needs no other line, and a negative off-scenario line must not pay for them.
+        fun inOtherSecondaryBudget(c: Characteristic): Boolean = !armSecConv && c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS && c !in masteryStats
 
         fun itemOtherNegativeSecondary(e: Equipment): Long =
             e.characteristics.entries
@@ -2080,7 +2078,7 @@ internal object MaxDamageSoftCertificate {
             if (armZeroSecondary) minOf(secondaryBudgetCap(secTMax), secondaryNegativeBudgetCap(secTMax)) + secOwnMax else 0L
         val armSecCapRaw =
             if (armZeroSecondary && coupleSecondaryItemNegative) {
-                secTMax + secondaryExternalNegativeBudget(onlyOutsideScenario = netSecondaryItemBudget) + secOwnMax
+                secTMax + (if (armSecConv && netSecondaryItemBudget) 0L else secondaryExternalNegativeBudget(onlyOutsideScenario = netSecondaryItemBudget)) + secOwnMax
             } else {
                 armSecIndependentCapRaw
             }

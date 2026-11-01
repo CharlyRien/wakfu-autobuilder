@@ -732,7 +732,17 @@ fun buildSublimations(
             condition =
                 condition?.copy(
                     // A combat-conditional sub is forced-input only: its condition is never evaluated.
-                    testedAt = if (kind == SublimationKind.COMBAT_CONDITIONAL) null else conditionTestMoment(m.stateId, conditionTriggerIds)
+                    testedAt =
+                        if (kind == SublimationKind.COMBAT_CONDITIONAL) {
+                            null
+                        } else {
+                            conditionTestMoment(m.stateId, conditionTriggerIds).also {
+                                // Only a slot test may have none: the engine reads every other condition on a sheet chosen by its moment.
+                                check(it != null || !solverChoosable || condition.type == SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED) {
+                                    "sublimation ${m.stateId}: its ${condition.type} condition has no start-of-combat or start-of-turn trigger"
+                                }
+                            }
+                        }
                 ),
             effects = merged + listOfNotNull(perStatStep, conversion, bestElementConcentration),
             zeroesElementalMastery = zeroesElementalMastery,
