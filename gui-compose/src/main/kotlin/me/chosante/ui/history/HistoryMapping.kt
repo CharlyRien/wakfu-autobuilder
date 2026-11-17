@@ -113,6 +113,8 @@ fun UiState.toRequestSnapshot(keepBossInAnyMode: Boolean = false): RequestSnapsh
         excludedRarities = excludedRarities,
         forcedPassives = forcedPassives,
         forcedRunesByItem = forcedRunesByItem,
+        forcedSkillPoints = imposedSkillPoints.toSnapshot(),
+        skillPointsRule = imposedSkillPoints.rule.name,
         scenario = scenario.toSnapshot(),
         // The boss only counts for a max-damage build; it stays selected in the workspace when the mode changes (which is why
         // the remembered workspace keeps it in any mode).

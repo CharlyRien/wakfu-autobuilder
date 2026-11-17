@@ -163,7 +163,8 @@ fun StatsPanel(
                 PassivesResult(ui)
                 SkillTree(
                     skills = ui.build?.characterSkills ?: CharacterSkills(ui.level),
-                    showLeftoverWarning = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+                    showLeftoverWarning = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    imposed = ui.resultImposedSkillPoints
                 )
             }
         }
@@ -1116,11 +1117,13 @@ private fun StatRow(
 }
 
 @Composable
-private fun SkillTree(
+internal fun SkillTree(
     skills: CharacterSkills,
     showLeftoverWarning: Boolean,
+    // The minimums the shown result's request imposed (issue #284): those lines carry a "min N" mark.
+    imposed: Map<me.chosante.common.skills.SkillLine, Int> = emptyMap(),
 ) {
-    val branches = skillBranches(skills)
+    val branches = skillBranches(skills, imposed)
     val leftoverPoints = branches.sumOf { (it.max - it.points).coerceAtLeast(0) }
     ResultCard(
         title = tr(Tr.SKILL_ALLOCATION),
@@ -1200,6 +1203,17 @@ private fun SkillTree(
                                             lineHeight = 15.sp
                                         ),
                                     modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (line.imposedMin > 0) {
+                                Text(
+                                    text = tr(Tr.SKILL_POINT_IMPOSED_MIN).format(line.imposedMin),
+                                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.accent),
+                                    modifier =
+                                        Modifier
+                                            .clip(RoundedCornerShape(5.dp))
+                                            .background(WColor.accent.copy(alpha = 0.14f))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
                                 )
                             }
                             Text(
@@ -1605,34 +1619,45 @@ private data class SkillLine(
     val points: Int,
     val maxText: String,
     val iconPath: String?,
+    val imposedMin: Int = 0,
 )
 
-private fun skillBranches(skills: CharacterSkills): List<SkillBranch> =
-    listOf(
-        branch(Tr.BRANCH_INTELLIGENCE, WColor.earth, skills.intelligence),
-        branch(Tr.BRANCH_STRENGTH, WColor.fire, skills.strength),
-        branch(Tr.BRANCH_AGILITY, WColor.accent2, skills.agility),
-        branch(Tr.BRANCH_LUCK, Color(0xFFE8C24A), skills.luck),
-        branch(Tr.BRANCH_MAJOR, WColor.accent, skills.major)
+private fun skillBranches(
+    skills: CharacterSkills,
+    imposed: Map<me.chosante.common.skills.SkillLine, Int> = emptyMap(),
+): List<SkillBranch> {
+    // Each line's imposed minimum, keyed by this allocation's own SkillCharacteristic instances (identity, like the solver).
+    val minimums =
+        me.chosante.common.skills.SkillLine.entries
+            .associate { it.of(skills) to (imposed[it] ?: 0) }
+    return listOf(
+        branch(Tr.BRANCH_INTELLIGENCE, WColor.earth, skills.intelligence, minimums),
+        branch(Tr.BRANCH_STRENGTH, WColor.fire, skills.strength, minimums),
+        branch(Tr.BRANCH_AGILITY, WColor.accent2, skills.agility, minimums),
+        branch(Tr.BRANCH_LUCK, Color(0xFFE8C24A), skills.luck, minimums),
+        branch(Tr.BRANCH_MAJOR, WColor.accent, skills.major, minimums)
     )
+}
 
 private fun branch(
     labelKey: Tr,
     color: Color,
     assignable: Assignable<*>,
+    minimums: Map<SkillCharacteristic, Int>,
 ): SkillBranch =
     SkillBranch(
         labelKey = labelKey,
         color = color,
         points = assignable.pointsAssigned(),
         max = assignable.maxPointsToAssign,
-        lines = assignable.getCharacteristics().map { it.toSkillLine() }
+        lines = assignable.getCharacteristics().map { it.toSkillLine(minimums[it] ?: 0) }
     )
 
-private fun SkillCharacteristic.toSkillLine(): SkillLine =
+private fun SkillCharacteristic.toSkillLine(imposedMin: Int): SkillLine =
     SkillLine(
         name = name,
         points = pointsAssigned,
         maxText = if (maxPointsAssignable == Int.MAX_VALUE) "∞" else maxPointsAssignable.toString(),
-        iconPath = iconResourcePath()
+        iconPath = iconResourcePath(),
+        imposedMin = imposedMin
     )

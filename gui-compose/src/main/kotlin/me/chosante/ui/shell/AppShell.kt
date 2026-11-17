@@ -293,7 +293,9 @@ private fun BuilderBody(
                 onRemoveExcludedSublimation = model::removeExcludedSublimation,
                 onToggleExcludeAllSublimationsOfRarity = model::toggleExcludeAllSublimationsOfRarity,
                 onOpenPassivePicker = { model.openModal(Modal.PassivePicker) },
-                onRemoveForcedPassive = model::removeForcedPassive
+                onRemoveForcedPassive = model::removeForcedPassive,
+                onImposedSkillPointsChange = model::setImposedSkillPoints,
+                onResetImposedSkillPoints = model::resetImposedSkillPoints
             )
         }
         ResizableSeparator(onDelta = onRequestWidthDelta)

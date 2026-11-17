@@ -743,8 +743,27 @@ class BuildSearchModel(
                 ?.coerceIn(1, 245) ?: return
         // Lowering the level shrinks the passive-slot budget — trim the loadout so the shown chips match
         // exactly what the engine folds (resolvedPassives caps with the same slot count).
-        ui = ui.copy(level = parsed, forcedPassives = reconcilePassives(ui.forcedPassives, ui.clazz, parsed))
+        // The skill pools follow the level too: imposed points are brought back within the new limits.
+        ui =
+            ui.copy(
+                level = parsed,
+                forcedPassives = reconcilePassives(ui.forcedPassives, ui.clazz, parsed),
+                imposedSkillPoints = ui.imposedSkillPoints.fittedTo(parsed)
+            )
         reconcileForcedItemsForCurrentRequest()
+    }
+
+    /** Imposes [points] on the skill [line] (clamped into the level's limits; 0 removes it) — the request panel's skill-points card. */
+    fun setImposedSkillPoints(
+        line: me.chosante.common.skills.SkillLine,
+        points: Int,
+    ) {
+        ui = ui.copy(imposedSkillPoints = ui.imposedSkillPoints.withLine(line, points, ui.level))
+    }
+
+    /** Clears every imposed skill point (the rule is kept). */
+    fun resetImposedSkillPoints() {
+        ui = ui.copy(imposedSkillPoints = ui.imposedSkillPoints.copy(points = emptyMap()))
     }
 
     /** Keep only passives that belong to [clazz], capped to [level]'s passive slots (preserving order). */
@@ -1219,6 +1238,7 @@ class BuildSearchModel(
                 // Snapshotted HERE, from the request the engine is about to receive (not from the rows as they will be once
                 // the search ends): this result says "no proof is possible" about THAT request, whatever is edited meanwhile.
                 prefilteredRequest = params.targetStats.needsItemPrefilter,
+                resultImposedSkillPoints = params.forcedSkillPoints,
                 proofState = ProofState.Idle,
                 searchStopped = false,
                 // The new build is found with this app's own game data and engine, whatever the one it replaces was computed with.
@@ -2086,6 +2106,7 @@ class BuildSearchModel(
             excludedSublimations = excludedSublimations,
             forcedPassives = forcedPassives,
             forcedRunesByItem = forcedRunesByItem,
+            forcedSkillPoints = imposedSkillPoints.forEngine(),
             // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
             // a forced element pins that one element, else all four are filled so the objective auto-picks.
             damageScenario = currentDamageScenario(),
@@ -2405,7 +2426,11 @@ class BuildSearchModel(
         // The request this save was computed for — the rows and mode restored just above, never the rows the workspace held before
         // the load — decides whether any search of it could ever have been proven: the stats column explains the missing badge
         // of such a build ([UiState.prefilteredRequest]) instead of suggesting a longer search.
-        val loaded = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false))
+        val loaded =
+            restored.copy(
+                prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false),
+                resultImposedSkillPoints = restored.imposedSkillPoints.forEngine()
+            )
         ui = loaded.rescored()
         // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still
@@ -2468,7 +2493,8 @@ class BuildSearchModel(
                     .distinct(),
             excludedRarities = entry.request.excludedRarities,
             forcedPassives = entry.request.forcedPassives,
-            forcedRunesByItem = entry.request.forcedRunesByItem
+            forcedRunesByItem = entry.request.forcedRunesByItem,
+            imposedSkillPoints = ImposedSkillPoints.fromSnapshot(entry.request.forcedSkillPoints, entry.request.skillPointsRule, entry.request.level)
         )
 
     /**

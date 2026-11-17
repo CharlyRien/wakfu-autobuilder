@@ -1471,7 +1471,7 @@ private fun RuneDoubleBadge() {
 }
 
 @Composable
-private fun StepperButton(
+internal fun StepperButton(
     glyph: String,
     enabled: Boolean,
     onClick: () -> Unit,

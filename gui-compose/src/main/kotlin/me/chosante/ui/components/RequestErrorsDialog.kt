@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.RequestValidationProblem
 import me.chosante.common.skills.CharacterSkills
-import me.chosante.common.skills.SkillBranch
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -144,13 +143,4 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
             Tr.FORCED_SKILL_POINTS_OUT_OF_RANGE.value(lang).format(skillLabel(line.of(CharacterSkills(1)).name, lang), points, max)
         is RequestValidationProblem.ForcedSkillPointsExceedBranch ->
             Tr.FORCED_SKILL_POINTS_EXCEED_BRANCH.value(lang).format(branch.labelKey().value(lang), requested, available)
-    }
-
-private fun SkillBranch.labelKey(): Tr =
-    when (this) {
-        SkillBranch.INTELLIGENCE -> Tr.BRANCH_INTELLIGENCE
-        SkillBranch.STRENGTH -> Tr.BRANCH_STRENGTH
-        SkillBranch.AGILITY -> Tr.BRANCH_AGILITY
-        SkillBranch.LUCK -> Tr.BRANCH_LUCK
-        SkillBranch.MAJOR -> Tr.BRANCH_MAJOR
     }

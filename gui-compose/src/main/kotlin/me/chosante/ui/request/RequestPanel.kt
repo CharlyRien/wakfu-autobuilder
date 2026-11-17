@@ -62,6 +62,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.SublimationRarity
+import me.chosante.common.skills.SkillLine
 import me.chosante.ui.components.BossResistanceChips
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.MonsterIcon
@@ -122,6 +123,8 @@ fun RequestPanel(
     onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit = {},
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
+    onImposedSkillPointsChange: (SkillLine, Int) -> Unit = { _, _ -> },
+    onResetImposedSkillPoints: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -212,6 +215,12 @@ fun RequestPanel(
                 slots = PassiveCatalog.slotsForLevel(ui.level),
                 onOpenPassivePicker = onOpenPassivePicker,
                 onRemoveForcedPassive = onRemoveForcedPassive
+            )
+            SkillPointsCard(
+                imposed = ui.imposedSkillPoints,
+                level = ui.level,
+                onChange = onImposedSkillPointsChange,
+                onReset = onResetImposedSkillPoints
             )
         }
         VerticalScrollHints(scroll)
@@ -1748,7 +1757,7 @@ private fun ItemChipView(
 }
 
 @Composable
-private fun RequestCard(
+internal fun RequestCard(
     title: String,
     trailing: String? = null,
     content: @Composable () -> Unit,
@@ -1804,7 +1813,7 @@ private fun GlyphChip(
 }
 
 @Composable
-private fun NumberField(
+internal fun NumberField(
     value: String,
     onValueChange: (String) -> Unit,
     width: Dp,

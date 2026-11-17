@@ -302,6 +302,8 @@ data class UiState(
      * those runes onto that item (which also forces it to be equipped). See [Modal.ItemRunePicker].
      */
     val forcedRunesByItem: Map<String, List<Int>> = emptyMap(),
+    /** The skill points the player imposes on the search (issue #284), edited in the request panel's skill-points card. */
+    val imposedSkillPoints: ImposedSkillPoints = ImposedSkillPoints(),
     val phase: Phase = Phase.Idle,
     val progress: Int = 0,
     val match: BigDecimal = BigDecimal.ZERO,
@@ -323,6 +325,11 @@ data class UiState(
      * as they are now — editing the rows after a search must not change what that search's result says about itself.
      */
     val prefilteredRequest: Boolean = false,
+    /**
+     * The skill points the shown result's request imposed (the engine's per-line minimums): the skill tree marks those lines.
+     * It belongs to the RESULT, like [prefilteredRequest]: editing the skill-points card after a search does not change it.
+     */
+    val resultImposedSkillPoints: Map<me.chosante.common.skills.SkillLine, Int> = emptyMap(),
     /**
      * Max-damage mode only: the AP-cell certificate's optimality verdict for the finished build (P4.4).
      * Computed asynchronously AFTER the search completes (a full exact solve can take minutes), so it starts
@@ -459,6 +466,7 @@ data class ShownResult(
     val optimal: Boolean = false,
     val maxDamageStructural: Boolean = false,
     val prefilteredRequest: Boolean = false,
+    val resultImposedSkillPoints: Map<me.chosante.common.skills.SkillLine, Int> = emptyMap(),
     val proofState: ProofState = ProofState.Idle,
     val searchStopped: Boolean = false,
     val staleDataVersion: String? = null,
@@ -494,6 +502,7 @@ fun UiState.shownResult(): ShownResult =
         optimal = optimal,
         maxDamageStructural = maxDamageStructural,
         prefilteredRequest = prefilteredRequest,
+        resultImposedSkillPoints = resultImposedSkillPoints,
         proofState = proofState,
         searchStopped = searchStopped,
         staleDataVersion = staleDataVersion,
@@ -515,6 +524,7 @@ fun UiState.withResult(result: ShownResult): UiState =
         optimal = result.optimal,
         maxDamageStructural = result.maxDamageStructural,
         prefilteredRequest = result.prefilteredRequest,
+        resultImposedSkillPoints = result.resultImposedSkillPoints,
         proofState = result.proofState,
         searchStopped = result.searchStopped,
         staleDataVersion = result.staleDataVersion,
