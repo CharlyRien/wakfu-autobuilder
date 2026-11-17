@@ -944,6 +944,7 @@ internal class StatBuilder(
     // account the conversion analytically instead — see [certifyMaxPerHitAtAp]. Declared BEFORE
     // [subTermsByStat] whose eager init populates it.
     internal val conversionMovedVars = mutableSetOf<IntVar>()
+    internal val conversionMovedCache = HashMap<Int, IntVar>()
 
     // Sub-gated DERIVED vars (currently the per-stat-step ramps, e.g. Featherweight's clamped DI) mapped
     // back to their sublimation. Like the conversion `moved` vars they are not subVar-keyed, so without
@@ -2596,15 +2597,15 @@ internal class StatBuilder(
         }
 
     /**
-     * FIRST-TURN value of [char]: [preCombatStat] + the start-of-combat contributions of
-     * unconditional FLAT subs ([startOfCombatFlatSubTermsByStat]). This is what a
-     * [SubConditionSpec.StatBound.firstTurn] condition reads — the game checks those on the first
-     * turn, after start-of-combat sub effects landed (Ravage × Neutralité). Conditional subs' own
-     * start-of-combat effects stay excluded (acyclicity; a sub never feeds its own condition).
+     * FIRST-TURN value of [char]: [preCombatStat] + the start-of-combat contributions of unconditional FLAT subs
+     * ([startOfCombatFlatSubTermsByStat]) + the transfer of the conversions ([buildStartOfCombatConversionTerms]). This is what
+     * a [SubConditionSpec.StatBound.firstTurn] condition reads — the game checks those on the first turn, after start-of-combat
+     * sub effects landed (Ravage × Neutralité, Dénouement × Neutralité). Conditional subs' own start-of-combat effects stay
+     * excluded (acyclicity; a sub never feeds its own condition).
      */
     internal fun firstTurnStat(char: Characteristic): IntVar =
         firstTurnCache.getOrPut(char) {
-            val socTerms = startOfCombatFlatSubTermsByStat[char].orEmpty()
+            val socTerms = startOfCombatFlatSubTermsByStat[char].orEmpty() + buildStartOfCombatConversionTerms(char)
             if (socTerms.isEmpty()) return@getOrPut preCombatStat(char)
             val terms = mutableListOf(Term(preCombatStat(char), 1L))
             terms.addAll(socTerms)

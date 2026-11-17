@@ -2,6 +2,7 @@ package me.chosante.bdataextractor
 
 import kotlinx.serialization.builtins.ListSerializer
 import me.chosante.common.Characteristic
+import me.chosante.common.ConditionTestMoment
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationEffect
@@ -139,6 +140,13 @@ class SublimationReproductionTest {
             byId[5077]?.condition?.type,
             "Unraveling (5077) crit condition"
         )
+        // When each condition is tested: the trigger of the group carrying its criterion (1028 / 1001).
+        assertEquals(ConditionTestMoment.START_OF_COMBAT, byId[5077]?.condition?.testedAt, "Unraveling (5077) test moment")
+        assertEquals(ConditionTestMoment.START_OF_COMBAT, byId[7256]?.condition?.testedAt, "Inflexibility II (7256) test moment")
+        for (stateId in listOf(6931, 7115, 6932, 6933)) {
+            assertEquals(ConditionTestMoment.START_OF_TURN, byId[stateId]?.condition?.testedAt, "$stateId test moment")
+        }
+        assertEquals(null, byId[6026]?.condition, "Influence III (6026) is a permanent bonus: no condition")
 
         // Elemental Concentration (5449): its unconditional +DI plus the four-element "my element ≥ every other"
         // penalty fan-out must decode first-party to the best-element concentration spec (+20% Damage Inflicted,
