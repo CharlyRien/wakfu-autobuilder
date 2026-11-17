@@ -36,6 +36,8 @@ import me.chosante.common.Sublimation
 import me.chosante.common.SublimationEffect
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
+import me.chosante.common.skills.SkillBranch
+import me.chosante.common.skills.SkillLine
 import java.math.BigDecimal
 import kotlin.time.Duration
 
@@ -901,6 +903,22 @@ object WakfuBestBuildFinderAlgorithm {
             }
         }
 
+        // Imposed skill points (issue #284): each line within its own cap, each branch within its pool.
+        val skills = character.characterSkills
+        for ((line, points) in params.forcedSkillPoints.entries.sortedBy { it.key.ordinal }) {
+            val max = line.maxPoints(skills)
+            if (points !in 0..max) problems += RequestValidationProblem.ForcedSkillPointsOutOfRange(line, points, max)
+        }
+        params.forcedSkillPoints.entries
+            .groupBy { it.key.branch }
+            .toSortedMap()
+            .forEach { (branch, lines) ->
+                // Each line counted within its own range, so a line already reported above is not reported twice.
+                val requested = lines.sumOf { it.value.coerceIn(0, it.key.maxPoints(skills)) }
+                val available = branch.of(skills).maxPointsToAssign
+                if (requested > available) problems += RequestValidationProblem.ForcedSkillPointsExceedBranch(branch, requested, available)
+            }
+
         return problems
     }
 
@@ -1036,6 +1054,20 @@ sealed interface RequestValidationProblem {
     data class SublimationForcedAndExcluded(
         val sublimation: I18nText,
     ) : RequestValidationProblem
+
+    /** [points] imposed on a skill [line] is negative or above what the line can hold at this level ([max]). */
+    data class ForcedSkillPointsOutOfRange(
+        val line: SkillLine,
+        val points: Int,
+        val max: Int,
+    ) : RequestValidationProblem
+
+    /** The points imposed on the lines of a skill [branch] ([requested]) exceed the branch's pool at this level ([available]). */
+    data class ForcedSkillPointsExceedBranch(
+        val branch: SkillBranch,
+        val requested: Int,
+        val available: Int,
+    ) : RequestValidationProblem
 }
 
 /** English one-liner for a [RequestValidationProblem] — the CLI / exception-message rendering (the GUI localizes). */
@@ -1074,6 +1106,10 @@ fun RequestValidationProblem.describe(): String =
             "$count sublimations forced, a build can socket at most $max"
         is RequestValidationProblem.SublimationForcedAndExcluded ->
             "sublimation '${sublimation.en}' is both forced and excluded"
+        is RequestValidationProblem.ForcedSkillPointsOutOfRange ->
+            "skill line '${line.cliId}': $points point(s) imposed, it can hold 0 to $max at this level"
+        is RequestValidationProblem.ForcedSkillPointsExceedBranch ->
+            "skill branch ${branch.name.lowercase()}: $requested point(s) imposed, only $available available at this level"
     }
 
 /**
@@ -1130,6 +1166,14 @@ data class WakfuBestBuildParams(
     // passive slots). Their fully-declarative flat stats fold into the solve; all selected passives ride
     // on the resulting build for display. See PassiveCatalog / WakfuBuildSolver.resolvedPassives.
     val forcedPassives: List<String> = emptyList(),
+    /**
+     * Skill points the player imposes: a MINIMUM per skill line (issue #284). The solver keeps at least that many points
+     * on the line and places the rest of each branch's pool itself (it may add more points to an imposed line). Validated
+     * by [WakfuBestBuildFinderAlgorithm.validateRequest] (a line's own cap, a branch's pool). Every model variant reads it
+     * ([WakfuBuildSolver] `createSkillVariables`), the greedy warm start honours it; the certificates ignore it — it only
+     * removes builds, so their bound stays a sound upper bound (AGENTS.md §4).
+     */
+    val forcedSkillPoints: Map<SkillLine, Int> = emptyMap(),
     // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
     // other modes).
     val damageScenario: DamageScenario = DamageScenario(),

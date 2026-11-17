@@ -202,23 +202,31 @@ interface Assignable<T> {
     fun pointsAssigned(): Int
 }
 
+/**
+ * Spreads [pointsToAssign] points of this branch at random over the lines feeding [targetCharacteristics]. Each line of
+ * [minimums] (keyed by this branch's own [SkillCharacteristic] instances) first receives its minimum, which counts
+ * against [pointsToAssign]; only the rest is spread. With no minimum the random draws are unchanged.
+ */
 fun <T : Assignable<T>> T.assignRandomPoints(
     pointsToAssign: Int,
     targetCharacteristics: List<Characteristic>,
     random: kotlin.random.Random = kotlin.random.Random.Default,
+    minimums: Map<SkillCharacteristic, Int> = emptyMap(),
 ): T {
     check(pointsToAssign in 0..maxPointsToAssign)
     val skillCharacteristics = filterOnlyWantedTargetCharacteristics(targetCharacteristics)
-    this.getCharacteristics().forEach { it.setPointAssigned(0) }
+    this.getCharacteristics().forEach { it.setPointAssigned(minimums[it] ?: 0) }
+    val forcedPoints = this.getCharacteristics().sumOf { minimums[it] ?: 0 }
+    check(forcedPoints <= pointsToAssign) { "$forcedPoints imposed points exceed the $pointsToAssign points to assign" }
     if (skillCharacteristics.isEmpty()) {
         return this
     }
     if (skillCharacteristics.size == 1) {
         val characteristic = skillCharacteristics.first()
-        characteristic.setPointAssigned(min(pointsToAssign, characteristic.maxPointsAssignable))
+        characteristic.setPointAssigned(min(characteristic.pointsAssigned + pointsToAssign - forcedPoints, characteristic.maxPointsAssignable))
         return this
     }
-    var remainingPoints = pointsToAssign
+    var remainingPoints = pointsToAssign - forcedPoints
     while (remainingPoints > 0) {
         if (skillCharacteristics.all { it.pointsAssigned == it.maxPointsAssignable }) {
             return this
