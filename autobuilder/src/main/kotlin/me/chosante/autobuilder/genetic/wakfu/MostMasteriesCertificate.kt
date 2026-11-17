@@ -1612,6 +1612,7 @@ internal object MostMasteriesCertificate {
         // counts the start-of-combat lines of FLAT subs the read does see (an over-count, sound) and every choosable sub
         // (the carrier itself included). M sums the requested masteries, each floored at 0 here (≥ the signed sum). No
         // cap (Long.MAX_VALUE) when a %-skill scales a requested mastery: its multiplier would ride on top of the read.
+        // A conversion changes nothing here: what it moves out of a requested mastery leaves the read and the final value alike.
         fun secondaryPerStatCap(t: Long): Long {
             val skills = params.character.characterSkills
             val percentOnRequested =

@@ -24,7 +24,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "AP_AT_MOST",
-      "value": 10
+      "value": 10,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -74,7 +75,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "CRIT_AT_MOST",
-      "value": 10
+      "value": 10,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -121,7 +123,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "BLOCK_AT_LEAST",
-      "value": 40
+      "value": 40,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -167,7 +170,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_AT_MOST",
-      "value": 1
+      "value": 1,
+      "testedAt": "START_OF_COMBAT"
     },
     "rawText": "If Range ≤ 1"
   },
@@ -197,7 +201,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "CRIT_AT_LEAST",
-      "value": 40
+      "value": 40,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -850,7 +855,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_EXACT",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -888,7 +894,8 @@
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
-      "type": "AP_ODD"
+      "type": "AP_ODD",
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -4262,7 +4269,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "DODGE_LT_PCT_OF_LEVEL",
-      "value": 100
+      "value": 100,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -4312,7 +4320,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "RANGE_AT_LEAST",
-      "value": 4
+      "value": 4,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -4362,7 +4371,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "BLOCK_AT_LEAST",
-      "value": 50
+      "value": 50,
+      "testedAt": "START_OF_COMBAT"
     },
     "rawText": "If Block ≥ 50%"
   },
@@ -4390,7 +4400,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_EXACT",
-      "value": 1
+      "value": 1,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -6199,7 +6210,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_TURN"
     },
     "effects": [
       {
@@ -6257,7 +6269,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_TURN"
     },
     "effects": [
       {
@@ -6340,7 +6353,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_TURN"
     },
     "effects": [
       {
@@ -6851,7 +6865,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_TURN"
     },
     "effects": [
       {
@@ -6951,7 +6966,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "RANGE_AT_LEAST",
-      "value": 3
+      "value": 3,
+      "testedAt": "START_OF_COMBAT"
     },
     "rawText": "If Range ≥ 3"
   },
@@ -6980,7 +6996,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -8289,7 +8306,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "CRIT_AT_MOST",
-      "value": 10
+      "value": 10,
+      "testedAt": "START_OF_COMBAT"
     },
     "rawText": "If Critical Hit ≤ 10%"
   },
@@ -8422,7 +8440,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "HEALING_MASTERY_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_COMBAT"
     },
     "rawText": "If Healing Mastery ≤ 0"
   },
@@ -8451,7 +8470,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "RANGE_AT_MOST",
-      "value": 3
+      "value": 3,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -8988,7 +9008,8 @@
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "BLOCK_AT_LEAST",
-      "value": 50
+      "value": 50,
+      "testedAt": "START_OF_COMBAT"
     },
     "rawText": "If Block ≥ 50%"
   },
@@ -9017,7 +9038,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "CRIT_AT_LEAST",
-      "value": 50
+      "value": 50,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -9932,7 +9954,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "CRIT_AT_MOST",
-      "value": 50
+      "value": 50,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {
@@ -11144,7 +11167,8 @@
     "solverChoosable": true,
     "condition": {
       "type": "CRITICAL_MASTERY_AT_MOST",
-      "value": 0
+      "value": 0,
+      "testedAt": "START_OF_COMBAT"
     },
     "effects": [
       {

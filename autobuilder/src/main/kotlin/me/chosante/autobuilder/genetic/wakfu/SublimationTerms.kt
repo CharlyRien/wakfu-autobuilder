@@ -28,10 +28,7 @@ internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>
         val applies = appliesVar(sub)
         if (sub.kind == SublimationKind.CONVERSION) {
             val conv = sub.conversion ?: continue
-            // moved = clamp(percent% of the pre-sub `from` stat, >=0), zeroed when not applied.
-            val raw = percentOf(preSubStat(conv.from), conv.percent, "subConv_${sub.stateId}")
-            val moved = tBoolGate("subConvMoved_${sub.stateId}", raw, applies, 0L..STAT_ABS_MAX)
-            conversionMovedVars += moved
+            val moved = conversionMovedVar(sub, conv)
             map.getOrPut(conv.to.foldedToUsableStat()) { mutableListOf() }.add(Term(moved, 1L))
             map.getOrPut(conv.from.foldedToUsableStat()) { mutableListOf() }.add(Term(moved, -1L))
             continue
@@ -85,6 +82,43 @@ internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>
     }
     return map
 }
+
+/**
+ * The stat a CONVERSION [sub] moves: `clamp(percent% of the pre-sub `from` stat, >= 0)`, zeroed when not applied. Memoized: the
+ * sub's own terms and the FIRST-TURN sheet ([buildStartOfCombatConversionTerms]) read the same variable, whichever comes first.
+ */
+internal fun StatBuilder.conversionMovedVar(
+    sub: Sublimation,
+    conv: SublimationEffect.Conversion,
+): IntVar =
+    conversionMovedCache.getOrPut(sub.stateId) {
+        val raw = percentOf(preSubStat(conv.from), conv.percent, "subConv_${sub.stateId}")
+        val moved = tBoolGate("subConvMoved_${sub.stateId}", raw, appliesVar(sub), 0L..STAT_ABS_MAX)
+        conversionMovedVars += moved
+        moved
+    }
+
+/**
+ * The first-turn transfer of the modelled CONVERSION subs on [char]: `−moved` on the source, `+moved` on the destination. A
+ * conversion lands at start of combat, so a [SubConditionSpec.StatBound.firstTurn] condition sees its result (Dénouement ×
+ * Neutralité: the converted critical mastery no longer breaks `each secondary mastery ≤ 0`).
+ *
+ * Acyclic: `moved` reads [StatBuilder.preSubStat] and the conversion's own condition, which [conversionFeedsFirstTurn]
+ * guarantees is not a first-turn read, so [reifyCondition] never loops back to [StatBuilder.firstTurnStat].
+ */
+internal fun StatBuilder.buildStartOfCombatConversionTerms(char: Characteristic): List<Term> =
+    buildList {
+        for (sub in subModel.subVars.keys) {
+            if (sub.kind != SublimationKind.CONVERSION || !sub.conversionFeedsFirstTurn(subModel.characterLevel)) continue
+            val conv = sub.conversion ?: continue
+            val from = conv.from.foldedToUsableStat()
+            val to = conv.to.foldedToUsableStat()
+            if (from != char && to != char) continue
+            val moved = conversionMovedVar(sub, conv)
+            if (to == char) add(Term(moved, 1L))
+            if (from == char) add(Term(moved, -1L))
+        }
+    }
 
 /**
  * The per-element % Damage Inflicted routed to [mastery]'s element (sum of the chosen Brûlure/Gel/… subs
@@ -200,8 +234,8 @@ internal fun StatBuilder.buildOutOfCombatSubTerms(): Map<Characteristic, List<Te
 /**
  * The START-OF-COMBAT contributions of unconditional FLAT subs (effects NOT flagged
  * [SublimationEffect.appliesBeforeCombat]), grouped like [buildPermanentSubTerms]. Together with
- * [StatBuilder.preCombatStat] they form the FIRST-TURN sheet that `firstTurn` conditions read
- * (Neutralité's `each secondary mastery ≤ 0` — see [SubConditionSpec.StatBound.firstTurn]).
+ * [StatBuilder.preCombatStat] and the conversions ([buildStartOfCombatConversionTerms]) they form the FIRST-TURN sheet that
+ * `firstTurn` conditions read (Neutralité's `each secondary mastery ≤ 0` — see [SubConditionSpec.StatBound.firstTurn]).
  * Restricted to `kind == FLAT` (condition-less) subs so the gate is the raw `subVar` and
  * [reifyCondition] stays acyclic — a STATIC_CONDITIONAL sub's own start-of-combat effects are NOT
  * summed (its applies-var would recurse; in-game a conditional sub never feeds its own condition,
@@ -337,7 +371,7 @@ private fun StatBuilder.reifyStatBound(
     spec: SubConditionSpec.StatBound,
     tag: String,
 ): IntVar {
-    // firstTurn conditions read the FIRST-TURN sheet (pre-combat + start-of-combat FLAT subs).
+    // firstTurn conditions read the FIRST-TURN sheet (pre-combat + start-of-combat FLAT subs + conversions).
     val read: (Characteristic) -> IntVar = if (spec.firstTurn) ::firstTurnStat else ::preCombatStat
     val n = spec.threshold.toLong()
     if (spec.stats.size == 1) {

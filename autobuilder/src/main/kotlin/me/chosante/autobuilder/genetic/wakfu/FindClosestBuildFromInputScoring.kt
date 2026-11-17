@@ -1044,7 +1044,7 @@ fun sublimationFixedContributions(
     val preCombat = preCombatSubStats(sublimations, preSub, mode, scenario, level, wantedElements)
     // Built lazily: only firstTurn-conditioned subs (Neutralité class) read this sheet, and the
     // overwhelmingly common build carries none — the eager map copy taxed every re-score.
-    val firstTurn = lazy { firstTurnSubStats(sublimations, preCombat, mode, scenario, level, wantedElements) }
+    val firstTurn = lazy { firstTurnSubStats(sublimations, preSub, preCombat, mode, scenario, level, wantedElements, usesOffhandOrTwoHanded) }
     val out = mutableMapOf<Characteristic, Int>()
     for (sub in sublimations) {
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
@@ -1056,7 +1056,7 @@ fun sublimationFixedContributions(
         if (!applies) continue
         if (sub.kind == SublimationKind.CONVERSION) {
             val conv = sub.conversion ?: continue
-            val moved = maxOf(0, (preSub[conv.from] ?: 0) * conv.percent / 100)
+            val moved = conversionMoved(preSub[conv.from] ?: 0, conv.percent)
             out.merge(conv.to.foldedToUsableStat(), moved, Int::plus)
             out.merge(conv.from.foldedToUsableStat(), -moved, Int::plus)
             continue
@@ -1149,22 +1149,35 @@ private fun preCombatSubStats(
 }
 
 /**
- * The FIRST-TURN sheet: [preCombat] plus the START-OF-COMBAT contributions of unconditional FLAT
- * subs — what a [SubConditionSpec.StatBound.firstTurn] condition reads (Neutralité is checked by
- * the game on the first turn, after Ravage-class start-of-combat effects landed). Mirrors the
- * solver's `firstTurnStat`/`buildStartOfCombatFlatSubTerms`: conditional subs' own start-of-combat
+ * The FIRST-TURN sheet: [preCombat] plus the START-OF-COMBAT contributions of unconditional FLAT subs and the transfer of the
+ * conversions — what a [SubConditionSpec.StatBound.firstTurn] condition reads (Neutralité is checked by the game on the first
+ * turn, after Ravage-class start-of-combat effects landed and Dénouement moved the critical mastery out). Mirrors the solver's
+ * `firstTurnStat`/`buildStartOfCombatFlatSubTerms`/`buildStartOfCombatConversionTerms`: conditional subs' own start-of-combat
  * effects stay excluded (a sub never feeds its own condition; cross-conditional feeding unmodeled).
  */
 private fun firstTurnSubStats(
     sublimations: List<Sublimation>,
+    preSub: Map<Characteristic, Int>,
     preCombat: Map<Characteristic, Int>,
     mode: ScoreComputationMode?,
     scenario: DamageScenario?,
     level: Int,
     wantedElements: Set<Characteristic>,
+    usesOffhandOrTwoHanded: Boolean,
 ): Map<Characteristic, Int> {
     val out = preCombat.toMutableMap()
     for (sub in sublimations) {
+        if (sub.kind == SublimationKind.CONVERSION) {
+            val conv = sub.conversion ?: continue
+            if (!sub.conversionFeedsFirstTurn(level)) continue
+            val cond = sub.condition
+            // conversionFeedsFirstTurn: this condition reads no first-turn sheet, so the lazy is never forced.
+            if (cond != null && cond.type in SUPPORTED_SUB_CONDITIONS && !subConditionHolds(cond, preCombat, lazyOf(preCombat), level, usesOffhandOrTwoHanded)) continue
+            val moved = conversionMoved(preSub[conv.from] ?: 0, conv.percent)
+            out.merge(conv.to.foldedToUsableStat(), moved, Int::plus)
+            out.merge(conv.from.foldedToUsableStat(), -moved, Int::plus)
+            continue
+        }
         if (sub.kind != SublimationKind.FLAT) continue
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (effect.appliesBeforeCombat) continue
