@@ -549,6 +549,39 @@ object WakfuBuildSolver {
     // to ~1/4 of the former wait. On expiry the rescue gives up (null) and the caller keeps the incumbent — sound.
     internal const val E8_FALLBACK_WALL_CAP_SECONDS = 60.0
 
+    /**
+     * The full-subsolver portfolio of a PRODUCTION solve, where CP-SAT's default one was measured to lose (wall-clock A/Bs on
+     * real 60 s searches, 10 per cell — 2 row orders x 5 seeds —, ENGINE_RESULTS_VERSION 8). Search only: the model, the
+     * optimum and every proof are unchanged. Only the worker counts that were measured are touched.
+     *  - **Max-damage, 3 workers** (default `[default_lp, fixed]`): `fixed` -> `max_lp`. The full subsolvers find almost
+     *    nothing there (the LNS sign the best build 40 searches out of 40); `rins` / `rens` feed on a full subsolver's LP
+     *    solutions, and `max_lp`'s serve them better than `fixed`'s. Level 245, GUI rows: median 15.92 M -> 18.25 M
+     *    (+14.9 %, 9 pairs of 10); free 245 +1.7 % (9 of 10); level 200 +1.8 %; level 110 unchanged.
+     *  - **Max-damage, 7 workers** (default `[core, default_lp, fixed, max_lp, no_lp]`): `fixed` removed. Level 245, GUI
+     *    rows +5.8 % (10 pairs of 10), neutral elsewhere.
+     *  - **Most-masteries, 3 to 5 workers** (default `[core, default_lp]`, plus `no_lp` from 4): `core` -> `max_lp`. `core`
+     *    finds no solution in 40 searches; proofs in 60 s go 6/40 -> 23/40 at 3 workers, 3/40 -> 29/40 at 4, 2/40 -> 29/40
+     *    at 5, none lost. At 7 workers the default already holds `max_lp` (measured neutral).
+     */
+    private fun applyProductionPortfolio(
+        solver: CpSolver,
+        maxDamage: Boolean,
+        mode: ScoreComputationMode,
+    ) {
+        val workers = solver.parameters.numSearchWorkers
+        when {
+            maxDamage && workers == 3 -> {
+                solver.parameters.addIgnoreSubsolvers("fixed")
+                solver.parameters.addExtraSubsolvers("max_lp")
+            }
+            maxDamage && workers == 7 -> solver.parameters.addIgnoreSubsolvers("fixed")
+            mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && workers in 3..5 -> {
+                solver.parameters.addIgnoreSubsolvers("core")
+                solver.parameters.addExtraSubsolvers("max_lp")
+            }
+        }
+    }
+
     // FAST tier-1 certifier (P2): crit-grid step for the per-segment 3-D passes. Each segment folds point
     // graw at its top crit, so the fold looseness on the critM slice is bounded by ~step/c — smaller = tighter
     // but more segments (linear cost). Tune against the 110/245 fast-vs-exact ratios.
@@ -5910,6 +5943,7 @@ object WakfuBuildSolver {
             solver.parameters.numSearchWorkers =
                 params.computeBudget.cap(params.solverWorkers ?: params.computeBudget.searchWorkers)
             if (singleFullSubsolver && solver.parameters.numSearchWorkers >= 3) solver.parameters.numFullSubsolvers = 1
+            applyProductionPortfolio(solver, maxDamage, params.scoreComputationMode)
         } else {
             // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
             // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same

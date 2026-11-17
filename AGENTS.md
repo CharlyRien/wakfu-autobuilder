@@ -473,6 +473,18 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   regression that did not reproduce. Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat
   count model, `forceRuneCountModel`; the hybrid's count stages on classes), `RuneCountClassTest` (classes = per-carrier =
   count model; identical domains).
+- **Dead-label filter (no bound change, 2026-11-17):** every certifier pass refuses a DP state the remaining stages can no
+  longer bring back into the AP / crit band the harvest reads (the `rangeLeftAfter` construction, extended to AP and crit;
+  suffix reach in `stageReach`). A dead state has only dead descendants and the harvest reads live states only, so every
+  bound, per-c row and argmax provenance is identical — no `CERTIFIER_VERSION` bump, disk caches stay valid. Certificate
+  x1.2-x1.3 on free requests, x2-x5.6 with required rows; on a real 60 s search (4 cores) the badge is ready when the
+  search ends. Kill switch `WAKFU_MD_DEAD_LABELS=0` (`CertifierTuning.deadLabelFilterEnabled`); CI identity lock in
+  `WakfuBuildSolverTest` (114 seeded pools, filter on vs off). Cancellation (`certifierCancelled`) is polled in every pass,
+  the fast pass's loops included: a cancelled ledger is never surfaced nor cached.
+- **Production portfolio (search only, ENGINE_RESULTS_VERSION 8):** `WakfuBuildSolver.applyProductionPortfolio` swaps full
+  subsolvers at the measured worker counts only — max-damage `fixed` -> `max_lp` at 3 workers (level 245 GUI rows +14.9 %
+  median) and `fixed` dropped at 7; most-masteries `core` -> `max_lp` at 3 to 5 workers (60 s proofs 6/40 -> 23/40 at 3,
+  2-3/40 -> 29/40 at 4 and 5). Unmeasured counts keep CP-SAT's default. Measurements: `reports/` audit, 2026-11-17.
 - **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
   skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,
   `worldPruneOrder`); the production cascade first probes the top world's exact pass on tier-1's step-8 rows and skips
