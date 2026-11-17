@@ -57,7 +57,7 @@ The solver, the scorer and every certificate read the same sheets; they never di
 | 10 | **Class passives' permanent stats** (Spell 66, `duration_base = −1`): Vision du Corbac +2 range, Vision / Exécuteur +2 range, Ligne +1 range; Conquête sereine +50 block, Peau rocheuse +30 block, Crocs futés +20 block | Furie II `range ≥ 4`, Volonté de fer `range ≤ 3`, Mesure `block ≥ 40` (1028) | permanent, shown on the sheet before combat (the engine counts them for item gates for that reason) | **left out** of every sub condition (`preCombatStat` has no passive term; the certifiers assume it) | ii in the measured runs, see §3 |
 | 11 | Furie II's own +1 range (1028) | itself | own effect | excluded | iii |
 | 12 | Abandon II +1 range (1001) | Furie II / Volonté de fer (1028) | after | not counted | iii (Abandon is not choosable) |
-| 13 | Carnage III, Influence vitale III (1001 / 1002, `HP ≥ 90 %`) | the scenario's own HP | off at ≤ 50 % HP | credited unconditionally, berserk scenario included | **i** (see §3) |
+| 13 | Carnage III, Influence vitale III (1001 / 1002, `HP ≥ 90 %`) | the scenario's own HP | off at ≤ 50 % HP | was credited unconditionally, berserk scenario included | **i — fixed** on `fix/hp-gated-sublimations-berserk` (`ScenarioGate.notBerserk`, CERTIFIER_VERSION 64) |
 | 14 | Dénouement `crit mastery ≥ 2` | — | `GetCharac("CRITICAL_BONUS") >= 2 and FEROCITY >= 40` (238187) | ≥ 2 not read | ii: at 0 or 1 critical mastery the engine moves 0 / 1 point, the client none; ≤ 1 elemental mastery, no other effect hangs on it |
 | 15 | 1028 start-of-combat lines (Abandon range, Furie II range) | item stat gates (out of combat) | the game re-checks gates on the equipped set; whether it does so in combat is unknown | out-of-combat sheet | ii |
 

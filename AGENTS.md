@@ -111,6 +111,11 @@ These types are the vocabulary of the whole codebase — learn them first.
   combat: Ravage lands in the same phase, in an order the client does not state, so it stays conservatively counted. It never meets a
   conversion, both being EPIC (`ConversionBeforeTurnConditionTest` locks that on the data). Not modelled: Dénouement also requires
   crit mastery ≥ 2, so a build at exactly 1 crit mastery reads as converted.
+- **HP-percent conditions** (`GetTotalHpInPercent` / `GetCharacInPct("HP")`, decoded by `hpPercentAtom`; any other HP-percent shape
+  fails `bdata-extractor`): the BEARER's "HP ≥ N", N ≥ 50, is `ScenarioGate.notBerserk` (Carnage III, Influence vitale III, Force /
+  Agilité vitale II): off in a max-damage berserk scenario, credited in every other request (full HP assumed, as before). "HP < 50"
+  is the `berserk` gate; a narrower band stays forced-only. Under a per-hit group (`before_computation` / `before_execution`) a
+  `"target"` is the hit target, not the bearer: the effect is dropped (Critique tactique III). Lock: `HpGatedSublimationsTest`.
 
 `BuildCombination` (in `autobuilder/domain`) = `equipments + characterSkills`, with `isValid()`
 enforcing slot/rarity/weapon rules.

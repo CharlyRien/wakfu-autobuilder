@@ -124,6 +124,32 @@ fun buildSublimations(
         return out
     }
 
+    // Whether [eid]'s criterion is read inside a PER-HIT group: the nearest effect of its chain within [within] that carries
+    // triggers fires `before_computation` / `before_execution`, so a `"target"` there is the hit's target, not the bearer.
+    fun inHitContext(
+        eid: Int,
+        within: Set<Int>,
+    ): Boolean {
+        var cur = eid
+        val guard = HashSet<Int>()
+        while (cur in within && guard.add(cur)) {
+            val e = byEffectId.getValue(cur)
+            if (TRIGGER_KEYS.any { (e[it] as List<*>).isNotEmpty() }) {
+                return HIT_TRIGGER_KEYS.any { (e[it] as List<*>).isNotEmpty() }
+            }
+            val pid = e["parent_id"] as Int
+            if (pid == cur) break
+            cur = pid
+        }
+        return false
+    }
+
+    // The criterion atoms of [eid], read in its own trigger context ([inHitContext]).
+    fun atomsAt(
+        eid: Int,
+        within: Set<Int>,
+    ): List<CritAtom> = parseCriterion(byEffectId.getValue(eid)["effect_criterion"] as String, inHitContext(eid, within))
+
     // First-party decode of a "per point of <source> above <threshold>, +<target> capped at <cap>" ramp
     // (Featherweight) from Ankama's action-913 formula — or null if [subtree] isn't that exact shape. Heavily
     // GUARDED: the source id resolves via [CharacIdCatalog], slope>0 & intercept<0 (a ramp rising above a positive
@@ -216,7 +242,7 @@ fun buildSublimations(
         subtreeSet: Set<Int>,
         maxTier: Int,
     ): Pair<SublimationEffect.BestElementConcentration, Set<Int>>? {
-        fun atomsOf(eid: Int): List<CritAtom> = parseCriterion(byEffectId.getValue(eid)["effect_criterion"] as String)
+        fun atomsOf(eid: Int): List<CritAtom> = atomsAt(eid, subtreeSet)
 
         // Self + ancestor groups within the subtree (stops at the state root / a self-parent).
         fun chain(startId: Int): Sequence<Int> =
@@ -301,7 +327,7 @@ fun buildSublimations(
         val ownTreeDead =
             ownRoots.isNotEmpty() &&
                 ownRoots.all { root ->
-                    byEffectId[root]?.let { parseCriterion(it["effect_criterion"] as String).any { a -> a is CritAtom.FalseGate } } == true
+                    byEffectId[root]?.let { atomsAt(root, setOf(root)).any { a -> a is CritAtom.FalseGate } } == true
                 }
         val relocatedBerserk = berserkBranchesBySub[m.stateId]?.takeIf { ownTreeDead }
         // A relocated berserk sub: its effects are the berserk state's `HasState(<sub>)` branch, berserk-gated and
@@ -352,24 +378,34 @@ fun buildSublimations(
             var ranged = false
             var minLevel: Int? = null
             var orientation: String? = null
+            var notBerserk = false
             var cur = startId
             val guard = HashSet<Int>()
             while (cur in subtreeSet && guard.add(cur)) {
                 val e = byEffectId.getValue(cur)
-                for (atom in parseCriterion(e["effect_criterion"] as String)) {
+                for (atom in atomsAt(cur, subtreeSet)) {
                     if (atom is CritAtom.Gate) {
                         berserk = berserk || atom.berserk
                         ranged = ranged || atom.ranged
                         atom.minLevel?.let { minLevel = it }
                         atom.orientation?.let { orientation = it }
+                        notBerserk = notBerserk || atom.notBerserk
                     }
                 }
                 val pid = e["parent_id"] as Int
                 if (pid == cur) break
                 cur = pid
             }
-            return if (berserk || ranged || minLevel != null || orientation != null) {
-                ScenarioGate(berserk = berserk.takeIf { it }, ranged = ranged.takeIf { it }, minCharacterLevel = minLevel, orientation = orientation)
+            // A branch both below and above 50 % HP never holds: no data carries one, so fail rather than guess.
+            check(!(berserk && notBerserk)) { "sublimation effect $startId: berserk and not-berserk gates on one branch" }
+            return if (berserk || ranged || minLevel != null || orientation != null || notBerserk) {
+                ScenarioGate(
+                    berserk = berserk.takeIf { it },
+                    ranged = ranged.takeIf { it },
+                    minCharacterLevel = minLevel,
+                    orientation = orientation,
+                    notBerserk = notBerserk.takeIf { it }
+                )
             } else {
                 null
             }
@@ -418,7 +454,7 @@ fun buildSublimations(
             val guard = HashSet<Int>()
             while (cur in subtreeSet && guard.add(cur)) {
                 val e = byEffectId.getValue(cur)
-                if (parseCriterion(e["effect_criterion"] as String).any {
+                if (atomsAt(cur, subtreeSet).any {
                         it is CritAtom.TargetGate || it is CritAtom.FalseGate || it is CritAtom.AntiStackGate
                     }
                 ) {
@@ -463,7 +499,7 @@ fun buildSublimations(
         val familyElement: String? =
             subtree
                 .asSequence()
-                .flatMap { parseCriterion(byEffectId.getValue(it)["effect_criterion"] as String).asSequence() }
+                .flatMap { atomsAt(it, subtreeSet).asSequence() }
                 .filterIsInstance<CritAtom.ElementGate>()
                 .map { it.element }
                 .toSet()
@@ -481,7 +517,7 @@ fun buildSublimations(
 
             @Suppress("UNCHECKED_CAST")
             val params = (e["params"] as List<Any?>).map { (it as Float).toDouble() }
-            val atoms = parseCriterion(e["effect_criterion"] as String)
+            val atoms = atomsAt(eid, subtreeSet)
             if (atoms.any { it is CritAtom.Unknown }) dirty = true
             atoms.filterIsInstance<CritAtom.Cond>().forEach {
                 conditions.add(it.condition)
@@ -843,6 +879,8 @@ private sealed interface CritAtom {
         val minLevel: Int? = null,
         /** Attack [me.chosante.autobuilder.domain.DamageScenario] orientation name (`BACK`/`FRONT`/`SIDE`). */
         val orientation: String? = null,
+        /** The bearer's HP at or above 50 % or more: never in a berserk scenario ([ScenarioGate.notBerserk]). */
+        val notBerserk: Boolean = false,
     ) : CritAtom
 
     /**
@@ -890,7 +928,6 @@ private sealed interface CritAtom {
 private val RE_AP_ODD = Regex("""GetCharac\("AP",\s*"\w+"\)\s*%\s*2\)?\s*==\s*1""")
 private val RE_DODGE_LT_LEVEL = Regex("""GetCharac\("DODGE",\s*"\w+"\)\s*<\s*GetLevel""")
 private val RE_MIN_LEVEL = Regex("""GetLevel\("\w+"\)\s*>=\s*(\d+)""")
-private val RE_BERSERK = Regex("""GetCharacInPct\("HP",\s*"\w+"\)\s*<\s*50""")
 
 /**
  * The berserk STATE (State table 67) introduced by client 1.93: applied while the character is below 50% HP,
@@ -899,7 +936,15 @@ private val RE_BERSERK = Regex("""GetCharacInPct\("HP",\s*"\w+"\)\s*<\s*50""")
  */
 private const val BERSERK_STATE_ID = 9315
 private val RE_HAS_STATE = Regex("HasState\\((\\d+)\\)")
-private val RE_TOTAL_HP_PCT = Regex("""GetTotalHpInPercent\("\w+"\)\s*(>=|>|<=|<)\s*(\d+)""")
+
+/** An HP-percent comparison: `GetTotalHpInPercent("<who>")` (group 1) or `GetCharacInPct("HP"[, "<who>"])` (group 2) — see [hpPercentAtom]. */
+private val RE_HP_PERCENT = Regex("""(?:GetTotalHpInPercent\("(\w*)"\)|GetCharacInPct\("HP"(?:,\s*"(\w+)")?\))\s*(>=|>|<=|<)\s*(\d+)""")
+
+/** Anything naming an HP percent: an atom matching this but not [RE_HP_PERCENT] fails the extraction. */
+private val RE_HP_PERCENT_ANY = Regex("""GetTotalHpInPercent|GetCharacInPct\("HP"""")
+
+/** An absolute HP read (`GetCharac("HP") > 10`, `GetCharacMax("HP") * 0.2 < …`). */
+private val RE_ABSOLUTE_HP = Regex("""GetCharac(?:Max)?\("HP"""")
 private val RE_CMP = Regex("""GetCharac(?:Max)?\("(\w+)",\s*"\w+"\)\s*(<=|>=|==)\s*(-?\d+)""")
 
 /**
@@ -973,7 +1018,10 @@ private val LIGHT_WEAPON_FORBIDDEN_TYPES = setOf(101, 111, 114, 117, 223, 253, 5
  * guards). An empty/`True` criterion is unconditional; any clause we don't recognize yields [CritAtom.Unknown]
  * so the conservative classifier drops the sublimation from the solver-choosable set.
  */
-private fun parseCriterion(criterion: String): List<CritAtom> {
+private fun parseCriterion(
+    criterion: String,
+    hitContext: Boolean = false,
+): List<CritAtom> {
     val crit = criterion.trim()
     if (crit.isEmpty() || crit.equals("True", ignoreCase = true)) return listOf(CritAtom.Ignore)
     val atoms =
@@ -982,14 +1030,14 @@ private fun parseCriterion(criterion: String): List<CritAtom> {
             .split(Regex("""\s+and\s+"""))
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-    val secondary = secondaryMasteryCondition(crit, atoms) ?: return atoms.map { atom -> classifyAtom(atom) }
+    val secondary = secondaryMasteryCondition(crit, atoms) ?: return atoms.map { atom -> classifyAtom(atom, hitContext) }
     // The secondary-mastery atoms carry ONE condition for the whole chain (the first one reports it); every other atom
     // (Inflexibilité II's dead `and False` branch) is classified as usual.
     return atoms.mapIndexed { i, atom ->
         when (i) {
             secondary.first.first() -> CritAtom.Cond(secondary.second)
             in secondary.first -> CritAtom.Ignore
-            else -> classifyAtom(atom)
+            else -> classifyAtom(atom, hitContext)
         }
     }
 }
@@ -1058,7 +1106,46 @@ private fun secondaryMasteryCondition(
     }
 }
 
-private fun classifyAtom(atom: String): CritAtom {
+/**
+ * An HP-PERCENT atom (`GetTotalHpInPercent("<who>") <op> N` or `GetCharacInPct("HP"[, "<who>"]) <op> N`), or null when [atom]
+ * reads no HP percent. Every HP-percent form maps to a typed outcome, and anything else that names an HP percent fails the
+ * extraction (no silent case):
+ * - another fighter's HP — `"target"` (or no argument) under a per-hit group (`before_computation` / `before_execution`: the
+ *   hit's target, Critique tactique; the healed ally, Intégrité / Distribution) — depends on who you fight: [CritAtom.TargetGate];
+ * - the bearer's HP (`"caster"`, or `"target"` / no argument outside a per-hit group: the state's holder, Carnage's "when HP are
+ *   above 90 %"):
+ *   - `>= N` / `> N`, N ≥ 50 ⇒ never in the berserk range: [CritAtom.Gate] `notBerserk` (Carnage III, Influence vitale III,
+ *     Force / Agilité vitale II, Renaissance). Credited everywhere else — the full-HP reading the engine always assumed;
+ *   - `< N` / `<= N`, N ∈ 49..50 ⇒ the berserk range itself: [CritAtom.Gate] `berserk` (Précaution III, Renaissance);
+ *   - any other band (`< 20`, `< 90`, `< 100`) lies strictly inside one scenario: no gate represents it ⇒ [CritAtom.Unknown]
+ *     (forced-only, as before).
+ */
+private fun hpPercentAtom(
+    atom: String,
+    hitContext: Boolean,
+): CritAtom? {
+    val m = RE_HP_PERCENT.find(atom)
+    if (m == null) {
+        check(!RE_HP_PERCENT_ANY.containsMatchIn(atom)) { "Unsupported HP-percent criterion atom: $atom" }
+        return null
+    }
+    val who = m.groupValues[1].ifEmpty { m.groupValues[2] }
+    val op = m.groupValues[3]
+    val n = m.groupValues[4].toInt()
+    check(who in setOf("", "caster", "target")) { "Unsupported HP-percent subject `$who`: $atom" }
+    if (who != "caster" && hitContext) return CritAtom.TargetGate
+    return when {
+        (op == ">=" || op == ">") && n >= 50 -> CritAtom.Gate(notBerserk = true)
+        (op == ">=" || op == ">") -> error("Unsupported HP-percent band (a lower bound below 50 % spans both scenarios): $atom")
+        n in 49..50 -> CritAtom.Gate(berserk = true)
+        else -> CritAtom.Unknown
+    }
+}
+
+private fun classifyAtom(
+    atom: String,
+    hitContext: Boolean = false,
+): CritAtom {
     // A literal `False` clause (a dead `… and False` branch) never holds — drop the effect it guards, don't dirty.
     if (atom.equals("False", ignoreCase = true)) return CritAtom.FalseGate
     // Gates first (scenario-specific guards).
@@ -1077,17 +1164,10 @@ private fun classifyAtom(atom: String): CritAtom {
     if (atom.contains("HasEffectWithSpecificId")) {
         return if (atom.startsWith("not ")) CritAtom.Ignore else CritAtom.AntiStackGate
     }
-    // HP-percent conditions: `>= 90` (high HP) holds at the start of combat (full HP), so it is optimistically
-    // always-true → Ignore (Carnage: "+45% of level mastery when HP > 90%"). `< 50` is the berserk range → a
-    // berserk scenario gate, credited only in a max-damage berserk scenario (Berserk Critical: "+15% crit when HP < 50%").
-    RE_TOTAL_HP_PCT.find(atom)?.let { m ->
-        val op = m.groupValues[1]
-        val n = m.groupValues[2].toInt()
-        if ((op == ">=" || op == ">") && n >= 90) return CritAtom.Ignore
-        if ((op == "<" || op == "<=") && n <= 50) return CritAtom.Gate(berserk = true)
-        return CritAtom.Unknown
-    }
-    if (RE_BERSERK.containsMatchIn(atom)) return CritAtom.Gate(berserk = true)
+    hpPercentAtom(atom, hitContext)?.let { return it }
+    // Absolute HP (`GetCharac("HP") > 10`, Solidity's `GetCharacMax("HP") * 0.2 < …`): alive checks / damage thresholds that
+    // no scenario models — forced-only, as before.
+    if (RE_ABSOLUTE_HP.containsMatchIn(atom)) return CritAtom.Unknown
     RE_MIN_LEVEL.find(atom)?.let { return CritAtom.Gate(minLevel = it.groupValues[1].toInt()) }
 
     // "No shield / dagger / two-handed weapon equipped" — the light-weapons gate (Light Weapons Expert).
@@ -1248,6 +1328,7 @@ private fun gateText(g: ScenarioGate?): String {
     if (g == null) return ""
     val tags = ArrayList<String>()
     if (g.berserk == true) tags.add("berserk")
+    if (g.notBerserk == true) tags.add("not berserk")
     if (g.ranged == true) tags.add("ranged")
     g.orientation?.let { tags.add(if (it == "BACK") "rear" else it.lowercase()) }
     g.element?.let { tags.add(it.lowercase()) }
