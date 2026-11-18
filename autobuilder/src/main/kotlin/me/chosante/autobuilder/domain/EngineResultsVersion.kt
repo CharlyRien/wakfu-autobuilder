@@ -38,5 +38,9 @@ package me.chosante.autobuilder.domain
  * basin (level 110: 1,431,545 instead of 1,447,330). Search-only: the same model, optimum and proofs.
  * 8: CERTIFIER_VERSION 63 — a conversion lands before a start-of-turn condition is tested, so Dénouement × Neutralité / Ambition /
  * Prétention is legal and a build carrying it can score higher.
+ * Still 8 (unreleased), with CERTIFIER_VERSION 64: an HP-percent condition on the bearer reads as a scenario gate — "HP ≥ 50 % or
+ * more" (Carnage III, Influence vitale III) is off in a max-damage berserk scenario, so a berserk build no longer counts their
+ * mastery / critical hit; Critique tactique III's "target above / below 50 % HP" is the hit target's HP, no longer a flat ±9 %
+ * damage. A berserk search may return another build and a saved berserk build re-scores lower.
  */
 const val ENGINE_RESULTS_VERSION: Int = 8

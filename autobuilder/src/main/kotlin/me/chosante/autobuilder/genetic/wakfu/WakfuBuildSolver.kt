@@ -456,8 +456,13 @@ object WakfuBuildSolver {
      * scenario secondaries in the budget, the conversion's slot charged), the soft certificate the arm "secConv". The
      * most-masteries certificate needs nothing: it only reads requested SECONDARY masteries, whose FINAL value the first-turn cap
      * still bounds (the moved mastery leaves the final sheet too).
+     *
+     * v64 — HP-percent conditions are typed gates ([me.chosante.common.ScenarioGate.notBerserk]): Carnage III and Influence vitale
+     * III credit nothing in a berserk scenario. That only lowers values, but the same decode turns Critique tactique III (a forced
+     * sub) into a combat-conditional one: its −9 % damage, credited in a berserk scenario before, is gone, which RAISES that
+     * optimum. A disk-cached v63 bound (keyed on the sub ids, not their effects) could be too low there, so 63 is not reused.
      */
-    const val CERTIFIER_VERSION: Int = 63
+    const val CERTIFIER_VERSION: Int = 64
 
     /**
      * A/B kill switch of the mixed-rune count carriers on the production path (`WAKFU_MD_MIXED_RUNES=0` ⇒ the ≤ v61
