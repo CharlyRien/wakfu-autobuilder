@@ -25,6 +25,7 @@ val ScenarioGate.isPureElementGate: Boolean
             rangeBand == null &&
             orientation == null &&
             berserk != true &&
+            notBerserk != true &&
             ranged != true &&
             area != true &&
             minCharacterLevel == null

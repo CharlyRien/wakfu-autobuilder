@@ -147,6 +147,10 @@ class SublimationReproductionTest {
             assertEquals(ConditionTestMoment.START_OF_TURN, byId[stateId]?.condition?.testedAt, "$stateId test moment")
         }
         assertEquals(null, byId[6026]?.condition, "Influence III (6026) is a permanent bonus: no condition")
+        // HP-percent conditions: the bearer's "HP ≥ 90 %" is a not-berserk gate; a hit target's HP (Critique tactique) is dropped.
+        val notBerserk = built.filter { s -> s.effects.filterIsInstance<SublimationEffect.StatEffect>().any { it.scenarioGate?.notBerserk == true } }
+        assertEquals(listOf(5983, 7860, 7861, 7862), notBerserk.map { it.stateId }.sorted(), "not-berserk gated subs")
+        assertEquals(emptyList<SublimationEffect>(), byId.getValue(6930).effects, "Critique tactique (6930) reads the hit target's HP")
 
         // Elemental Concentration (5449): its unconditional +DI plus the four-element "my element ≥ every other"
         // penalty fan-out must decode first-party to the best-element concentration spec (+20% Damage Inflicted,

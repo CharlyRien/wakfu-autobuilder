@@ -57,6 +57,9 @@ internal val TRIGGER_KEYS =
         "triggers_additionnal"
     )
 
+/** The [TRIGGER_KEYS] that fire around ONE hit or action: a criterion's `"target"` there is that action's target. */
+internal val HIT_TRIGGER_KEYS = listOf("triggers_before_computation", "triggers_before_execution")
+
 // ----- output contracts (mirror the committed baked artifacts) -----
 
 @Serializable

@@ -123,6 +123,7 @@ private fun gateText(
     if (gate == null) return ""
     val tags = ArrayList<String>()
     if (gate.berserk == true) tags.add(localized(lang, fr = "berserk", en = "berserk", es = "berserker", pt = "berserk"))
+    if (gate.notBerserk == true) tags.add(localized(lang, fr = "hors berserk", en = "not berserk", es = "fuera de berserker", pt = "fora do berserk"))
     if (gate.ranged == true) tags.add(localized(lang, fr = "à distance", en = "ranged", es = "a distancia", pt = "de distância"))
     gate.element?.let { el ->
         tags.add(

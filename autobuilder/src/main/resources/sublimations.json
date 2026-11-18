@@ -1405,6 +1405,9 @@
         "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
         "percentOfLevel": 45,
+        "scenarioGate": {
+          "notBerserk": true
+        },
         "valuesByLevel": [
           15,
           30,
@@ -1415,7 +1418,7 @@
         ]
       }
     ],
-    "rawText": "+45% of level as mastery elementary"
+    "rawText": "+45% of level as mastery elementary (not berserk)"
   },
   {
     "stateId": 5984,
@@ -6129,35 +6132,7 @@
       }
     },
     "cumulable": true,
-    "kind": "FLAT",
-    "effects": [
-      {
-        "type": "flat",
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": -9,
-        "scenarioGate": {
-          "berserk": true
-        },
-        "valuesByLevel": [
-          -3,
-          -6,
-          -9,
-          -12
-        ]
-      },
-      {
-        "type": "flat",
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": 9,
-        "valuesByLevel": [
-          3,
-          6,
-          9,
-          12
-        ]
-      }
-    ],
-    "rawText": "-9% Damage Inflicted (berserk) | +9% Damage Inflicted"
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6931,
@@ -7733,13 +7708,16 @@
         "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1,
+        "scenarioGate": {
+          "notBerserk": true
+        },
         "valuesByLevel": [
           1,
           1
         ]
       }
     ],
-    "rawText": "+1 MP"
+    "rawText": "+1 MP (not berserk)"
   },
   {
     "stateId": 7861,
@@ -7776,13 +7754,16 @@
         "type": "flat",
         "characteristic": "ACTION_POINT",
         "value": 1,
+        "scenarioGate": {
+          "notBerserk": true
+        },
         "valuesByLevel": [
           1,
           1
         ]
       }
     ],
-    "rawText": "+1 AP"
+    "rawText": "+1 AP (not berserk)"
   },
   {
     "stateId": 7862,
@@ -7838,6 +7819,9 @@
         "type": "flat",
         "characteristic": "CRITICAL_HIT",
         "value": 12,
+        "scenarioGate": {
+          "notBerserk": true
+        },
         "valuesByLevel": [
           4,
           8,
@@ -7848,7 +7832,7 @@
         ]
       }
     ],
-    "rawText": "+12% Critical Hit"
+    "rawText": "+12% Critical Hit (not berserk)"
   },
   {
     "stateId": 7863,

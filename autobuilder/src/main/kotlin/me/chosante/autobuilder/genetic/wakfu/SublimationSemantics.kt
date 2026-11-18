@@ -85,6 +85,12 @@ internal fun scenarioGateMatchesCore(
     wantedElements: Set<Characteristic>,
 ): Boolean {
     if (gate == null) return true
+    // A high-HP gate only rules out a berserk scenario; what else the gate holds is read as usual (nothing: every request).
+    if (gate.notBerserk == true) {
+        if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && scenario?.berserk == true) return false
+        val rest = gate.copy(notBerserk = null)
+        return rest == ScenarioGate() || scenarioGateMatchesCore(rest, mode, scenario, level, wantedElements)
+    }
     // Mono-element most-masteries: a pure element gate fires (the build is single-element).
     if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && gate.firesInMostMasteries(wantedElements)) {
         return true

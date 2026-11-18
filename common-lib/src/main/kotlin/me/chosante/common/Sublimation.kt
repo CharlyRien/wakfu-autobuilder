@@ -153,6 +153,12 @@ data class ScenarioGate(
      * compile-time constant per solve (credited iff the scenario's element matches).
      */
     val element: String? = null,
+    /**
+     * The effect needs the bearer's HP at or above a threshold of 50 % or more (Carnage III, Influence vitale III: "HP > 90 %"),
+     * so it never fires in a max-damage **berserk** scenario (HP below 50 %). Unlike the other fields it does not make the effect
+     * max-damage-only: every other request still credits it, the full-HP reading the engine already assumed.
+     */
+    val notBerserk: Boolean? = null,
 )
 
 /**
