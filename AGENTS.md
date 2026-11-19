@@ -484,7 +484,7 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
 - **Production portfolio (search only, ENGINE_RESULTS_VERSION 8):** `WakfuBuildSolver.applyProductionPortfolio` swaps full
   subsolvers at the measured worker counts only — max-damage `fixed` -> `max_lp` at 3 workers (level 245 GUI rows +14.9 %
   median) and `fixed` dropped at 7; most-masteries `core` -> `max_lp` at 3 to 5 workers (60 s proofs 6/40 -> 23/40 at 3,
-  2-3/40 -> 29/40 at 4 and 5). Unmeasured counts keep CP-SAT's default. Measurements: `reports/` audit, 2026-11-17.
+  2-3/40 -> 29/40 at 4 and 5). Unmeasured counts keep CP-SAT's default (wall-clock A/Bs of 2026-11-17: real 60 s searches, 10 per cell).
 - **Exact-tier speed (no bound change, 2026-10-12):** a cell's exact pass runs its worlds by descending tier-1.5 bound and
   skips every crit step whose per-c row sits below a value another world of the cell already reached (`cPruneFloor`,
   `worldPruneOrder`); the production cascade first probes the top world's exact pass on tier-1's step-8 rows and skips
