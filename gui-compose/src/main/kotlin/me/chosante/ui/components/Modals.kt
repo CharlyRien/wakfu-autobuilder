@@ -116,6 +116,10 @@ fun ModalHost(
     onForcedSublimationLevelChange: (String, Int) -> Unit = { _, _ -> },
     excludedSublimations: List<String> = emptyList(),
     forcedPassives: List<String> = emptyList(),
+    imposedSkillPoints: me.chosante.ui.state.ImposedSkillPoints =
+        me.chosante.ui.state
+            .ImposedSkillPoints(),
+    onImposeSkillPoints: (me.chosante.common.skills.SkillLine, Int) -> Unit = { _, _ -> },
     onSelectStat: (Characteristic) -> Unit,
     onPickItem: (Equipment) -> Unit,
     onPickSublimation: (Sublimation) -> Unit = {},
@@ -218,6 +222,14 @@ fun ModalHost(
 
             Modal.BossPicker ->
                 BossPickerModal(selectedBoss = selectedBoss, onPick = onPickBoss)
+
+            Modal.SkillPicker ->
+                me.chosante.ui.request.SkillPickerContent(
+                    imposed = imposedSkillPoints,
+                    level = level,
+                    onChange = onImposeSkillPoints,
+                    onDone = onDismiss
+                )
 
             is Modal.ItemRunePicker ->
                 // Resolve the carrier at render time from the current build; if it's gone (e.g. a new

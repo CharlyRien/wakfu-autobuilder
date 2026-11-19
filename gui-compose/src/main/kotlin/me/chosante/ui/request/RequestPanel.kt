@@ -124,6 +124,7 @@ fun RequestPanel(
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
     onImposedSkillPointsChange: (SkillLine, Int) -> Unit = { _, _ -> },
+    onAddImposedSkill: () -> Unit = {},
     onResetImposedSkillPoints: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -220,6 +221,7 @@ fun RequestPanel(
                 imposed = ui.imposedSkillPoints,
                 level = ui.level,
                 onChange = onImposedSkillPointsChange,
+                onAdd = onAddImposedSkill,
                 onReset = onResetImposedSkillPoints
             )
         }

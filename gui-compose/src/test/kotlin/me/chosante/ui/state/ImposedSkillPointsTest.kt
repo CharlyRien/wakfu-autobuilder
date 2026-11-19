@@ -78,9 +78,8 @@ class ImposedSkillPointsTest {
     @Test
     fun `the stored form round-trips and drops what it cannot read`() {
         val p = ImposedSkillPoints().withLine(SkillLine.AGILITY_DODGE, 57, 230).withLine(SkillLine.LUCK_CRITICAL_HIT, 20, 230)
-        assertEquals(p, ImposedSkillPoints.fromSnapshot(p.toSnapshot(), p.rule.name, 230))
-        assertEquals(p, ImposedSkillPoints.fromSnapshot(p.toSnapshot() + ("NOT_A_LINE" to 3), "MINIMUM", 230))
-        assertEquals(ImposedSkillPoints(), ImposedSkillPoints.fromSnapshot(p.toSnapshot(), "SOME_FUTURE_RULE", 230))
+        assertEquals(p, ImposedSkillPoints.fromSnapshot(p.toSnapshot(), 230))
+        assertEquals(p, ImposedSkillPoints.fromSnapshot(p.toSnapshot() + ("NOT_A_LINE" to 3), 230))
         assertEquals(mapOf(SkillLine.AGILITY_DODGE to 57, SkillLine.LUCK_CRITICAL_HIT to 20), p.forEngine())
     }
 
@@ -135,30 +134,81 @@ class ImposedSkillPointsTest {
                 withTimeout(25.seconds) { while (model.ui.phase != Phase.Done) delay(20.milliseconds) }
                 val expected = mapOf(SkillLine.AGILITY_DODGE to 57, SkillLine.LUCK_BLOCK to 20)
                 assertEquals(expected, received?.forcedSkillPoints)
-                assertEquals(expected, model.ui.resultImposedSkillPoints, "the result remembers what its request imposed")
 
-                // Editing the card after the search does not change what the shown result says about itself.
                 model.setImposedSkillPoints(SkillLine.LUCK_BLOCK, 0)
-                assertEquals(expected, model.ui.resultImposedSkillPoints)
 
                 model.saveBuild("Dodge build", null, asNew = true)
                 withTimeout(25.seconds) { while (model.ui.savedBuilds.none { it.name == "Dodge build" }) delay(20.milliseconds) }
                 val saved = model.ui.savedBuilds.single()
                 assertEquals(mapOf("AGILITY_DODGE" to 57), saved.request.forcedSkillPoints)
-                assertEquals("MINIMUM", saved.request.skillPointsRule)
 
                 model.resetImposedSkillPoints()
                 assertTrue(model.ui.imposedSkillPoints.isEmpty)
                 model.loadBuild(saved.id)
                 assertEquals(mapOf(SkillLine.AGILITY_DODGE to 57), model.ui.imposedSkillPoints.points)
-                assertEquals(mapOf(SkillLine.AGILITY_DODGE to 57), model.ui.resultImposedSkillPoints)
 
                 // The remembered workspace restores them too.
                 assertEquals(model.ui.imposedSkillPoints, UiState().withRememberedRequest(model.ui.toRequestSnapshot()).imposedSkillPoints)
 
+                // An old save (no imposed points stored) loads with none.
+                val old = saved.copy(request = saved.request.copy(forcedSkillPoints = emptyMap()))
+                assertTrue(UiState().withRememberedRequest(old.request).imposedSkillPoints.isEmpty)
+
                 // A lower level brings them back within the new pools.
                 model.setLevel("20")
                 assertEquals(CharacterSkills(20).agility.maxPointsToAssign, model.ui.imposedSkillPoints[SkillLine.AGILITY_DODGE])
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `the skill tree padlocks impose a line at the shown value, and the whole allocation`(): Unit =
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val shown =
+                CharacterSkills(230).apply {
+                    agility.dodge.setPointAssigned(57)
+                    luck.criticalHit.setPointAssigned(20)
+                    major.actionPoint.setPointAssigned(1)
+                }
+            val model =
+                BuildSearchModel(
+                    scope = scope,
+                    buildFinder = {
+                        flowOf(
+                            SolverResult(
+                                individual = BuildCombination(equipments = emptyList(), characterSkills = shown),
+                                matchPercentage = BigDecimal("100"),
+                                progressPercentage = 100
+                            )
+                        )
+                    },
+                    optimalityProver = { _, _, _, _ -> MaxDamageSearch.MaxDamageProof.Unavailable },
+                    zenithBuilder = { "" },
+                    mainDispatcher = Dispatchers.Unconfined,
+                    ioDispatcher = Dispatchers.Unconfined,
+                    libraryPreferences = LibraryPreferences(null),
+                    backgroundProofCanceller = {},
+                    historyRepository = HistoryRepository(baseDir = Files.createTempDirectory("wakfu-test-history"), ioDispatcher = Dispatchers.Unconfined)
+                )
+            try {
+                model.setLevel("230")
+                model.setDuration("1")
+                model.search()
+                withTimeout(25.seconds) { while (model.ui.phase != Phase.Done) delay(20.milliseconds) }
+
+                model.toggleSkillLock(SkillLine.AGILITY_DODGE)
+                assertEquals(mapOf(SkillLine.AGILITY_DODGE to 57), model.ui.imposedSkillPoints.points)
+                model.toggleSkillLock(SkillLine.LUCK_BLOCK) // nothing spent there: nothing to keep
+                assertEquals(mapOf(SkillLine.AGILITY_DODGE to 57), model.ui.imposedSkillPoints.points)
+                model.toggleSkillLock(SkillLine.AGILITY_DODGE)
+                assertTrue(model.ui.imposedSkillPoints.isEmpty)
+
+                model.toggleImposeShownAllocation()
+                assertEquals(mapOf(SkillLine.AGILITY_DODGE to 57, SkillLine.LUCK_CRITICAL_HIT to 20, SkillLine.MAJOR_ACTION_POINT to 1), model.ui.imposedSkillPoints.points)
+                model.toggleImposeShownAllocation()
+                assertTrue(model.ui.imposedSkillPoints.isEmpty, "a second click frees the whole allocation")
             } finally {
                 scope.cancel()
             }

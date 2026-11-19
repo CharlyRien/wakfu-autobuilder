@@ -753,7 +753,7 @@ class BuildSearchModel(
         reconcileForcedItemsForCurrentRequest()
     }
 
-    /** Imposes [points] on the skill [line] (clamped into the level's limits; 0 removes it) — the request panel's skill-points card. */
+    /** Imposes exactly [points] on the skill [line] (clamped into the level's limits; 0 frees it) — the skill-points card. */
     fun setImposedSkillPoints(
         line: me.chosante.common.skills.SkillLine,
         points: Int,
@@ -761,9 +761,35 @@ class BuildSearchModel(
         ui = ui.copy(imposedSkillPoints = ui.imposedSkillPoints.withLine(line, points, ui.level))
     }
 
-    /** Clears every imposed skill point (the rule is kept). */
+    /** Frees every imposed skill line. */
     fun resetImposedSkillPoints() {
-        ui = ui.copy(imposedSkillPoints = ui.imposedSkillPoints.copy(points = emptyMap()))
+        ui = ui.copy(imposedSkillPoints = ImposedSkillPoints())
+    }
+
+    /**
+     * The skill tree's padlock: an imposed [line] is freed; a free one is imposed at the shown build's value (a line the build
+     * spends nothing on is left alone — there is no point to keep).
+     */
+    fun toggleSkillLock(line: me.chosante.common.skills.SkillLine) {
+        val imposed = ui.imposedSkillPoints
+        ui =
+            if (line in imposed) {
+                ui.copy(imposedSkillPoints = imposed.withLine(line, 0, ui.level))
+            } else {
+                val value = ui.build?.let { line.of(it.characterSkills).pointsAssigned } ?: return
+                if (value == 0) return
+                ui.copy(imposedSkillPoints = imposed.withLine(line, value, ui.level))
+            }
+    }
+
+    /**
+     * The skill tree's "impose this allocation": every line the shown build spends points on is imposed at its value (replacing
+     * what was imposed); when that is exactly what is imposed already, every line is freed instead.
+     */
+    fun toggleImposeShownAllocation() {
+        val build = ui.build ?: return
+        val shown = ImposedSkillPoints.of(build.characterSkills).fittedTo(ui.level)
+        ui = ui.copy(imposedSkillPoints = if (ui.imposedSkillPoints == shown) ImposedSkillPoints() else shown)
     }
 
     /** Keep only passives that belong to [clazz], capped to [level]'s passive slots (preserving order). */
@@ -1238,7 +1264,6 @@ class BuildSearchModel(
                 // Snapshotted HERE, from the request the engine is about to receive (not from the rows as they will be once
                 // the search ends): this result says "no proof is possible" about THAT request, whatever is edited meanwhile.
                 prefilteredRequest = params.targetStats.needsItemPrefilter,
-                resultImposedSkillPoints = params.forcedSkillPoints,
                 proofState = ProofState.Idle,
                 searchStopped = false,
                 // The new build is found with this app's own game data and engine, whatever the one it replaces was computed with.
@@ -2426,11 +2451,7 @@ class BuildSearchModel(
         // The request this save was computed for — the rows and mode restored just above, never the rows the workspace held before
         // the load — decides whether any search of it could ever have been proven: the stats column explains the missing badge
         // of such a build ([UiState.prefilteredRequest]) instead of suggesting a longer search.
-        val loaded =
-            restored.copy(
-                prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false),
-                resultImposedSkillPoints = restored.imposedSkillPoints.forEngine()
-            )
+        val loaded = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false))
         ui = loaded.rescored()
         // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still
@@ -2494,7 +2515,7 @@ class BuildSearchModel(
             excludedRarities = entry.request.excludedRarities,
             forcedPassives = entry.request.forcedPassives,
             forcedRunesByItem = entry.request.forcedRunesByItem,
-            imposedSkillPoints = ImposedSkillPoints.fromSnapshot(entry.request.forcedSkillPoints, entry.request.skillPointsRule, entry.request.level)
+            imposedSkillPoints = ImposedSkillPoints.fromSnapshot(entry.request.forcedSkillPoints, entry.request.level)
         )
 
     /**

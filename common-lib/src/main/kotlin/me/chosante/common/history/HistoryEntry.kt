@@ -98,13 +98,8 @@ data class RequestSnapshot(
     val forcedPassives: List<String> = emptyList(),
     /** Runes pinned onto a specific carrier item: item French name → rune-id multiset (forces the item). */
     val forcedRunesByItem: Map<String, List<Int>> = emptyMap(),
-    /**
-     * Skill points the player imposed (issue #284): `SkillLine` name → points, read under [skillPointsRule] (only `MINIMUM`
-     * exists: at least that many points on the line). An unknown line name is ignored on load.
-     */
+    /** Skill points the player imposed (issue #284): `SkillLine` name → its EXACT value. An unknown line name is ignored on load. */
     val forcedSkillPoints: Map<String, Int> = emptyMap(),
-    /** How [forcedSkillPoints] are read: `MINIMUM` (the only rule so far); stored so a later rule can be added without a new field. */
-    val skillPointsRule: String = "MINIMUM",
     /**
      * Attack scenario for the max-damage mode. Defaulted so saves written before this field load with
      * a neutral scenario (and ignored on load for non max-damage builds). Stored as primitives because

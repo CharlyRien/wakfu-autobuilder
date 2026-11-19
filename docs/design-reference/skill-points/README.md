@@ -1,11 +1,12 @@
-# Points d'aptitude imposés : maquettes (issue #284)
+# Points d'aptitude imposés : maquettes et rendu final (issue #284)
 
-Maquettes Compose rendues hors écran : thème, composants et icônes du projet, en français, niveau 230. Elles servent à choisir l'affichage avant de câbler quoi que ce soit.
+**Retenu : A + B**, en valeur exacte (réponse du joueur sur l'issue). Rendus hors écran FR des composants câblés :
+`final-carte-4-lignes.png` (carte vide puis 4 lignes imposées), `final-selecteur.png` (sélecteur, branche Agilité pleine),
+`final-arbre-cadenas.png` (arbre du résultat, 2 lignes verrouillées, points non placés signalés), `final-contexte.png` (les trois
+côte à côte). Régénérer : `WAKFU_SKILL_POINTS_SCREENSHOTS=<dossier> ./gradlew :gui-compose:test --tests "*SkillPointsCardUiTest"`.
 
-- Composants : `gui-compose/src/test/kotlin/me/chosante/ui/mockups/SkillPointsMockups.kt` (ils reçoivent des données en dur, rien n'est relié au modèle).
-- Rendu : `WAKFU_SKILL_POINTS_MOCKUPS=<dossier> ./gradlew :gui-compose:test --tests "*SkillPointsMockupRenderTest"`. Le test est sauté si la variable est absente.
-- Largeurs réelles : panneau de requête 320 dp, panneau de stats 360 dp (plus 12 dp de marge sur chaque bord de capture).
-- L'implémentation actuelle (`SkillPointsCard`, une carte qui recopie les 30 lignes) est conservée telle quelle.
+Les captures `a*`, `b*`, `c*` et `ab-contexte` ci-dessous sont les maquettes de la revue : à l'époque, les points imposés étaient
+des minimums (d'où les mentions « minimum » et « min »). Leur code de rendu a été retiré une fois le choix fait.
 
 ## Captures
 

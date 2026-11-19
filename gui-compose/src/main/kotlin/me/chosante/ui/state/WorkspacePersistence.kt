@@ -54,7 +54,7 @@ fun UiState.withRememberedRequest(request: RequestSnapshot): UiState {
         excludedSublimations = request.excludedSublimations,
         forcedPassives = request.forcedPassives,
         forcedRunesByItem = request.forcedRunesByItem,
-        imposedSkillPoints = ImposedSkillPoints.fromSnapshot(request.forcedSkillPoints, request.skillPointsRule, level)
+        imposedSkillPoints = ImposedSkillPoints.fromSnapshot(request.forcedSkillPoints, level)
     )
 }
 

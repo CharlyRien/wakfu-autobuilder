@@ -181,6 +181,9 @@ sealed interface Modal {
     /** Pick a passive to add to the loadout (filtered to the current class), by name / effect. */
     data object PassivePicker : Modal
 
+    /** Add an imposed skill line (the skill-points card's "Add a skill"): branch tabs, then the lines with their caps. */
+    data object SkillPicker : Modal
+
     /** Pick a boss to target in max-damage mode, by translated name — auto-fills its per-element resistances. */
     data object BossPicker : Modal
 
@@ -326,11 +329,6 @@ data class UiState(
      */
     val prefilteredRequest: Boolean = false,
     /**
-     * The skill points the shown result's request imposed (the engine's per-line minimums): the skill tree marks those lines.
-     * It belongs to the RESULT, like [prefilteredRequest]: editing the skill-points card after a search does not change it.
-     */
-    val resultImposedSkillPoints: Map<me.chosante.common.skills.SkillLine, Int> = emptyMap(),
-    /**
      * Max-damage mode only: the AP-cell certificate's optimality verdict for the finished build (P4.4).
      * Computed asynchronously AFTER the search completes (a full exact solve can take minutes), so it starts
      * [ProofState.Idle], becomes [ProofState.Proving], then resolves. It can prove optimality CP-SAT left
@@ -466,7 +464,6 @@ data class ShownResult(
     val optimal: Boolean = false,
     val maxDamageStructural: Boolean = false,
     val prefilteredRequest: Boolean = false,
-    val resultImposedSkillPoints: Map<me.chosante.common.skills.SkillLine, Int> = emptyMap(),
     val proofState: ProofState = ProofState.Idle,
     val searchStopped: Boolean = false,
     val staleDataVersion: String? = null,
@@ -502,7 +499,6 @@ fun UiState.shownResult(): ShownResult =
         optimal = optimal,
         maxDamageStructural = maxDamageStructural,
         prefilteredRequest = prefilteredRequest,
-        resultImposedSkillPoints = resultImposedSkillPoints,
         proofState = proofState,
         searchStopped = searchStopped,
         staleDataVersion = staleDataVersion,
@@ -524,7 +520,6 @@ fun UiState.withResult(result: ShownResult): UiState =
         optimal = result.optimal,
         maxDamageStructural = result.maxDamageStructural,
         prefilteredRequest = result.prefilteredRequest,
-        resultImposedSkillPoints = result.resultImposedSkillPoints,
         proofState = result.proofState,
         searchStopped = result.searchStopped,
         staleDataVersion = result.staleDataVersion,
