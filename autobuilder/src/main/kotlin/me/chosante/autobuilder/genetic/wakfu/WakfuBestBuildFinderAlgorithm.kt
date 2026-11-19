@@ -2,6 +2,7 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -225,11 +226,30 @@ object WakfuBestBuildFinderAlgorithm {
         val equipmentsByItemType = poolFor(params)
 
         return try {
-            // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
-            // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
-            // fallback (P2a — see [mostMasteriesHardThenSoft]), its quality bound computed in the
-            // search's tail (E10-for-MM, [MostMasteriesBoundCache]). Precision stays a single soft
-            // solve. Every new search supersedes the bounds still computing for earlier requests.
+            searchFlow(params, equipmentsByItemType).map { it.copy(individual = UnplacedSkillPoints.trim(params, it.individual)) }
+        } catch (exception: Exception) {
+            // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
+            // turns it into a visible crash, while the GUI can catch it and show an error rather than
+            // having the whole desktop app terminated by exitProcess.
+            logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
+            throw exception
+        }
+    }
+
+    /**
+     * The engine's raw result stream for [params]; [run] leaves the points that bring nothing unplaced on every emission
+     * ([UnplacedSkillPoints]).
+     */
+    private fun searchFlow(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Flow<SolverResult<BuildCombination>> {
+        // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
+        // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
+        // fallback (P2a — see [mostMasteriesHardThenSoft]), its quality bound computed in the
+        // search's tail (E10-for-MM, [MostMasteriesBoundCache]). Precision stays a single soft
+        // solve. Every new search supersedes the bounds still computing for earlier requests.
+        val flow =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
                     MaxDamageSearch
@@ -249,13 +269,7 @@ object WakfuBestBuildFinderAlgorithm {
                         .optimize(params, equipmentsByItemType, runes, activeSublimations(params))
                         .onStart { MostMasteriesBoundCache.supersedeAll() }
             }
-        } catch (exception: Exception) {
-            // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
-            // turns it into a visible crash, while the GUI can catch it and show an error rather than
-            // having the whole desktop app terminated by exitProcess.
-            logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
-            throw exception
-        }
+        return flow
     }
 
     /**
@@ -584,7 +598,7 @@ object WakfuBestBuildFinderAlgorithm {
                 incumbentObjective = incumbent,
                 isCancelled = isCancelled
             )
-        }
+        }?.let { it.copy(individual = UnplacedSkillPoints.trim(params, it.individual)) }
     }
 
     /**
@@ -1167,8 +1181,8 @@ data class WakfuBestBuildParams(
     // on the resulting build for display. See PassiveCatalog / WakfuBuildSolver.resolvedPassives.
     val forcedPassives: List<String> = emptyList(),
     /**
-     * Skill points the player imposes: a MINIMUM per skill line (issue #284). The solver keeps at least that many points
-     * on the line and places the rest of each branch's pool itself (it may add more points to an imposed line). Validated
+     * Skill points the player imposes: an EXACT value per skill line (issue #284; 0 forbids the line). The solver gives the line
+     * exactly that many points and places the rest of each branch's pool on the other lines. Validated
      * by [WakfuBestBuildFinderAlgorithm.validateRequest] (a line's own cap, a branch's pool). Every model variant reads it
      * ([WakfuBuildSolver] `createSkillVariables`), the greedy warm start honours it; the certificates ignore it — it only
      * removes builds, so their bound stays a sound upper bound (AGENTS.md §4).

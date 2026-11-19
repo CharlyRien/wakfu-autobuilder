@@ -82,3 +82,10 @@ enum class SkillLine(
         }
     }
 }
+
+/** A copy of this allocation with [changes] applied (line → points); every other line keeps its points. */
+fun CharacterSkills.withLinePoints(changes: Map<SkillLine, Int>): CharacterSkills {
+    val copy = CharacterSkills(level)
+    for (line in SkillLine.entries) line.of(copy).setPointAssigned(changes[line] ?: line.of(this).pointsAssigned)
+    return copy
+}

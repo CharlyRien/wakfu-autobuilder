@@ -15,6 +15,7 @@ import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillBranch
 import me.chosante.common.skills.SkillLine
+import me.chosante.common.skills.withLinePoints
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -23,9 +24,10 @@ import java.util.IdentityHashMap
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Player-imposed skill points (issue #284): `WakfuBestBuildParams.forcedSkillPoints` is a MINIMUM per skill line. The issue's
- * case — "all my agility points in dodge, nothing in block" — is locked in every mode: the player fills the Agility branch
- * with dodge and the Luck branch with critical hit + critical mastery, and the result keeps exactly that.
+ * Player-imposed skill points (issue #284): `WakfuBestBuildParams.forcedSkillPoints` is an EXACT value per skill line. The
+ * issue's case — "all my agility points in dodge, nothing in block" — is locked in every mode: the player fills the Agility
+ * branch with dodge and the Luck branch with critical hit + critical mastery, and the result keeps exactly that. And without
+ * imposed points, the points that bring nothing to the request are left unplaced ([UnplacedSkillPoints]): no more block.
  */
 class ForcedSkillPointsTest {
     private val level = 230
@@ -151,13 +153,111 @@ class ForcedSkillPointsTest {
     }
 
     @Test
-    fun `a minimum leaves the rest to the solver, which may add points to the imposed line`() {
-        // 10 points imposed in dodge: the most-masteries solver is free to place more (its overshoot tie-break rewards dodge).
-        val p = params(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, mapOf(SkillLine.AGILITY_DODGE to 10, SkillLine.LUCK_BLOCK to 3))
-        val s = solve(p).characterSkills
-        assertThat(s.agility.dodge.pointsAssigned).isGreaterThanOrEqualTo(10)
-        assertThat(s.luck.block.pointsAssigned).isGreaterThanOrEqualTo(3)
-        assertThat(s.agility.pointsAssigned()).isLessThanOrEqualTo(agilityPool)
+    fun `an imposed value is exact, 0 included, and the rest of the branch stays free`() {
+        // Most-masteries' overshoot tie-break would put every agility point in dodge: imposed at 10, dodge stays at 10 and the
+        // other agility lines take the rest; block imposed at 3 stays 3; dodge-and-lock imposed at 0 stays empty.
+        for (mode in ScoreComputationMode.entries) {
+            val forced = mapOf(SkillLine.AGILITY_DODGE to 10, SkillLine.LUCK_BLOCK to 3, SkillLine.AGILITY_DODGE_AND_LOCK to 0)
+            val s = solve(params(mode, forced)).characterSkills
+            assertThat(s.agility.dodge.pointsAssigned).describedAs("$mode").isEqualTo(10)
+            assertThat(s.luck.block.pointsAssigned).describedAs("$mode").isEqualTo(3)
+            assertThat(s.agility.dodgeAndLock.pointsAssigned).describedAs("$mode").isZero()
+            assertThat(s.agility.pointsAssigned()).isLessThanOrEqualTo(agilityPool)
+        }
+    }
+
+    @Test
+    fun `nothing is placed in a branch the request does not read, in every mode, with the same score`() {
+        for (mode in ScoreComputationMode.entries) {
+            val p = params(mode, emptyMap())
+            val result = runBlocking { WakfuBuildSolver.optimize(p, pool, tuning = tuning).toList().last() }
+            val trimmed = UnplacedSkillPoints.trim(p, result.individual)
+            val s = trimmed.characterSkills
+            assertThat(s.luck.block.pointsAssigned).describedAs("$mode: no point in block").isZero()
+            assertThat(s.intelligence.pointsAssigned()).describedAs("$mode: nothing in intelligence").isZero()
+            if (mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                // Max-damage reads critical hit / critical mastery from the Luck branch; the two other modes read nothing there.
+                assertThat(s.luck.pointsAssigned()).describedAs("$mode: nothing in luck").isZero()
+            }
+            // The requested dodge keeps its points (a target row's line is never trimmed).
+            assertThat(s.agility.dodge.pointsAssigned + s.agility.dodgeAndLock.pointsAssigned)
+                .isEqualTo(result.individual.characterSkills.agility.dodge.pointsAssigned + result.individual.characterSkills.agility.dodgeAndLock.pointsAssigned)
+            assertThat(
+                WakfuBestBuildFinderAlgorithm.rescore(p, trimmed)
+            ).describedAs("$mode: same score").isEqualByComparingTo(WakfuBestBuildFinderAlgorithm.rescore(p, result.individual))
+            assertThat(trimmed.isValid(CharacterClass.CRA)).isTrue()
+            assertThat(trimmed.equipments).isEqualTo(result.individual.equipments)
+        }
+    }
+
+    @Test
+    fun `the pass never touches an imposed line, even a useless one`() {
+        for (mode in ScoreComputationMode.entries) {
+            val p = params(mode, mapOf(SkillLine.LUCK_BLOCK to 7, SkillLine.INTELLIGENCE_SHIELD to 4))
+            val trimmed = UnplacedSkillPoints.trim(p, solve(p))
+            assertThat(trimmed.characterSkills.luck.block.pointsAssigned).describedAs("$mode").isEqualTo(7)
+            assertThat(trimmed.characterSkills.intelligence.shield.pointsAssigned).describedAs("$mode").isEqualTo(4)
+        }
+    }
+
+    @Test
+    fun `the pass keeps the points that change the score`() {
+        // Max-damage reads critical mastery: whatever the solver put on a scoring line comes back, only useless lines are emptied.
+        val p = params(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE, emptyMap())
+        val build = solve(p)
+        val withBlock = build.copy(characterSkills = build.characterSkills.withLinePoints(mapOf(SkillLine.LUCK_BLOCK to 0)))
+        val trimmed = UnplacedSkillPoints.trim(p, withBlock)
+        for (line in SkillLine.entries) {
+            val before = line.of(withBlock.characterSkills).pointsAssigned
+            val after = line.of(trimmed.characterSkills).pointsAssigned
+            assertThat(after).describedAs(line.name).isLessThanOrEqualTo(before)
+            if (after < before) {
+                // A line the pass lowered must not change the score on its own either.
+                val only = withBlock.copy(characterSkills = withBlock.characterSkills.withLinePoints(mapOf(line to after)))
+                assertThat(WakfuBestBuildFinderAlgorithm.rescore(p, only)).describedAs(line.name).isEqualByComparingTo(WakfuBestBuildFinderAlgorithm.rescore(p, withBlock))
+            }
+        }
+        assertThat(WakfuBestBuildFinderAlgorithm.rescore(p, trimmed)).isEqualByComparingTo(WakfuBestBuildFinderAlgorithm.rescore(p, build))
+        assertThat(trimmed.characterSkills.luck.masteryCritical.pointsAssigned + trimmed.characterSkills.luck.criticalHit.pointsAssigned)
+            .describedAs("max-damage keeps its critical lines")
+            .isEqualTo(build.characterSkills.luck.masteryCritical.pointsAssigned + build.characterSkills.luck.criticalHit.pointsAssigned)
+    }
+
+    @Test
+    fun `the issue request on the real data puts nothing in block`() {
+        // Level 230 Cra, most-masteries, distance + fire masteries, AP / MP / range and dodge 300 (the issue's reproduction, which
+        // returned 20 points in block before the pass).
+        val p =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, level, 200),
+                targetStats =
+                    TargetStats(
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 12),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 5),
+                            TargetStat(Characteristic.RANGE, 2),
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 1),
+                            TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1),
+                            TargetStat(Characteristic.DODGE, 300)
+                        )
+                    ),
+                searchDuration = 15.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+            )
+        val build = runBlocking { WakfuBestBuildFinderAlgorithm.run(p).toList().last() }.individual
+        assertThat(build.characterSkills.luck.block.pointsAssigned).isZero()
+        // Every point left in a line no target row reads is there for the score: emptying the line lowers it (berserk mastery
+        // can stay, for instance, when Ravage converts it into elemental mastery).
+        val score = WakfuBestBuildFinderAlgorithm.rescore(p, build)
+        for (line in SkillLine.entries.filter { it.branch == me.chosante.common.skills.SkillBranch.LUCK || it.branch == me.chosante.common.skills.SkillBranch.INTELLIGENCE }) {
+            if (line.of(build.characterSkills).pointsAssigned == 0) continue
+            val emptied = build.copy(characterSkills = build.characterSkills.withLinePoints(mapOf(line to 0)))
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(p, emptied)).describedAs(line.name).isLessThan(score)
+        }
     }
 
     @Test
@@ -184,12 +284,13 @@ class ForcedSkillPointsTest {
                 }
             assertIssueAllocationKept(requireNotNull(greedy) { "$mode greedy" })
         }
-        // A partial minimum: the imposed points are there, the branch's other points still follow the requested stats.
-        val partial = params(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, mapOf(SkillLine.LUCK_BLOCK to 5))
+        // A partial request: the imposed line is exact, the branch's other points still follow the requested stats.
+        val partial = params(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, mapOf(SkillLine.LUCK_BLOCK to 5, SkillLine.AGILITY_DODGE to 20))
         val s = requireNotNull(MostMasteriesWarmStart.greedyBuild(partial, pool.values.flatten())).characterSkills
         assertThat(s.luck.block.pointsAssigned).isEqualTo(5)
-        assertThat(s.agility.pointsAssigned()).isEqualTo(agilityPool) // the requested dodge lines share the whole pool
-        assertThat(s.luck.pointsAssigned()).isLessThanOrEqualTo(luckPool)
+        assertThat(s.luck.pointsAssigned()).isEqualTo(5) // nothing requested in luck: only the imposed line
+        assertThat(s.agility.dodge.pointsAssigned).isEqualTo(20)
+        assertThat(s.agility.pointsAssigned()).isEqualTo(agilityPool) // dodge-and-lock, also requested, takes the rest
     }
 
     @Test

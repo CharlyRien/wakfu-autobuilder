@@ -808,7 +808,7 @@ class MaxDamageSoftCertificateTest {
             )
         val objectiveNeutral = setOf("searchDuration", "stopWhenBuildMatch", "solverWorkers", "computeBudget")
         // Fields that only REMOVE builds (never add capability): the bound ignores them and stays a sound upper bound.
-        // forcedSkillPoints (issue #284) is a per-line MINIMUM on the skill vars — a subset of the free skill tree.
+        // forcedSkillPoints (issue #284) pins skill vars to EXACT values — a subset of the free skill tree.
         val restrictionOnly = setOf("forcedSkillPoints")
         val classified = gatedBySupportsShape + reflectedInCertificateInputs + objectiveNeutral + restrictionOnly
         val actual =

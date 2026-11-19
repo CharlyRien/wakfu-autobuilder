@@ -304,13 +304,13 @@ internal object MostMasteriesWarmStart {
         val skills = CharacterSkills(params.character.level)
         val targetCharacteristics = params.targetStats.map { it.characteristic }
         val random = kotlin.random.Random(1)
-        // The player's imposed points (issue #284) come first; only the rest of each branch is spread.
-        val minimums = params.forcedSkillPoints.entries.associate { (line, points) -> line.of(skills) to points }
-        skills.intelligence.assignRandomPoints(skills.intelligence.maxPointsToAssign, targetCharacteristics, random, minimums)
-        skills.strength.assignRandomPoints(skills.strength.maxPointsToAssign, targetCharacteristics, random, minimums)
-        skills.agility.assignRandomPoints(skills.agility.maxPointsToAssign, targetCharacteristics, random, minimums)
-        skills.luck.assignRandomPoints(skills.luck.maxPointsToAssign, targetCharacteristics, random, minimums)
-        skills.major.assignRandomPoints(skills.major.maxPointsToAssign, targetCharacteristics, random, minimums)
+        // The player's imposed points (issue #284) are fixed exactly; only the rest of each branch is spread.
+        val imposed = params.forcedSkillPoints.entries.associate { (line, points) -> line.of(skills) to points }
+        skills.intelligence.assignRandomPoints(skills.intelligence.maxPointsToAssign, targetCharacteristics, random, fixed = imposed)
+        skills.strength.assignRandomPoints(skills.strength.maxPointsToAssign, targetCharacteristics, random, fixed = imposed)
+        skills.agility.assignRandomPoints(skills.agility.maxPointsToAssign, targetCharacteristics, random, fixed = imposed)
+        skills.luck.assignRandomPoints(skills.luck.maxPointsToAssign, targetCharacteristics, random, fixed = imposed)
+        skills.major.assignRandomPoints(skills.major.maxPointsToAssign, targetCharacteristics, random, fixed = imposed)
 
         val passives = WakfuBuildSolver.resolvedPassives(params)
 

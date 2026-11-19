@@ -5065,7 +5065,7 @@ object WakfuBuildSolver {
 
     /**
      * One var per skill line (`0..cap`) and `Σ branch ≤ pool` per branch. The player's imposed points
-     * ([WakfuBestBuildParams.forcedSkillPoints], issue #284) are separate `var ≥ minimum` constraints: the var's DOMAIN is
+     * ([WakfuBestBuildParams.forcedSkillPoints], issue #284) are separate `var == points` constraints: the var's DOMAIN is
      * left untouched on purpose, so the value tracker, the certificates and every other reader of the skill vars see exactly
      * what they see without imposed points (the certificates price the unconstrained skill tree — a sound relaxation).
      */
@@ -5095,8 +5095,8 @@ object WakfuBuildSolver {
         addCategory(characterSkills.luck, "luck")
         addCategory(characterSkills.major, "major")
 
-        for ((line, minimum) in forcedSkillPoints) {
-            if (minimum > 0) addGreaterOrEqual(skillVars.getValue(line.of(characterSkills)), minimum.toLong())
+        for ((line, points) in forcedSkillPoints) {
+            addEquality(skillVars.getValue(line.of(characterSkills)), points.toLong())
         }
 
         return skillVars

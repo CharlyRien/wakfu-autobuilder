@@ -531,8 +531,8 @@ HUPPERMAGE"""
         "--points-aptitudes",
         help =
             """
-            Impose skill points before the search: a MINIMUM per skill line, the solver places the rest of each
-            branch's points (and may add more on an imposed line), e.g. --skill-points agility-dodge:57,luck-critical-hit:20
+            Impose skill points before the search: an EXACT value per skill line (0 keeps the line empty); the solver
+            places the rest of each branch's points on the other lines, e.g. --skill-points agility-dodge:57,luck-block:0
             Lines: ${SkillLine.entries.joinToString { it.cliId }}
             """.trimIndent()
     ).convert { raw ->
