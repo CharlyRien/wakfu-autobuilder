@@ -743,8 +743,53 @@ class BuildSearchModel(
                 ?.coerceIn(1, 245) ?: return
         // Lowering the level shrinks the passive-slot budget — trim the loadout so the shown chips match
         // exactly what the engine folds (resolvedPassives caps with the same slot count).
-        ui = ui.copy(level = parsed, forcedPassives = reconcilePassives(ui.forcedPassives, ui.clazz, parsed))
+        // The skill pools follow the level too: imposed points are brought back within the new limits.
+        ui =
+            ui.copy(
+                level = parsed,
+                forcedPassives = reconcilePassives(ui.forcedPassives, ui.clazz, parsed),
+                imposedSkillPoints = ui.imposedSkillPoints.fittedTo(parsed)
+            )
         reconcileForcedItemsForCurrentRequest()
+    }
+
+    /** Imposes exactly [points] on the skill [line] (clamped into the level's limits; 0 frees it) — the skill-points card. */
+    fun setImposedSkillPoints(
+        line: me.chosante.common.skills.SkillLine,
+        points: Int,
+    ) {
+        ui = ui.copy(imposedSkillPoints = ui.imposedSkillPoints.withLine(line, points, ui.level))
+    }
+
+    /** Frees every imposed skill line. */
+    fun resetImposedSkillPoints() {
+        ui = ui.copy(imposedSkillPoints = ImposedSkillPoints())
+    }
+
+    /**
+     * The skill tree's padlock: an imposed [line] is freed; a free one is imposed at the shown build's value (a line the build
+     * spends nothing on is left alone — there is no point to keep).
+     */
+    fun toggleSkillLock(line: me.chosante.common.skills.SkillLine) {
+        val imposed = ui.imposedSkillPoints
+        ui =
+            if (line in imposed) {
+                ui.copy(imposedSkillPoints = imposed.withLine(line, 0, ui.level))
+            } else {
+                val value = ui.build?.let { line.of(it.characterSkills).pointsAssigned } ?: return
+                if (value == 0) return
+                ui.copy(imposedSkillPoints = imposed.withLine(line, value, ui.level))
+            }
+    }
+
+    /**
+     * The skill tree's "impose this allocation": every line the shown build spends points on is imposed at its value (replacing
+     * what was imposed); when that is exactly what is imposed already, every line is freed instead.
+     */
+    fun toggleImposeShownAllocation() {
+        val build = ui.build ?: return
+        val shown = ImposedSkillPoints.of(build.characterSkills).fittedTo(ui.level)
+        ui = ui.copy(imposedSkillPoints = if (ui.imposedSkillPoints == shown) ImposedSkillPoints() else shown)
     }
 
     /** Keep only passives that belong to [clazz], capped to [level]'s passive slots (preserving order). */
@@ -2086,6 +2131,7 @@ class BuildSearchModel(
             excludedSublimations = excludedSublimations,
             forcedPassives = forcedPassives,
             forcedRunesByItem = forcedRunesByItem,
+            forcedSkillPoints = imposedSkillPoints.forEngine(),
             // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
             // a forced element pins that one element, else all four are filled so the objective auto-picks.
             damageScenario = currentDamageScenario(),
@@ -2468,7 +2514,8 @@ class BuildSearchModel(
                     .distinct(),
             excludedRarities = entry.request.excludedRarities,
             forcedPassives = entry.request.forcedPassives,
-            forcedRunesByItem = entry.request.forcedRunesByItem
+            forcedRunesByItem = entry.request.forcedRunesByItem,
+            imposedSkillPoints = ImposedSkillPoints.fromSnapshot(entry.request.forcedSkillPoints, entry.request.level)
         )
 
     /**

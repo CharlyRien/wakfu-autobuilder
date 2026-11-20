@@ -251,6 +251,24 @@ formula keeps its previous margin and heap limit relative to that allowance. Wor
 proof caches normalize the budget away. See `docs/COMPUTE_BUDGET.md` for the complete site/formula audit. `TargetStats` normalizes
 per-stat weights and expands `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` into their four elements.
 
+`forcedSkillPoints: Map<SkillLine, Int>` (issue #284; CLI `--skill-points agility-dodge:57,luck-block:0`) is an EXACT value
+per skill line (`SkillLine`, common-lib: a stable id per line — `SkillCharacteristic.name` is not unique); the other lines stay
+free. The model adds `skillVar == n` as a separate constraint (`createSkillVariables`), leaving the var's domain — and so the
+value tracker and every certificate input — untouched: the certificates price the free skill tree, a sound relaxation (an
+equality only removes builds), like the stat gates; `CERTIFIER_VERSION` untouched. The greedy warm start fixes the imposed lines
+and spreads the rest (`assignRandomPoints(…, fixed)`); `validateRequest` checks a line's own cap and a branch's pool; the
+max-damage certificate fingerprint appends the map only when non-empty (older disk records keep their key).
+
+**Unplaced points** (`UnplacedSkillPoints`, ENGINE_RESULTS_VERSION 8): the solver has no tie-breaker between equal-score skill
+allocations, so a branch the request does not read used to come back spread at random (block points nobody asked for).
+`WakfuBestBuildFinderAlgorithm.run` (and the E8 construct) pass every result through `UnplacedSkillPoints.trim`: each line
+neither imposed nor feeding a target row of target > 0 is lowered towards 0 while the re-score (`rescore`) stays EXACTLY equal,
+`isValid` holds, no new item stat gate breaks and every sublimation keeps its credited state (`creditedSublimations`). Same
+score and badge, the freed points shown as unplaced (`Tr.SKILL_LEFTOVER_WARNING`, every mode). Target-row lines keep their
+points on purpose (the most-masteries overshoot). The GUI imposes points from the request card's chips (`SkillPointsCard`,
+`SkillPickerContent`) and from the result tree's padlocks (`SkillTree`, `BuildSearchModel.toggleSkillLock` /
+`toggleImposeShownAllocation`); they are saved in `RequestSnapshot.forcedSkillPoints`.
+
 ### Why the solver can leave slots empty (mount/pet/…) — *not a bug*
 "Most-masteries" mode maximizes **only the requested** masteries (under the required-stat
 constraints) and has no tie-breaker to fill otherwise-empty slots. So if no item in a slot can

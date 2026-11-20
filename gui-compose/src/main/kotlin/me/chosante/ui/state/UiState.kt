@@ -181,6 +181,9 @@ sealed interface Modal {
     /** Pick a passive to add to the loadout (filtered to the current class), by name / effect. */
     data object PassivePicker : Modal
 
+    /** Add an imposed skill line (the skill-points card's "Add a skill"): branch tabs, then the lines with their caps. */
+    data object SkillPicker : Modal
+
     /** Pick a boss to target in max-damage mode, by translated name — auto-fills its per-element resistances. */
     data object BossPicker : Modal
 
@@ -302,6 +305,8 @@ data class UiState(
      * those runes onto that item (which also forces it to be equipped). See [Modal.ItemRunePicker].
      */
     val forcedRunesByItem: Map<String, List<Int>> = emptyMap(),
+    /** The skill points the player imposes on the search (issue #284), edited in the request panel's skill-points card. */
+    val imposedSkillPoints: ImposedSkillPoints = ImposedSkillPoints(),
     val phase: Phase = Phase.Idle,
     val progress: Int = 0,
     val match: BigDecimal = BigDecimal.ZERO,

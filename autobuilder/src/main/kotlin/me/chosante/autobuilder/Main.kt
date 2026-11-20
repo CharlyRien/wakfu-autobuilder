@@ -106,6 +106,7 @@ import me.chosante.common.RuneType
 import me.chosante.common.WakfuData
 import me.chosante.common.displayedMatchPercent
 import me.chosante.common.skills.Assignable
+import me.chosante.common.skills.SkillLine
 import me.chosante.createZenithBuild
 import java.util.Locale
 import kotlin.system.exitProcess
@@ -525,6 +526,28 @@ HUPPERMAGE"""
             """.trimIndent()
     ).split(",").default(listOf())
 
+    internal val forcedSkillPoints: Map<SkillLine, Int> by option(
+        "--skill-points",
+        "--points-aptitudes",
+        help =
+            """
+            Impose skill points before the search: an EXACT value per skill line (0 keeps the line empty); the solver
+            places the rest of each branch's points on the other lines, e.g. --skill-points agility-dodge:57,luck-block:0
+            Lines: ${SkillLine.entries.joinToString { it.cliId }}
+            """.trimIndent()
+    ).convert { raw ->
+        raw
+            .split(",")
+            .filter { it.isNotBlank() }
+            .associate { token ->
+                val parts = token.split(":").map { it.trim() }
+                if (parts.size != 2) fail("Could not parse --skill-points '$token'; use e.g. agility-dodge:57")
+                val line = SkillLine.parse(parts[0]) ?: fail("Unknown skill line '${parts[0]}' in --skill-points (lines: ${SkillLine.entries.joinToString { it.cliId }})")
+                val points = parts[1].toIntOrNull() ?: fail("--skill-points '${parts[0]}' needs a number of points, e.g. ${line.cliId}:10")
+                line to points
+            }
+    }.default(emptyMap())
+
     // --- max-damage scenario (only used when --computation-mode max-damage) ---
 
     private val scenarioElement: SpellElement by option(
@@ -794,6 +817,7 @@ HUPPERMAGE"""
                     forcedSublimationLevels = forcedSubRequest.second,
                     excludedSublimations = excludedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
                     forcedPassives = passives,
+                    forcedSkillPoints = forcedSkillPoints,
                     damageScenario = damageScenario,
                     computeBudget = computeBudget
                 )

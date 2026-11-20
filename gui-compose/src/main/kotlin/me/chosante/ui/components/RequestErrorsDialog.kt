@@ -16,9 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.RequestValidationProblem
+import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
+import me.chosante.ui.i18n.skillLabel
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.libraryLabel
 import me.chosante.ui.theme.WColor
@@ -137,4 +139,8 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
             val name = sublimation.localized(lang)
             "$name ${Tr.SUBLIMATION_FORCED_AND_EXCLUDED.value(lang)}"
         }
+        is RequestValidationProblem.ForcedSkillPointsOutOfRange ->
+            Tr.FORCED_SKILL_POINTS_OUT_OF_RANGE.value(lang).format(skillLabel(line.of(CharacterSkills(1)).name, lang), points, max)
+        is RequestValidationProblem.ForcedSkillPointsExceedBranch ->
+            Tr.FORCED_SKILL_POINTS_EXCEED_BRANCH.value(lang).format(branch.labelKey().value(lang), requested, available)
     }

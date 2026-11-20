@@ -40,6 +40,7 @@ import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.common.skills.SkillLine
 import me.chosante.common.skills.UnitType
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -2419,7 +2420,7 @@ object WakfuBuildSolver {
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
         bmMark("equipVars")
-        val skillVars = model.createSkillVariables(params.character.characterSkills)
+        val skillVars = model.createSkillVariables(params.character.characterSkills, params.forcedSkillPoints)
         // The single-type rune fold (createRuneModel) is sound unless a sublimation IN PLAY requires a
         // POSITIVE secondary-mastery cap (`secondary ≤ N`, N>0): there an intra-item secondary/elemental
         // MIX can be optimal, which the fold can't express. Every solver-choosable secondary-cap sub has
@@ -5062,7 +5063,16 @@ object WakfuBuildSolver {
         return prefiltered to orderEquipments(pool).size
     }
 
-    private fun CpModel.createSkillVariables(characterSkills: CharacterSkills): Map<SkillCharacteristic, IntVar> {
+    /**
+     * One var per skill line (`0..cap`) and `Σ branch ≤ pool` per branch. The player's imposed points
+     * ([WakfuBestBuildParams.forcedSkillPoints], issue #284) are separate `var == points` constraints: the var's DOMAIN is
+     * left untouched on purpose, so the value tracker, the certificates and every other reader of the skill vars see exactly
+     * what they see without imposed points (the certificates price the unconstrained skill tree — a sound relaxation).
+     */
+    private fun CpModel.createSkillVariables(
+        characterSkills: CharacterSkills,
+        forcedSkillPoints: Map<SkillLine, Int> = emptyMap(),
+    ): Map<SkillCharacteristic, IntVar> {
         val skillVars = mutableMapOf<SkillCharacteristic, IntVar>()
 
         fun addCategory(
@@ -5084,6 +5094,10 @@ object WakfuBuildSolver {
         addCategory(characterSkills.agility, "agility")
         addCategory(characterSkills.luck, "luck")
         addCategory(characterSkills.major, "major")
+
+        for ((line, points) in forcedSkillPoints) {
+            addEquality(skillVars.getValue(line.of(characterSkills)), points.toLong())
+        }
 
         return skillVars
     }

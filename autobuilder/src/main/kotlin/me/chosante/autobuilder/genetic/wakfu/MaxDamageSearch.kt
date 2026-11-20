@@ -1435,6 +1435,20 @@ object MaxDamageCertificateCache {
         tok(key.subIds.size)
         key.subIds.forEach { tok(it) }
 
+        // Imposed skill points (issue #284). The certificates price the unconstrained skill tree, but a pass that solves
+        // the request's own model would see the imposed values, so a bound is only shared between equal requests. Appended
+        // LAST and only when present: every request without imposed points keeps its pre-#284 fingerprint (its disk
+        // records stay valid), and the extra trailing tokens keep the encoding injective.
+        if (p.forcedSkillPoints.isNotEmpty()) {
+            tok("forcedSkillPoints")
+            val forcedSkillPoints = p.forcedSkillPoints.entries.sortedBy { it.key.name }
+            tok(forcedSkillPoints.size)
+            forcedSkillPoints.forEach {
+                tok(it.key.name)
+                tok(it.value)
+            }
+        }
+
         return sb.toString()
     }
 

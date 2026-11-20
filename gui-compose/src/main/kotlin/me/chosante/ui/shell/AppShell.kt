@@ -185,6 +185,8 @@ fun AppShell(
                 onForcedSublimationLevelChange = model::setForcedSublimationLevel,
                 excludedSublimations = ui.excludedSublimations,
                 forcedPassives = ui.forcedPassives,
+                imposedSkillPoints = ui.imposedSkillPoints,
+                onImposeSkillPoints = model::setImposedSkillPoints,
                 selectedCharacteristics = ui.targets.map { it.characteristic }.toSet(),
                 hideChosen = ui.pickerHideChosen,
                 onHideChosenChange = model::setPickerHideChosen,
@@ -293,7 +295,10 @@ private fun BuilderBody(
                 onRemoveExcludedSublimation = model::removeExcludedSublimation,
                 onToggleExcludeAllSublimationsOfRarity = model::toggleExcludeAllSublimationsOfRarity,
                 onOpenPassivePicker = { model.openModal(Modal.PassivePicker) },
-                onRemoveForcedPassive = model::removeForcedPassive
+                onRemoveForcedPassive = model::removeForcedPassive,
+                onImposedSkillPointsChange = model::setImposedSkillPoints,
+                onAddImposedSkill = { model.openModal(Modal.SkillPicker) },
+                onResetImposedSkillPoints = model::resetImposedSkillPoints
             )
         }
         ResizableSeparator(onDelta = onRequestWidthDelta)
@@ -337,7 +342,9 @@ private fun BuilderBody(
                                 onViewAsDamage = model::viewCurrentBuildAsMaxDamage,
                                 onStopProof = model::stopProof,
                                 onRetryError = model::retryAfterError,
-                                onRerunSearch = model::confirmReSearch
+                                onRerunSearch = model::confirmReSearch,
+                                onToggleSkillLock = model::toggleSkillLock,
+                                onToggleImposeAllocation = model::toggleImposeShownAllocation
                             )
                         }
                     }
