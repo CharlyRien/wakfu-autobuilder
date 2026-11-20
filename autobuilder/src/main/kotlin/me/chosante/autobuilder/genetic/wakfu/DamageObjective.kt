@@ -177,18 +177,20 @@ internal fun StatBuilder.perTurnDamageScore(
                 // P3.2 two-tier orchestrator: fast bound every cell, eliminate below the incumbent, and
                 // confirm survivors exactly — all scaled with the ONE formula (clampedTable/resFactor in
                 // scope here) so [CertLedger] values are directly comparable to CP-SAT objectives.
+                // (The dead-label identity lock takes the passes over through [CertifierTuning.ledgerHookForTest]; null in production.)
                 certifierLedgerForTest =
-                    certifyLedger(
-                        scenario,
-                        clampedTable.size,
-                        clampedTable,
-                        resFactor,
-                        certifyLedgerIncumbent,
-                        certifyLedgerForceTier2All,
-                        certifyFastThreads,
-                        certifyLedgerPrecomputedFast,
-                        certifyLedgerPrecomputedBailed
-                    )
+                    CertifierTuning.ledgerHookForTest?.invoke(this, scenario, clampedTable, resFactor)
+                        ?: certifyLedger(
+                            scenario,
+                            clampedTable.size,
+                            clampedTable,
+                            resFactor,
+                            certifyLedgerIncumbent,
+                            certifyLedgerForceTier2All,
+                            certifyFastThreads,
+                            certifyLedgerPrecomputedFast,
+                            certifyLedgerPrecomputedBailed
+                        )
             }
             if (certifyExplainCell != null && candidateElements.size == 1) {
                 // E8 item A (perf): a cached (world, crit-step) replays a single explain pass; otherwise scan worlds.

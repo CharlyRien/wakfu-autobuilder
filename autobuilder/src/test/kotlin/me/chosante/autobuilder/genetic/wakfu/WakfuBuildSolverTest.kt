@@ -8282,6 +8282,347 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * DEAD-LABEL FILTER identity lock ([CertifierTuning.deadLabelFilterEnabled]). The filter never creates nor carries
+     * a DP state whose AP / crit can no longer reach the band the harvest reads; by construction it changes no output.
+     * On seeded pools — the coupling panel, the P6.1 fuzz pools (free, and with AP / CC / MP / RANGE rows on the
+     * target-aware passes), the v44 coverage pools (non-damage rune rows, the Neutralité family, a Mesure-like block
+     * sub: the aux worlds N and M), the v48 aux-schedule pools (weapon axis, Critical Secret), REQUIRES pools (a
+     * RELIC sword needing an EPIC ring: the bundle world split) and the review shapes of [deadLabelReviewShapes] —
+     * every tier runs twice on the SAME model, filter off then on ([certifierTranscript]): tier-1 cells and
+     * per-(world, cell, crit-step) rows, the aux floor (exact, relaxed, split), tier-1.5 values and per-(cell, world)
+     * rows with and without the segment skip, the exact-first probe, and — on EVERY cell — the exact value with its
+     * argmax (world, winning crit step: the ledger's provenance) and the per-crit-step maxima, pruned and unpruned.
+     * All must be IDENTICAL, and the filter must actually FIRE — overall and on each review shape, each of which must
+     * also certify and show the feature it is there for.
+     */
+    @Test
+    fun `max-damage certifier dead-label filter leaves every bound, crit-step row and argmax identical on seeded pools`() {
+        val runes = WakfuBestBuildFinderAlgorithm.runes
+        val shapes =
+            buildList {
+                couplingPanel().let { (p, pool, subs) -> add(DeadLabelShape("panel", "panel", p, pool, subs, false)) }
+                repeat(25) { i ->
+                    val (p, pool, subs) = fuzzScenario(i)
+                    add(DeadLabelShape("fuzz", "fuzz$i", p, pool, subs, false))
+                    val rng = Random(0xDEADL + i)
+                    val rows =
+                        buildList {
+                            add(TargetStat(Characteristic.ACTION_POINT, 6 + rng.nextInt(3)))
+                            if (rng.nextBoolean()) add(TargetStat(Characteristic.CRITICAL_HIT, 5 + rng.nextInt(20)))
+                            if (rng.nextBoolean()) add(TargetStat(Characteristic.MOVEMENT_POINT, 3 + rng.nextInt(2)))
+                            if (rng.nextBoolean()) add(TargetStat(Characteristic.RANGE, 1 + rng.nextInt(2)))
+                        }
+                    add(DeadLabelShape("fuzz-rows", "fuzz$i-rows", p.copy(targetStats = TargetStats(rows)), pool, subs, true))
+                }
+                repeat(16) { i ->
+                    val (p, pool, subs) = coverageFuzzScenario(i)
+                    add(DeadLabelShape("coverage", "coverage$i", p, pool, subs, false))
+                    if (targetAwareLedgerApplies(p.targetStats)) add(DeadLabelShape("coverage-aware", "coverage$i-aware", p, pool, subs, true))
+                }
+                repeat(12) { i ->
+                    val (p, pool, subs) = auxScheduleScenario(i)
+                    add(DeadLabelShape("aux", "aux$i", p, pool, subs, false))
+                }
+                repeat(10) { i ->
+                    val (p, _, subs) = fuzzScenario(i)
+                    add(DeadLabelShape("bundle", "bundle$i", p, deadLabelBundlePool(i), subs, false))
+                }
+                addAll(deadLabelReviewShapes())
+            }
+
+        class Tally {
+            var pools = 0
+            var certified = 0
+            var positive = 0
+            var auxPools = 0
+            var bundlePools = 0
+            var bothHalves = 0
+            var critZeroArgmax = 0
+            var values = 0L
+            var refusedOn = 0L
+            var refusedOff = 0L
+        }
+        val byCategory = LinkedHashMap<String, Tally>()
+        for (shape in shapes) {
+            val tally = byCategory.getOrPut(shape.category) { Tally() }
+            val ran =
+                withCertifierStatBuilder(shape.params, shape.pool, runes, shape.subs, applyDomination = false, targetAware = shape.targetAware) { scenario, table, _ ->
+                    val all = table.indices.toList()
+                    val (off, on) = deadLabelArms { certifierTranscript(scenario, table.size, tier15Cells = { all }, exactCells = { all }, unprunedCells = { all }) }
+                    // One comparison covers every recorded output, the per-cell exact entries `[value, world, winning crit step]` included.
+                    assertThat(off.firstDifference(on)).describedAs("%s: the dead-label filter changed a certifier output", shape.label).isNull()
+                    val exact = on.entries.filter { it.first.startsWith("exact.a") || it.first.startsWith("exactUnpruned.a") }
+                    val worlds = certifierWorlds(scenario).orEmpty()
+                    tally.pools++
+                    if (on.entries.any { it.first == "exact.perCritStep(ap,c,max)" }) tally.certified++
+                    if (exact.any { it.second[0] > 0L && it.second[0] != Long.MAX_VALUE }) tally.positive++
+                    if (on.entries.any { it.first == "aux.exact" }) tally.auxPools++
+                    if (worlds.any { it.bundle != null }) tally.bundlePools++
+                    if (worlds.any { it.bundle == true } && worlds.any { it.bundle == false }) tally.bothHalves++
+                    if (exact.any { it.second[0] > 0L && it.second[0] != Long.MAX_VALUE && it.second[2] == 0L }) tally.critZeroArgmax++
+                    tally.values += on.values
+                    tally.refusedOn += on.refused.values.sum()
+                    tally.refusedOff += off.refused.values.sum()
+                }
+            assertThat(ran).describedAs("%s: the certificate seam ran", shape.label).isTrue()
+        }
+        val all = byCategory.values
+        println(
+            "DEAD_LABEL_FUZZ pools=${all.sumOf { it.pools }} certified=${all.sumOf { it.certified }} auxPools=${all.sumOf { it.auxPools }} " +
+                "bundlePools=${all.sumOf { it.bundlePools }} valuesCompared=${all.sumOf { it.values }} refusedOn=${all.sumOf { it.refusedOn }} " +
+                "refusedOff=${all.sumOf { it.refusedOff }}"
+        )
+        for ((category, t) in byCategory) {
+            println(
+                "DEAD_LABEL_FUZZ category=$category pools=${t.pools} certified=${t.certified} positive=${t.positive} auxPools=${t.auxPools} " +
+                    "bundlePools=${t.bundlePools} bothHalves=${t.bothHalves} critZeroArgmax=${t.critZeroArgmax} valuesCompared=${t.values} " +
+                    "refusedOn=${t.refusedOn} refusedOff=${t.refusedOff}"
+            )
+        }
+        assertThat(all.sumOf { it.pools }).describedAs("pools compared").isEqualTo(shapes.size)
+        assertThat(all.sumOf { it.certified }).describedAs("pools that certify (not a shape bail)").isGreaterThan(60)
+        assertThat(all.sumOf { it.auxPools }).describedAs("pools with aux worlds").isGreaterThan(10)
+        assertThat(all.sumOf { it.bundlePools }).describedAs("pools with the REQUIRES world split").isGreaterThan(5)
+        assertThat(all.sumOf { it.refusedOff }).describedAs("the off arm refuses nothing").isEqualTo(0L)
+        assertThat(all.sumOf { it.refusedOn }).describedAs("the filter must actually fire").isGreaterThan(0L)
+        // The review shapes: each must certify with a positive bound and make the filter fire, or it locks nothing.
+        for (category in listOf("review-forced", "review-bundle", "review-crit-zero", "review-crit-cap", "review-rows")) {
+            val t = byCategory.getValue(category)
+            assertThat(t.certified).describedAs("%s: pools that certify", category).isEqualTo(t.pools)
+            assertThat(t.positive).describedAs("%s: pools with a positive exact bound", category).isEqualTo(t.pools)
+            assertThat(t.refusedOn).describedAs("%s: the filter fires", category).isGreaterThan(0L)
+        }
+        assertThat(
+            byCategory.getValue("review-bundle").bothHalves
+        ).describedAs("review-bundle: both halves of the REQUIRES split run").isEqualTo(byCategory.getValue("review-bundle").pools)
+        assertThat(byCategory.getValue("review-crit-zero").critZeroArgmax).describedAs("review-crit-zero: a cell's optimum is valued at crit step 0").isGreaterThan(0)
+    }
+
+    /** One pool of the dead-label identity lock; [category] groups the pools whose non-vacuity is asserted together. */
+    private class DeadLabelShape(
+        val category: String,
+        val label: String,
+        val params: WakfuBestBuildParams,
+        val pool: Map<ItemType, List<Equipment>>,
+        val subs: List<Sublimation>,
+        val targetAware: Boolean,
+    )
+
+    /**
+     * The shapes an independent review of the dead-label filter asked the identity lock to cover, four seeds each:
+     *  - `review-forced`: a FORCED amulet at −1 AP — its stage is mandatory, which the filter's reach counts as skippable —
+     *    with rings at +1 AP, on a free request;
+     *  - `review-bundle`: the "nation sword + its ring" world split, both halves, with a −1 AP ring and a −10 crit item;
+     *  - `review-crit-zero`: mastery-rich items at −10 crit, so a cell's optimum sits below crit 0 and is valued at the
+     *    clamped crit step 0 (no lower crit bound there);
+     *  - `review-crit-cap`: a low crit ceiling (a `crit ≤ n` sub) with far more crit on offer, above 100 in total;
+     *  - `review-rows`: the target-aware hard-leg ledger with the AP, CC, RANGE and MP rows together.
+     */
+    private fun deadLabelReviewShapes(): List<DeadLabelShape> =
+        buildList {
+            repeat(4) { seed ->
+                val free = fireMaxDamageParams(50).copy(useSublimations = true)
+                val subs = fuzzScenario(seed).third
+                add(DeadLabelShape("review-forced", "reviewForced$seed", free.copy(forcedItems = listOf("DlForcedAmu")), deadLabelForcedPool(seed), subs, false))
+                add(DeadLabelShape("review-bundle", "reviewBundle$seed", free, deadLabelBundlePool(seed, review = true), subs, false))
+                add(DeadLabelShape("review-crit-zero", "reviewCritZero$seed", free, deadLabelCritZeroPool(seed), subs, false))
+                val capSubs =
+                    listOf(
+                        sublimation(
+                            9_800 + seed,
+                            "DlCapDi$seed",
+                            SublimationRarity.NORMAL,
+                            SublimationKind.STATIC_CONDITIONAL,
+                            mapOf(Characteristic.DAMAGE_INFLICTED to 30 + 5 * seed),
+                            condition = SublimationCondition(SublimationConditionType.CRIT_AT_MOST, 5 + 5 * seed)
+                        ),
+                        sublimation(9_810 + seed, "DlCritStart$seed", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.CRITICAL_HIT to 20))
+                    )
+                add(DeadLabelShape("review-crit-cap", "reviewCritCap$seed", free, deadLabelCritCapPool(seed), subs + capSubs, false))
+                val rows =
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 7 + seed % 2),
+                        TargetStat(Characteristic.CRITICAL_HIT, 10 + 5 * (seed % 3)),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                        TargetStat(Characteristic.RANGE, 1 + seed / 2)
+                    )
+                add(DeadLabelShape("review-rows", "reviewRows$seed", free.copy(targetStats = TargetStats(rows)), deadLabelRowsPool(seed), subs, true))
+            }
+        }
+
+    /** Review shape `review-forced`: the forced amulet at −1 AP, a better amulet its slot must shut out, rings at +1 AP. */
+    private fun deadLabelForcedPool(seed: Int): Map<ItemType, List<Equipment>> {
+        val rng = Random(0xF0CEDL + seed)
+        var id = 7_200
+        val items = mutableListOf<Equipment>()
+        items += equipment(id++, ItemType.AMULET, "DlForcedAmu", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(700), Characteristic.ACTION_POINT to -1))
+        items += equipment(id++, ItemType.AMULET, "DlFreeAmu", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1500 + rng.nextInt(700), Characteristic.ACTION_POINT to 1))
+        items += equipment(id++, ItemType.RING, "DlRingUpA", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200 + rng.nextInt(600), Characteristic.ACTION_POINT to 1))
+        items += equipment(id++, ItemType.RING, "DlRingUpB", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200 + rng.nextInt(600), Characteristic.ACTION_POINT to 1))
+        items +=
+            equipment(id++, ItemType.RING, "DlRingFlat", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500 + rng.nextInt(900), Characteristic.CRITICAL_HIT to 1 + rng.nextInt(5)))
+        for (slot in listOf(ItemType.BELT, ItemType.CAPE, ItemType.BOOTS, ItemType.HELMET, ItemType.CHEST_PLATE).shuffled(rng).take(3)) {
+            repeat(2) { k -> items += randomFireItem(id++, slot, "Dl$slot$k", rng) }
+        }
+        return items.groupBy { it.itemType }
+    }
+
+    /** Review shape `review-crit-zero`: in three or four slots, a mastery-rich item at −10 crit against a weak one with crit. */
+    private fun deadLabelCritZeroPool(seed: Int): Map<ItemType, List<Equipment>> {
+        val rng = Random(0xC0FFEEL + seed)
+        var id = 7_300
+        val items = mutableListOf<Equipment>()
+        for (slot in listOf(ItemType.HELMET, ItemType.CAPE, ItemType.BELT, ItemType.BOOTS).shuffled(rng).take(3 + rng.nextInt(2))) {
+            items += equipment(id++, slot, "DlSink$slot", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 2500 + rng.nextInt(1500), Characteristic.CRITICAL_HIT to -10))
+            items +=
+                equipment(
+                    id++,
+                    slot,
+                    "DlLift$slot",
+                    mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200 + rng.nextInt(400), Characteristic.CRITICAL_HIT to 2 + rng.nextInt(7)),
+                    maxShardSlots = listOf(0, 3)[rng.nextInt(2)]
+                )
+        }
+        items +=
+            equipment(
+                id++,
+                ItemType.AMULET,
+                "DlAmuAp",
+                mapOf(
+                    Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(500),
+                    Characteristic.ACTION_POINT to 1 - 2 * rng.nextInt(2)
+                )
+            )
+        items += equipment(id++, ItemType.RING, "DlRingSink", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(500), Characteristic.CRITICAL_HIT to -2))
+        items += equipment(id++, ItemType.RING, "DlRingPlain", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(500)))
+        return items.groupBy { it.itemType }
+    }
+
+    /** Review shape `review-crit-cap`: in three or four slots, +30 to +45 crit against a stronger item near crit 0. */
+    private fun deadLabelCritCapPool(seed: Int): Map<ItemType, List<Equipment>> {
+        val rng = Random(0xCA9L + seed)
+        var id = 7_400
+        val items = mutableListOf<Equipment>()
+        for (slot in listOf(ItemType.HELMET, ItemType.CAPE, ItemType.BELT, ItemType.BOOTS, ItemType.CHEST_PLATE).shuffled(rng).take(3 + rng.nextInt(2))) {
+            items +=
+                equipment(
+                    id++,
+                    slot,
+                    "DlHot$slot",
+                    mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(500), Characteristic.CRITICAL_HIT to 30 + rng.nextInt(16)),
+                    maxShardSlots = listOf(0, 3, 4)[rng.nextInt(3)]
+                )
+            items +=
+                equipment(
+                    id++,
+                    slot,
+                    "DlCold$slot",
+                    mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 700 + rng.nextInt(900), Characteristic.CRITICAL_HIT to 1 - 2 * rng.nextInt(3)),
+                    maxShardSlots = listOf(0, 3, 4)[rng.nextInt(3)]
+                )
+        }
+        items +=
+            equipment(
+                id++,
+                ItemType.AMULET,
+                "DlAmuCm",
+                mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400 + rng.nextInt(400), Characteristic.MASTERY_CRITICAL to 300 + rng.nextInt(400)),
+                maxShardSlots = 3
+            )
+        items += equipment(id++, ItemType.RING, "DlRingHot", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(400), Characteristic.CRITICAL_HIT to 10))
+        items +=
+            equipment(
+                id++,
+                ItemType.RING,
+                "DlRingAp",
+                mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300 + rng.nextInt(400), Characteristic.ACTION_POINT to 1 - 2 * rng.nextInt(2))
+            )
+        return items.groupBy { it.itemType }
+    }
+
+    /** Review shape `review-rows`: AP, MP, RANGE and crit on the items (some negative), for the target-aware rows. */
+    private fun deadLabelRowsPool(seed: Int): Map<ItemType, List<Equipment>> {
+        val rng = Random(0xD0E5L + seed)
+        var id = 7_600
+        val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+
+        fun weak() = 300 + rng.nextInt(600)
+
+        fun strong() = 900 + rng.nextInt(900)
+        val items =
+            listOf(
+                equipment(id++, ItemType.AMULET, "DlAmuAp", mapOf(fire to weak(), Characteristic.ACTION_POINT to 1)),
+                equipment(id++, ItemType.AMULET, "DlAmuFire", mapOf(fire to strong())),
+                equipment(id++, ItemType.BOOTS, "DlBootsMp", mapOf(fire to weak(), Characteristic.MOVEMENT_POINT to 1)),
+                equipment(id++, ItemType.BOOTS, "DlBootsFire", mapOf(fire to strong(), Characteristic.MOVEMENT_POINT to -1)),
+                equipment(id++, ItemType.CAPE, "DlCapeRange", mapOf(fire to weak(), Characteristic.RANGE to 1)),
+                equipment(id++, ItemType.CAPE, "DlCapeFire", mapOf(fire to strong(), Characteristic.CRITICAL_HIT to -10)),
+                equipment(id++, ItemType.HELMET, "DlHelmRange", mapOf(fire to weak(), Characteristic.RANGE to 1, Characteristic.CRITICAL_HIT to -3)),
+                equipment(id++, ItemType.HELMET, "DlHelmCrit", mapOf(fire to weak(), Characteristic.CRITICAL_HIT to 8 + rng.nextInt(8))),
+                equipment(id++, ItemType.BELT, "DlBeltAp", mapOf(fire to weak(), Characteristic.ACTION_POINT to 1, Characteristic.CRITICAL_HIT to 5), maxShardSlots = 3),
+                equipment(id++, ItemType.BELT, "DlBeltFire", mapOf(fire to strong(), Characteristic.ACTION_POINT to -1)),
+                equipment(id++, ItemType.RING, "DlRingAp", mapOf(fire to weak(), Characteristic.ACTION_POINT to 1)),
+                equipment(id++, ItemType.RING, "DlRingCrit", mapOf(fire to weak(), Characteristic.CRITICAL_HIT to 6)),
+                equipment(id++, ItemType.RING, "DlRingFire", mapOf(fire to strong()))
+            )
+        return items.groupBy { it.itemType }
+    }
+
+    /**
+     * A seeded REQUIRES pool for the dead-label lock: fuzz items plus a RELIC sword that needs a stat-less EPIC ring.
+     * [review] adds the review's −1 AP ring and −10 crit item beside the bundle.
+     */
+    private fun deadLabelBundlePool(
+        seed: Int,
+        review: Boolean = false,
+    ): Map<ItemType, List<Equipment>> {
+        val rng = Random(0xB0D1EL + seed)
+        var id = 7_000
+        val items = mutableListOf<Equipment>()
+        val keyId = id++
+        val swordId = id++
+        items +=
+            equipment(
+                swordId,
+                ItemType.ONE_HANDED_WEAPONS,
+                "DlSword",
+                mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 900 + rng.nextInt(1600), Characteristic.ACTION_POINT to 1 + rng.nextInt(3)),
+                rarity = Rarity.RELIC
+            ).copy(equipCriterion = me.chosante.common.ItemEquipCriterion(swordId, "HasEquipmentId($keyId)", requiresItems = listOf(keyId)))
+        items += equipment(keyId, ItemType.RING, "DlKey", emptyMap(), maxShardSlots = listOf(0, 4)[rng.nextInt(2)], rarity = Rarity.EPIC)
+        items += equipment(id++, ItemType.ONE_HANDED_WEAPONS, "DlWeapon", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100 + rng.nextInt(1100)))
+        items +=
+            equipment(
+                id++,
+                ItemType.OFF_HAND_WEAPONS,
+                "DlOffHand",
+                mapOf(
+                    Characteristic.MASTERY_ELEMENTARY_FIRE to 100 + rng.nextInt(600),
+                    Characteristic.CRITICAL_HIT to rng.nextInt(8) - 2
+                )
+            )
+        for (slot in listOf(ItemType.AMULET, ItemType.BELT, ItemType.CAPE, ItemType.BOOTS, ItemType.HELMET).shuffled(rng).take(3 + rng.nextInt(2))) {
+            repeat(2) { k ->
+                val base = randomCoverageItem(id++, slot, "Dl$slot$k", rng, rarity = if (rng.nextInt(4) == 0) Rarity.EPIC else Rarity.COMMON)
+                items += base
+            }
+        }
+        // Plain rings without DI (a DI ring is a documented shape bail).
+        repeat(3) { k ->
+            val stats = mutableMapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100 + rng.nextInt(900))
+            if (rng.nextBoolean()) stats[Characteristic.CRITICAL_HIT] = rng.nextInt(10) - 3
+            if (rng.nextInt(3) == 0) stats[Characteristic.ACTION_POINT] = rng.nextInt(3) - 1
+            items += equipment(id++, ItemType.RING, "DlRing$k", stats)
+        }
+        if (review) {
+            items += equipment(id++, ItemType.RING, "DlRingDown", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600 + rng.nextInt(900), Characteristic.ACTION_POINT to -1))
+            items +=
+                equipment(id++, ItemType.SHOULDER_PADS, "DlCritDown", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1500 + rng.nextInt(1000), Characteristic.CRITICAL_HIT to -10))
+        }
+        return items.groupBy { it.itemType }
+    }
+
+    /**
      * The coupling panel fixture (level 50): a pool + sub set that exercises every certifier world — an epic
      * item + epic-bound DI sub, four socket carriers, two distinct rings, AP + crit items, a critM anchor for
      * the conversion sub, a 2H weapon for the weapon-split, and the conversion / crit-secret / light-weapons /
