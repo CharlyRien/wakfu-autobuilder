@@ -172,49 +172,9 @@ fun computeCharacteristicsValues(
             .flatMap { it.characteristics.entries }
             .groupBy({ it.key }, { it.value })
 
-    val characteristicsGivenByEquipmentCombination: Map<Characteristic, Int> =
-        eachCharacteristicValueLineByEquipment
-            .mapValues { (_, values) -> values.sum() }
+    val characteristicGivenBySkillsPercentValues = buildCombination.characterSkills.allCharacteristicValues.percentValues
 
-    val edgeCasesCharacteristicsGivenByEquipment =
-        mapOf(
-            Characteristic.ACTION_POINT to (
-                characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
-                    ?: 0
-            ),
-            Characteristic.MOVEMENT_POINT to (
-                characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
-                    ?: 0
-            ),
-            Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
-        )
-
-    val (characteristicGivenBySkillsFixedValues, characteristicGivenBySkillsPercentValues) =
-        buildCombination
-            .characterSkills
-            .allCharacteristicValues
-
-    // Runes are flat per-stat values (best-achievable: max rune level + WakForge doubling on the
-    // carrier item's favoured slots), folded into the fixed sum before the elemental folding and the
-    // percent pass — exactly as the OR-Tools solver adds them in StatBuilder.prePercentStat, so the
-    // recomputed score matches the solver's objective.
-    val runeContributions =
-        buildMap<Characteristic, Int> {
-            buildCombination.runes.forEach { (equipment, runes) ->
-                runes.forEach { rune ->
-                    merge(rune.characteristic, rune.valueOn(equipment.itemType, equipment.level), Int::plus)
-                }
-            }
-        }
-
-    val sumOfCharacteristicFixedValuesWithoutSublimations =
-        mergeAndSumCharacteristicValues(
-            characteristicsGivenByEquipmentCombination,
-            characteristicGivenBySkillsFixedValues,
-            edgeCasesCharacteristicsGivenByEquipment,
-            characterBaseCharacteristics,
-            runeContributions
-        )
+    val sumOfCharacteristicFixedValuesWithoutSublimations = preSublimationFixedValues(buildCombination, characterBaseCharacteristics)
 
     val characterLevel = buildCombination.characterSkills.level
     // Sublimation contributions fold into the fixed sum exactly as the OR-Tools solver adds them in
@@ -982,6 +942,76 @@ internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Ch
                 Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
             )
     }
+
+/**
+ * The build's fixed stats BEFORE its sublimations: items (their MAX_AP / MAX_MP / MAX_WP lines folded into AP / MP / WP), the
+ * skills' fixed lines, the character's base and the runes — exactly as the OR-Tools solver sums them in
+ * StatBuilder.prePercentStat, the sheet the sublimations' conditions are read from.
+ */
+internal fun preSublimationFixedValues(
+    buildCombination: BuildCombination,
+    characterBaseCharacteristics: Map<Characteristic, Int>,
+): Map<Characteristic, Int> {
+    val characteristicsGivenByEquipmentCombination: Map<Characteristic, Int> =
+        buildCombination.equipments
+            .flatMap { it.characteristics.entries }
+            .groupBy({ it.key }, { it.value })
+            .mapValues { (_, values) -> values.sum() }
+
+    val edgeCasesCharacteristicsGivenByEquipment =
+        mapOf(
+            Characteristic.ACTION_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT] ?: 0),
+            Characteristic.MOVEMENT_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT] ?: 0),
+            Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
+        )
+
+    // Runes are flat per-stat values (best-achievable: max rune level + WakForge doubling on the
+    // carrier item's favoured slots), folded into the fixed sum before the elemental folding and the
+    // percent pass — exactly as the OR-Tools solver adds them in StatBuilder.prePercentStat, so the
+    // recomputed score matches the solver's objective.
+    val runeContributions =
+        buildMap<Characteristic, Int> {
+            buildCombination.runes.forEach { (equipment, runes) ->
+                runes.forEach { rune ->
+                    merge(rune.characteristic, rune.valueOn(equipment.itemType, equipment.level), Int::plus)
+                }
+            }
+        }
+
+    return mergeAndSumCharacteristicValues(
+        characteristicsGivenByEquipmentCombination,
+        buildCombination.characterSkills.allCharacteristicValues.fixedValues,
+        edgeCasesCharacteristicsGivenByEquipment,
+        characterBaseCharacteristics,
+        runeContributions
+    )
+}
+
+/**
+ * For each sublimation of [buildCombination] (in its `sublimations` order), whether the scorers credit it: its condition holds on
+ * the build's sheets ([sublimationFixedContributions]'s own test). Combat-conditional subs are never credited (false).
+ */
+internal fun creditedSublimations(
+    buildCombination: BuildCombination,
+    characterBaseCharacteristics: Map<Characteristic, Int>,
+    mode: ScoreComputationMode?,
+    scenario: DamageScenario?,
+    wantedElements: Set<Characteristic>,
+): List<Boolean> {
+    val sublimations = buildCombination.sublimations.values.flatten()
+    if (sublimations.isEmpty()) return emptyList()
+    val level = buildCombination.characterSkills.level
+    val preSub = preSublimationFixedValues(buildCombination, characterBaseCharacteristics)
+    val usesOffhandOrTwoHanded =
+        buildCombination.equipments.any { it.itemType == ItemType.OFF_HAND_WEAPONS || it.itemType == ItemType.TWO_HANDED_WEAPONS }
+    val preCombat = preCombatSubStats(sublimations, preSub, mode, scenario, level, wantedElements)
+    val firstTurn = lazy { firstTurnSubStats(sublimations, preSub, preCombat, mode, scenario, level, wantedElements, usesOffhandOrTwoHanded) }
+    return sublimations.map { sub ->
+        val cond = sub.condition
+        sub.kind != SublimationKind.COMBAT_CONDITIONAL &&
+            (cond == null || cond.type !in SUPPORTED_SUB_CONDITIONS || subConditionHolds(cond, preCombat, firstTurn, level, usesOffhandOrTwoHanded))
+    }
+}
 
 private fun subConditionHolds(
     cond: SublimationCondition,

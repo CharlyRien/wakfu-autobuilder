@@ -2,6 +2,7 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -36,6 +37,8 @@ import me.chosante.common.Sublimation
 import me.chosante.common.SublimationEffect
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
+import me.chosante.common.skills.SkillBranch
+import me.chosante.common.skills.SkillLine
 import java.math.BigDecimal
 import kotlin.time.Duration
 
@@ -223,11 +226,30 @@ object WakfuBestBuildFinderAlgorithm {
         val equipmentsByItemType = poolFor(params)
 
         return try {
-            // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
-            // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
-            // fallback (P2a — see [mostMasteriesHardThenSoft]), its quality bound computed in the
-            // search's tail (E10-for-MM, [MostMasteriesBoundCache]). Precision stays a single soft
-            // solve. Every new search supersedes the bounds still computing for earlier requests.
+            searchFlow(params, equipmentsByItemType).map { it.copy(individual = UnplacedSkillPoints.trim(params, it.individual)) }
+        } catch (exception: Exception) {
+            // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
+            // turns it into a visible crash, while the GUI can catch it and show an error rather than
+            // having the whole desktop app terminated by exitProcess.
+            logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
+            throw exception
+        }
+    }
+
+    /**
+     * The engine's raw result stream for [params]; [run] leaves the points that bring nothing unplaced on every emission
+     * ([UnplacedSkillPoints]).
+     */
+    private fun searchFlow(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Flow<SolverResult<BuildCombination>> {
+        // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
+        // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
+        // fallback (P2a — see [mostMasteriesHardThenSoft]), its quality bound computed in the
+        // search's tail (E10-for-MM, [MostMasteriesBoundCache]). Precision stays a single soft
+        // solve. Every new search supersedes the bounds still computing for earlier requests.
+        val flow =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
                     MaxDamageSearch
@@ -247,13 +269,7 @@ object WakfuBestBuildFinderAlgorithm {
                         .optimize(params, equipmentsByItemType, runes, activeSublimations(params))
                         .onStart { MostMasteriesBoundCache.supersedeAll() }
             }
-        } catch (exception: Exception) {
-            // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
-            // turns it into a visible crash, while the GUI can catch it and show an error rather than
-            // having the whole desktop app terminated by exitProcess.
-            logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
-            throw exception
-        }
+        return flow
     }
 
     /**
@@ -582,7 +598,7 @@ object WakfuBestBuildFinderAlgorithm {
                 incumbentObjective = incumbent,
                 isCancelled = isCancelled
             )
-        }
+        }?.let { it.copy(individual = UnplacedSkillPoints.trim(params, it.individual)) }
     }
 
     /**
@@ -901,6 +917,22 @@ object WakfuBestBuildFinderAlgorithm {
             }
         }
 
+        // Imposed skill points (issue #284): each line within its own cap, each branch within its pool.
+        val skills = character.characterSkills
+        for ((line, points) in params.forcedSkillPoints.entries.sortedBy { it.key.ordinal }) {
+            val max = line.maxPoints(skills)
+            if (points !in 0..max) problems += RequestValidationProblem.ForcedSkillPointsOutOfRange(line, points, max)
+        }
+        params.forcedSkillPoints.entries
+            .groupBy { it.key.branch }
+            .toSortedMap()
+            .forEach { (branch, lines) ->
+                // Each line counted within its own range, so a line already reported above is not reported twice.
+                val requested = lines.sumOf { it.value.coerceIn(0, it.key.maxPoints(skills)) }
+                val available = branch.of(skills).maxPointsToAssign
+                if (requested > available) problems += RequestValidationProblem.ForcedSkillPointsExceedBranch(branch, requested, available)
+            }
+
         return problems
     }
 
@@ -1036,6 +1068,20 @@ sealed interface RequestValidationProblem {
     data class SublimationForcedAndExcluded(
         val sublimation: I18nText,
     ) : RequestValidationProblem
+
+    /** [points] imposed on a skill [line] is negative or above what the line can hold at this level ([max]). */
+    data class ForcedSkillPointsOutOfRange(
+        val line: SkillLine,
+        val points: Int,
+        val max: Int,
+    ) : RequestValidationProblem
+
+    /** The points imposed on the lines of a skill [branch] ([requested]) exceed the branch's pool at this level ([available]). */
+    data class ForcedSkillPointsExceedBranch(
+        val branch: SkillBranch,
+        val requested: Int,
+        val available: Int,
+    ) : RequestValidationProblem
 }
 
 /** English one-liner for a [RequestValidationProblem] — the CLI / exception-message rendering (the GUI localizes). */
@@ -1074,6 +1120,10 @@ fun RequestValidationProblem.describe(): String =
             "$count sublimations forced, a build can socket at most $max"
         is RequestValidationProblem.SublimationForcedAndExcluded ->
             "sublimation '${sublimation.en}' is both forced and excluded"
+        is RequestValidationProblem.ForcedSkillPointsOutOfRange ->
+            "skill line '${line.cliId}': $points point(s) imposed, it can hold 0 to $max at this level"
+        is RequestValidationProblem.ForcedSkillPointsExceedBranch ->
+            "skill branch ${branch.name.lowercase()}: $requested point(s) imposed, only $available available at this level"
     }
 
 /**
@@ -1130,6 +1180,14 @@ data class WakfuBestBuildParams(
     // passive slots). Their fully-declarative flat stats fold into the solve; all selected passives ride
     // on the resulting build for display. See PassiveCatalog / WakfuBuildSolver.resolvedPassives.
     val forcedPassives: List<String> = emptyList(),
+    /**
+     * Skill points the player imposes: an EXACT value per skill line (issue #284; 0 forbids the line). The solver gives the line
+     * exactly that many points and places the rest of each branch's pool on the other lines. Validated
+     * by [WakfuBestBuildFinderAlgorithm.validateRequest] (a line's own cap, a branch's pool). Every model variant reads it
+     * ([WakfuBuildSolver] `createSkillVariables`), the greedy warm start honours it; the certificates ignore it — it only
+     * removes builds, so their bound stays a sound upper bound (AGENTS.md §4).
+     */
+    val forcedSkillPoints: Map<SkillLine, Int> = emptyMap(),
     // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
     // other modes).
     val damageScenario: DamageScenario = DamageScenario(),

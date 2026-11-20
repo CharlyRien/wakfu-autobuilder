@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,7 +42,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,22 +56,25 @@ import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Characteristic
 import me.chosante.common.SpellElement
-import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
-import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.common.skills.SkillBranch
 import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
+import me.chosante.ui.components.LockGlyph
 import me.chosante.ui.components.ObsoleteCue
 import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.PassiveIcon
+import me.chosante.ui.components.SkillLineIcon
 import me.chosante.ui.components.StatGateCue
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.capText
 import me.chosante.ui.components.displayName
-import me.chosante.ui.components.iconResourcePath
+import me.chosante.ui.components.dotColor
+import me.chosante.ui.components.englishName
+import me.chosante.ui.components.labelKey
 import me.chosante.ui.components.localized
-import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.components.rememberStatGateViolations
 import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.history.obsolescence
@@ -83,6 +84,7 @@ import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.skillLabel
 import me.chosante.ui.i18n.tr
+import me.chosante.ui.state.ImposedSkillPoints
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.ProofPhase
 import me.chosante.ui.state.ProofProgress
@@ -114,6 +116,8 @@ fun StatsPanel(
     onStopProof: () -> Unit = {},
     onRetryError: () -> Unit = {},
     onRerunSearch: () -> Unit = {},
+    onToggleSkillLock: (me.chosante.common.skills.SkillLine) -> Unit = {},
+    onToggleImposeAllocation: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -163,7 +167,11 @@ fun StatsPanel(
                 PassivesResult(ui)
                 SkillTree(
                     skills = ui.build?.characterSkills ?: CharacterSkills(ui.level),
-                    showLeftoverWarning = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+                    // Every mode leaves unplaced the points that bring nothing to the request (the engine's UnplacedSkillPoints).
+                    showLeftoverWarning = ui.build != null,
+                    imposed = ui.imposedSkillPoints,
+                    onToggleLock = if (ui.build != null) onToggleSkillLock else null,
+                    onToggleImposeAll = if (ui.build != null) onToggleImposeAllocation else null
                 )
             }
         }
@@ -1115,16 +1123,25 @@ private fun StatRow(
     }
 }
 
+/**
+ * The result's skill tree. Each spent line carries a padlock (issue #284): a click imposes the line at its value on the next
+ * search — an exact value, the request panel's skill-points card shows it as a chip — and a click on a closed padlock frees it.
+ * A discreet link under the tree imposes the whole allocation (or frees it once it is imposed). [imposed] is the WORKSPACE's
+ * imposed points, so a padlock always says what the next search will keep. Without [onToggleLock] (no build yet) no padlock.
+ */
 @Composable
-private fun SkillTree(
+internal fun SkillTree(
     skills: CharacterSkills,
     showLeftoverWarning: Boolean,
+    imposed: ImposedSkillPoints = ImposedSkillPoints(),
+    onToggleLock: ((me.chosante.common.skills.SkillLine) -> Unit)? = null,
+    onToggleImposeAll: (() -> Unit)? = null,
 ) {
-    val branches = skillBranches(skills)
-    val leftoverPoints = branches.sumOf { (it.max - it.points).coerceAtLeast(0) }
+    val lang = LocalLang.current
+    val leftoverPoints = SkillBranch.entries.sumOf { (it.of(skills).maxPointsToAssign - it.of(skills).pointsAssigned()).coerceAtLeast(0) }
     ResultCard(
         title = tr(Tr.SKILL_ALLOCATION),
-        trailing = tr(Tr.BRANCHES_COUNT)
+        trailing = if (imposed.isEmpty) tr(Tr.BRANCHES_COUNT) else tr(Tr.SKILL_LOCK_COUNT).format(imposed.points.size)
     ) {
         if (showLeftoverWarning && leftoverPoints > 0) {
             Text(
@@ -1133,90 +1150,94 @@ private fun SkillTree(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-        branches.forEachIndexed { index, branch ->
+        SkillBranch.entries.forEachIndexed { index, branch ->
             if (index > 0) Hairline()
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(8.dp)
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(branch.color)
-                    )
+                    Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(branch.dotColor()))
                     Spacer(modifier = Modifier.width(9.dp))
-                    Text(
-                        text = tr(branch.labelKey),
-                        style = WTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                    )
+                    Text(text = tr(branch.labelKey()), style = WTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = "${branch.points}/${branch.max}",
+                        text = "${branch.of(skills).pointsAssigned()}/${branch.of(skills).maxPointsToAssign}",
                         style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                     )
                 }
-                Column(
-                    modifier = Modifier.padding(start = 17.dp, top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    branch.lines.forEach { line ->
+                Column(modifier = Modifier.padding(start = 17.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    me.chosante.common.skills.SkillLine.entries.filter { it.branch == branch }.forEach { line ->
+                        val points = line.of(skills).pointsAssigned
+                        val locked = line in imposed
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            modifier = Modifier.fillMaxWidth().testTag(skillTreeLineTag(line)),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.spacedBy(7.dp)
-                            ) {
-                                val bitmap = line.iconPath?.let { rememberClasspathBitmap(it) }
-                                if (bitmap != null) {
-                                    // Light tile behind the icon: several skill-line icons are dark,
-                                    // near-monochrome line-art (shield/armor/heal, lock, control, …)
-                                    // that would otherwise be invisible on the dark theme. See #127.
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .padding(top = 1.dp)
-                                                .size(20.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(WColor.iconTile),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Image(
-                                            bitmap = bitmap,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = skillLabel(line.name, LocalLang.current),
-                                    style =
-                                        WTypography.bodySmall.copy(
-                                            color = if (line.points > 0) WColor.text else WColor.muted,
-                                            lineHeight = 15.sp
-                                        ),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            SkillLineIcon(line)
                             Text(
-                                text = "${line.points}/${line.maxText}",
+                                text = skillLabel(line.englishName, lang),
+                                style = WTypography.bodySmall.copy(color = if (points > 0) WColor.text else WColor.muted, lineHeight = 15.sp),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "$points/${line.capText}",
                                 style =
                                     WTypography.bodySmall.copy(
                                         fontFamily = WType.mono,
-                                        color = if (line.points > 0) WColor.muted else WColor.faint
+                                        color =
+                                            if (locked) {
+                                                WColor.accent
+                                            } else if (points > 0) {
+                                                WColor.muted
+                                            } else {
+                                                WColor.faint
+                                            }
                                     )
                             )
+                            if (onToggleLock != null) {
+                                // The padlock only on a spent or imposed line (imposing 0 points keeps nothing), in a 22-dp hit area.
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .size(22.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (locked) WColor.accent.copy(alpha = 0.16f) else Color.Transparent)
+                                            .then(
+                                                if (points > 0 || locked) Modifier.testTag(skillLockTag(line)).clickable { onToggleLock(line) } else Modifier
+                                            ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (points > 0 || locked) {
+                                        LockGlyph(locked = locked, color = if (locked) WColor.accent else WColor.faint.copy(alpha = 0.7f))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+        if (onToggleImposeAll != null && SkillBranch.entries.any { it.of(skills).pointsAssigned() > 0 }) {
+            Hairline()
+            val shownImposed = imposed == ImposedSkillPoints.of(skills)
+            Text(
+                text = tr(if (shownImposed) Tr.SKILL_LOCK_RELEASE_ALL else Tr.SKILL_LOCK_IMPOSE_ALL),
+                style = WTypography.labelSmall.copy(color = WColor.accent2, fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.testTag(SKILL_IMPOSE_ALL_TAG).clickable(onClick = onToggleImposeAll).padding(top = 10.dp)
+            )
+            Text(
+                text = tr(Tr.SKILL_LOCK_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
+
+internal const val SKILL_IMPOSE_ALL_TAG = "skill-impose-all"
+
+internal fun skillTreeLineTag(line: me.chosante.common.skills.SkillLine) = "skill-tree-line-${line.name}"
+
+internal fun skillLockTag(line: me.chosante.common.skills.SkillLine) = "skill-lock-${line.name}"
 
 @Composable
 private fun ActionsCard(
@@ -1591,48 +1612,3 @@ private enum class StatStatus(
     Miss("▾", WColor.warning),
     Over("↑", WColor.accent2),
 }
-
-private data class SkillBranch(
-    val labelKey: Tr,
-    val color: Color,
-    val points: Int,
-    val max: Int,
-    val lines: List<SkillLine>,
-)
-
-private data class SkillLine(
-    val name: String,
-    val points: Int,
-    val maxText: String,
-    val iconPath: String?,
-)
-
-private fun skillBranches(skills: CharacterSkills): List<SkillBranch> =
-    listOf(
-        branch(Tr.BRANCH_INTELLIGENCE, WColor.earth, skills.intelligence),
-        branch(Tr.BRANCH_STRENGTH, WColor.fire, skills.strength),
-        branch(Tr.BRANCH_AGILITY, WColor.accent2, skills.agility),
-        branch(Tr.BRANCH_LUCK, Color(0xFFE8C24A), skills.luck),
-        branch(Tr.BRANCH_MAJOR, WColor.accent, skills.major)
-    )
-
-private fun branch(
-    labelKey: Tr,
-    color: Color,
-    assignable: Assignable<*>,
-): SkillBranch =
-    SkillBranch(
-        labelKey = labelKey,
-        color = color,
-        points = assignable.pointsAssigned(),
-        max = assignable.maxPointsToAssign,
-        lines = assignable.getCharacteristics().map { it.toSkillLine() }
-    )
-
-private fun SkillCharacteristic.toSkillLine(): SkillLine =
-    SkillLine(
-        name = name,
-        points = pointsAssigned,
-        maxText = if (maxPointsAssignable == Int.MAX_VALUE) "∞" else maxPointsAssignable.toString(),
-        iconPath = iconResourcePath()
-    )

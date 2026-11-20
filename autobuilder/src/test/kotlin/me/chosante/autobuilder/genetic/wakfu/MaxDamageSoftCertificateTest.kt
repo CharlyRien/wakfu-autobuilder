@@ -807,7 +807,10 @@ class MaxDamageSoftCertificateTest {
                 "excludedSublimations"
             )
         val objectiveNeutral = setOf("searchDuration", "stopWhenBuildMatch", "solverWorkers", "computeBudget")
-        val classified = gatedBySupportsShape + reflectedInCertificateInputs + objectiveNeutral
+        // Fields that only REMOVE builds (never add capability): the bound ignores them and stays a sound upper bound.
+        // forcedSkillPoints (issue #284) pins skill vars to EXACT values — a subset of the free skill tree.
+        val restrictionOnly = setOf("forcedSkillPoints")
+        val classified = gatedBySupportsShape + reflectedInCertificateInputs + objectiveNeutral + restrictionOnly
         val actual =
             WakfuBestBuildParams::class.java.declaredFields
                 .filter {

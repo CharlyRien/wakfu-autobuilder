@@ -46,5 +46,9 @@ package me.chosante.autobuilder.domain
  * workers drops `fixed`; most-masteries at 3 to 5 workers runs `max_lp` instead of `core`
  * (`WakfuBuildSolver.applyProductionPortfolio`). Search only, the same model, optimum and proofs: a time-limited search may
  * return a better build (level 245, GUI rows, 3 workers: +14.9 % on the median) and proves most-masteries far more often.
+ * Still 8 (unreleased), issue #284: every search result leaves UNPLACED the skill points that bring nothing to the request
+ * (`UnplacedSkillPoints`: a line lowered while the re-score, the validity, the stat gates and the credited sublimations stay
+ * identical — no more points in block when nothing in the Luck branch is asked for). Same scores and badges, other skill
+ * allocations. The request can also impose exact skill points (`WakfuBestBuildParams.forcedSkillPoints`).
  */
 const val ENGINE_RESULTS_VERSION: Int = 8

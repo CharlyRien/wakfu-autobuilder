@@ -9372,6 +9372,9 @@ class WakfuBuildSolverTest {
         assertThat(fp(base.copy(forcedSublimationLevels = mapOf("S" to 2)))).isNotEqualTo(baseline)
         assertThat(fp(base.copy(forcedSublimations = listOf("S")))).describedAs("forcedSublimations").isNotEqualTo(baseline)
         assertThat(fp(base.copy(forcedPassives = listOf("P")))).describedAs("forcedPassives").isNotEqualTo(baseline)
+        val dodge10 = fp(base.copy(forcedSkillPoints = mapOf(me.chosante.common.skills.SkillLine.AGILITY_DODGE to 10)))
+        assertThat(dodge10).describedAs("forcedSkillPoints").isNotEqualTo(baseline).startsWith(baseline)
+        assertThat(fp(base.copy(forcedSkillPoints = mapOf(me.chosante.common.skills.SkillLine.AGILITY_DODGE to 11)))).describedAs("forcedSkillPoints value").isNotEqualTo(dodge10)
         assertThat(fp(base.copy(damageScenario = base.damageScenario.copy(element = SpellElement.WATER)))).describedAs("scenario element").isNotEqualTo(baseline)
         assertThat(fp(base.copy(damageScenario = base.damageScenario.copy(berserk = true)))).describedAs("scenario berserk").isNotEqualTo(baseline)
         assertThat(fp(base.copy(damageScenario = base.damageScenario.copy(critCapPercent = 50)))).describedAs("scenario critCap").isNotEqualTo(baseline)
@@ -9421,6 +9424,7 @@ class WakfuBuildSolverTest {
                 "forcedSublimationLevels",
                 "excludedSublimations",
                 "forcedPassives",
+                "forcedSkillPoints",
                 "damageScenario",
                 "maxDamageApTarget",
                 "maxDamageMpPin",

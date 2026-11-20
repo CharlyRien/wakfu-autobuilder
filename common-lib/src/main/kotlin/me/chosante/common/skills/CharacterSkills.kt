@@ -202,23 +202,32 @@ interface Assignable<T> {
     fun pointsAssigned(): Int
 }
 
+/**
+ * Spreads [pointsToAssign] points of this branch at random over the lines feeding [targetCharacteristics]. Each line of
+ * [fixed] (keyed by this branch's own [SkillCharacteristic] instances) takes EXACTLY its value — it counts against
+ * [pointsToAssign] and never receives a spread point; only the rest is spread over the other wanted lines. With nothing
+ * fixed the random draws are unchanged.
+ */
 fun <T : Assignable<T>> T.assignRandomPoints(
     pointsToAssign: Int,
     targetCharacteristics: List<Characteristic>,
     random: kotlin.random.Random = kotlin.random.Random.Default,
+    fixed: Map<SkillCharacteristic, Int> = emptyMap(),
 ): T {
     check(pointsToAssign in 0..maxPointsToAssign)
-    val skillCharacteristics = filterOnlyWantedTargetCharacteristics(targetCharacteristics)
-    this.getCharacteristics().forEach { it.setPointAssigned(0) }
+    val skillCharacteristics = getCharacteristics().filter { it !in fixed && it.feedsAny(targetCharacteristics) }
+    this.getCharacteristics().forEach { it.setPointAssigned(fixed[it] ?: 0) }
+    val fixedPoints = this.getCharacteristics().sumOf { fixed[it] ?: 0 }
+    check(fixedPoints <= pointsToAssign) { "$fixedPoints imposed points exceed the $pointsToAssign points to assign" }
     if (skillCharacteristics.isEmpty()) {
         return this
     }
     if (skillCharacteristics.size == 1) {
         val characteristic = skillCharacteristics.first()
-        characteristic.setPointAssigned(min(pointsToAssign, characteristic.maxPointsAssignable))
+        characteristic.setPointAssigned(min(pointsToAssign - fixedPoints, characteristic.maxPointsAssignable))
         return this
     }
-    var remainingPoints = pointsToAssign
+    var remainingPoints = pointsToAssign - fixedPoints
     while (remainingPoints > 0) {
         if (skillCharacteristics.all { it.pointsAssigned == it.maxPointsAssignable }) {
             return this
@@ -233,25 +242,23 @@ fun <T : Assignable<T>> T.assignRandomPoints(
     return this
 }
 
-private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCharacteristics: List<Characteristic>): List<SkillCharacteristic> =
-    getCharacteristics().filter { skillCharacteristic ->
-        when {
-            skillCharacteristic is SkillCharacteristic.PairedCharacteristic ->
-                skillCharacteristic.first.characteristic in targetCharacteristics ||
-                    skillCharacteristic.second.characteristic in targetCharacteristics
+/**
+ * Whether this line feeds one of [targetCharacteristics]: its own stat, either stat of a paired line (read as is), and the
+ * generic elemental mastery / resistance lines for any element of their family. (The greedy warm start's historical rule:
+ * changing it would change the greedy builds.)
+ */
+fun SkillCharacteristic.feedsAny(targetCharacteristics: Collection<Characteristic>): Boolean =
+    when {
+        this is SkillCharacteristic.PairedCharacteristic ->
+            first.characteristic in targetCharacteristics || second.characteristic in targetCharacteristics
 
-            skillCharacteristic.characteristic == Characteristic.RESISTANCE_ELEMENTARY ->
-                targetCharacteristics.any {
-                    it in resistanceElementaryCharacteristics
-                }
+        characteristic == Characteristic.RESISTANCE_ELEMENTARY ->
+            targetCharacteristics.any { it in resistanceElementaryCharacteristics }
 
-            skillCharacteristic.characteristic == Characteristic.MASTERY_ELEMENTARY ->
-                targetCharacteristics.any {
-                    it in masteryElementaryCharacteristics
-                }
+        characteristic == Characteristic.MASTERY_ELEMENTARY ->
+            targetCharacteristics.any { it in masteryElementaryCharacteristics }
 
-            else -> skillCharacteristic.characteristic in targetCharacteristics
-        }
+        else -> characteristic in targetCharacteristics
     }
 
 private fun <T : Assignable<T>> T.assignPointsToCharacteristic(

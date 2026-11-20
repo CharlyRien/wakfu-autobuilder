@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.core.BadParameterValue
 import com.github.ajalt.clikt.parsers.CommandLineParser
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
+import me.chosante.common.skills.SkillLine
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -97,6 +98,25 @@ class CliTargetOptionsTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `skill points parse to minimums per skill line`() {
+        for (alias in listOf("--skill-points", "--points-aptitudes")) {
+            val command = WakfuAutobuild()
+            var forced: Map<SkillLine, Int>? = null
+            CommandLineParser.parseAndRun(command, listOf(alias, "agility-dodge:57, LUCK_CRITICAL_HIT:20")) { forced = command.forcedSkillPoints }
+            assertThat(forced).describedAs(alias).isEqualTo(mapOf(SkillLine.AGILITY_DODGE to 57, SkillLine.LUCK_CRITICAL_HIT to 20))
+        }
+        for (bad in listOf("dodge:57", "agility-dodge", "agility-dodge:x", "agility-dodge:1:2")) {
+            var started = false
+            assertThrows<BadParameterValue> { CommandLineParser.parseAndRun(WakfuAutobuild(), listOf("--skill-points", bad)) { started = true } }
+            assertThat(started).describedAs(bad).isFalse()
+        }
+        val command = WakfuAutobuild()
+        var forced: Map<SkillLine, Int>? = null
+        CommandLineParser.parseAndRun(command, emptyList()) { forced = command.forcedSkillPoints }
+        assertThat(forced).isEmpty()
     }
 
     @Test
