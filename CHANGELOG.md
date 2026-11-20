@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.19.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.18.1...wakfu-autobuilder-1.19.0) (2026-11-20)
+
+
+### Features
+
+* impose skill points before the search, leave useless points unplaced ([#290](https://github.com/CharlyRien/wakfu-autobuilder/issues/290)) ([4e0b872](https://github.com/CharlyRien/wakfu-autobuilder/commit/4e0b872fd08d435faecbab63991649a5f9e927d0))
+
+
+### Bug Fixes
+
+* **data:** HP-gated sublimations give nothing in the berserk scenario ([#288](https://github.com/CharlyRien/wakfu-autobuilder/issues/288)) ([711cb1a](https://github.com/CharlyRien/wakfu-autobuilder/commit/711cb1aae5d3e528aece8b45508f820d96a50247))
+* **solver:** a conversion lands before a start-of-turn condition is tested ([#286](https://github.com/CharlyRien/wakfu-autobuilder/issues/286)) ([a716400](https://github.com/CharlyRien/wakfu-autobuilder/commit/a716400e8e38b1c313873c4dea86d2d8f4c63735))
+
+
+### Performance Improvements
+
+* **solver:** dead-label filter in the max-damage certificate, measured subsolver portfolios ([#289](https://github.com/CharlyRien/wakfu-autobuilder/issues/289)) ([7bc1f44](https://github.com/CharlyRien/wakfu-autobuilder/commit/7bc1f44e7a2081a4c7d82f3cd689ac6fb665c361))
+
 ## [1.18.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.18.0...wakfu-autobuilder-1.18.1) (2026-10-14)
 
 
