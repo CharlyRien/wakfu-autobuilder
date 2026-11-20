@@ -385,7 +385,7 @@ Precompute the proven-optimal builds for the **most-requested** queries (the GUI
 popular class/level/element combos) at release time and bake them in as a resource keyed by the same
 `QueryKey`. Those queries then return **instantly and proven** on first launch — directly addresses the
 GUI's "misses the proven badge inside 20 s" case for the common path. Regenerate when either version
-stamp changes (wire it into `scripts/update-game-data.sh`). This is the most user-visible form of the
+stamp changes (wire it into the private data repo's `update-game-data.sh`). This is the most user-visible form of the
 "prefilled results everyone reuses" idea.
 
 ### 3.3 — Neighbor builds as warm-start hints (the *only* sound "fuzzy" reuse)

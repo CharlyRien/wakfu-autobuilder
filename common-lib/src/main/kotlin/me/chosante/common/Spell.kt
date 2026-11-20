@@ -121,7 +121,7 @@ data class Spell(
      * or null when unknown. Sourced from the baked cast-limit data (`spell-cast-limits.json`,
      * joined by [id] in `SpellCatalog`), **not** the encyclopedia. Per that data's convention `0` means
      * "no per-turn limit" (unlimited), which [maxCastsThisTurn] treats the same as null. See
-     * `docs/SPELL_CAST_LIMITS_EXTRACTION.md`.
+     * the private data repo's SPELL_CAST_LIMITS_EXTRACTION.md.
      */
     val maxCastPerTurn: Int? = null,
     /**
