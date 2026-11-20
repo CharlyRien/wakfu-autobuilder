@@ -42,8 +42,9 @@ The unfiltered baseline discovered **122 classes / 1,028 tests**. The shard tota
 | remaining | 113 | 683 |
 
 **Union check passed for both classes and test identities: missing 0, extra 0, duplicates 0.**
-The catch-all includes 44 autobuilder, 54 GUI, 7 bdata, 5 common-lib, and one class each
-from equipments-extractor, spells-extractor and zenith-builder.
+The catch-all included 44 autobuilder, 54 GUI, 7 bdata, 5 common-lib, and one class each
+from equipments-extractor, spells-extractor and zenith-builder. (The extractor modules have since moved to a
+private maintainer repository; their classes no longer run here.)
 
 Reproduce sequentially through the shared lock on the maintainer's Mac:
 

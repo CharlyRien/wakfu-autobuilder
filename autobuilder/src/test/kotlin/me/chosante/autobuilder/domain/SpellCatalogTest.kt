@@ -30,7 +30,7 @@ class SpellCatalogTest {
 
     @Test
     fun `joins the baked per-spell cast limits onto the catalog`() {
-        // Anchor on oracle-verified spells (docs/SPELL_CAST_LIMITS_EXTRACTION.md §8). The ids are pinned to
+        // Anchor on oracle-verified spells (the private data repo's SPELL_CAST_LIMITS_EXTRACTION.md §8). The ids are pinned to
         // the current Wakfu data version; firstOrNull + isNotNull turns a future data bump that removes one
         // into a clear "update the anchor" message instead of a raw NoSuchElementException.
         // Cra "Flèche ardente" (Blazing Arrow, 4769) reads "3 uses per turn" in-game, but only 2 on the same

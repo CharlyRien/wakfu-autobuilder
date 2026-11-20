@@ -52,12 +52,12 @@ subprojects {
         // by each module's `kotlin { jvmToolchain(...) }`; we intentionally do NOT set javaLauncher
         // here. Forcing it conflicts with the `executable` the IDE injects when launching a task
         // ("Toolchain from `executable` does not match toolchain from `javaLauncher`"), which broke
-        // running apps (e.g. equipments-extractor) from the IDE.
+        // running apps (e.g. the CLI) from the IDE.
         tasks.withType<JavaExec>().configureEach {
             jvmArgs(
                 "--enable-native-access=ALL-UNNAMED",
                 // Silence protobuf-java's "deprecated sun.misc.Unsafe::arrayBaseOffset" warnings
-                // (transitive via OR-Tools) on launched apps (CLI / equipments-extractor).
+                // (transitive via OR-Tools) on launched apps (CLI / GUI).
                 "--sun-misc-unsafe-memory-access=allow"
             )
         }

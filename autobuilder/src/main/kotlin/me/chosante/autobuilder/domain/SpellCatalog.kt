@@ -26,7 +26,7 @@ object SpellCatalog {
     val spells: List<Spell> by lazy {
         val base = EmbeddedResources.decodeList<Spell>("spells.json") ?: emptyList()
         // Join the baked per-spell cast limits (produced by bdata-extractor, see
-        // docs/SPELL_CAST_LIMITS_EXTRACTION.md) onto each spell by id. The binary id space == the
+        // the private data repo's SPELL_CAST_LIMITS_EXTRACTION.md) onto each spell by id. The binary id space == the
         // encyclopedia id space, so the join is direct; a spell with no matching record keeps its null
         // (unbounded) limits, which the rotation optimizer treats as "no cap" — safe by construction.
         val castLimitsBySpellId =

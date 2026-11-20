@@ -32,13 +32,6 @@ Dependabot can parse for automated dependency-update PRs).
 ```
 common-lib            Pure domain model. No project deps. Everyone depends on it.
   ▲
-  ├── equipments-extractor   Standalone tool: pulls Wakfu game data from Ankama's CDN
-  │                          and regenerates the embedded equipments JSON.
-  ├── spells-extractor       Standalone tool: scrapes the Ankama encyclopedia and regenerates the
-  │                          embedded class-spells JSON (element / damage anchors per class; client metadata merged next).
-  ├── bdata-extractor        Standalone tool: decodes the local game client's scrambled static-data
-  │                          binaries (contents/bdata/*.jar) and regenerates the embedded
-  │                          spell-cast-limits + spell-passives JSON. Pure JVM, no native deps.
   ├── zenith-builder         Talks to the zenithwakfu.com builder API to create a build URL.
   │     ▲
   ├── autobuilder            CLI + the SEARCH ENGINE. Depends on common-lib + zenith-builder.
@@ -49,13 +42,13 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
 | Module | Type | Entry point | Key libs |
 |---|---|---|---|
 | `common-lib` | library | — | kotlinx-serialization |
-| `equipments-extractor` | app | `me.chosante.equipmentextractor.MainKt` | Fuel (HTTP), serialization |
-| `spells-extractor` | app | `me.chosante.spellextractor.MainKt` | java.net.http (HTTP), serialization |
-| `bdata-extractor` | app | `me.chosante.bdataextractor.MainKt` | java.util.zip + java.nio (decode), serialization |
 | `zenith-builder` | library | — | Fuel, coroutines, serialization |
 | `autobuilder` | app | `me.chosante.autobuilder.MainKt` | Clikt + Mordant (CLI), OR-Tools, coroutines |
 | `gui-compose` | app | `me.chosante.ui.MainKt` | Compose Multiplatform (Desktop), Conveyor |
 
+> The data extractors (`equipments-extractor`, `spells-extractor`, `bdata-extractor`) and the GUI icon
+> extraction (`generateAssets`) moved to a private maintainer repository — see §5.
+>
 > A legacy JavaFX GUI module (`gui`) used to exist; it has been removed — `gui-compose` is the
 > only GUI. If you find a doc/reference still mentioning `gui`, AtlantaFX, Ikonli, FXML or
 > `WakfuAutobuilderGUIKt`, it is stale.
@@ -306,7 +299,7 @@ clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool c
 
 ### Item equip conditions (what the game lets a character wear)
 The client's Item table carries an EQUIP criterion per item (`ItemEquipCriterion`, decoded into `item-criteria.json` by
-`bdata-extractor`, §5; joined onto each catalog item as `Equipment.equipCriterion`). The game checks it at equip time AND
+the private `bdata-extractor`, §5; joined onto each catalog item as `Equipment.equipCriterion`). The game checks it at equip time AND
 re-checks the whole equipped set, so every rule is a rule on the FINAL build. The engine enforces (one set of helpers,
 `domain/EquipConditions.kt`, read by every consumer):
 - **REQUIRES** (`HasEquipmentId(x)`): the four nation swords (RELIC, +3 AP) each need their zero-stat EPIC ring — CP-SAT
@@ -545,128 +538,25 @@ costs nothing still shows: a CP-SAT-proven result, and a most-masteries bound th
 
 ## 5. Data pipeline
 
-Item data is **not** fetched at runtime by the apps — it is baked into `autobuilder/src/main/resources/`
-as **fixed-name** JSON files (no version in the filename):
+Game data is **not** fetched at runtime by the apps — it is baked into `autobuilder/src/main/resources/`
+(and a few files in `common-lib/src/main/resources/`, plus the GUI icons under
+`gui-compose/src/main/resources/assets/`) as **fixed-name** files (no version in the filename). Sources: the
+Ankama CDN (`https://wakfu.cdn.ankama.com/gamedata/<version>`: items, actions, item properties, rune shards),
+the Ankama encyclopedia (spell roster, damage anchors, descriptions) and the local game client (spell costs and
+names, passives, sublimation effects and conditions, monsters, item equip criteria, icons). `CONTRIBUTING.md`
+"The embedded game data" lists the files.
 
-1. `equipments-extractor` downloads `items.json`, `equipmentItemTypes.json`, `actions.json`,
-   `recipeCategories.json`, `itemProperties.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (the `:version` is read
-   from `WakfuData.VERSION`, not auto-detected, so every extractor pins the same version) and writes
-   `equipments.json` (the `Equipment` list). Equip lines are decoded from their `actions.json` description;
-   action 999 (no description: "X% of the level", the stat in its `subEffects`) becomes `percentOfLevel`, states
-   (304) are skipped, and any other undescribed action fails the run unless it is known to grant no stat. The item
-   properties `EXCLUSIVE_EQUIPMENT_ITEM` / `_2` (resolved by NAME in `itemProperties.json`) become the item's
-   `exclusiveGroup`, written only where it differs from the rarity's (§3) — an ADDITION to a group only: an item in both
-   groups, an EPIC / RELIC item outside its rarity's group, or a CDN that no longer names the properties fails the run.
-2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
-3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
-   classpath at startup (e.g. `equipments.json`).
-4. The GUI's `generateAssets` Gradle task (`gui-compose`) extracts matching icons (items/spells/states +
-   class artwork + equipment-slot `itemTypes` + the rune socket-colour `runes` shards + the 36 HUD stat
-   `icons`, mapped to `miscellaneous/characteristics` by the `Characteristic` each represents) from the **local
-   game client's** `contents/gui_jar/gui.jar` — TGAs keyed by the same ids as our data, converted to PNG under
-   `gui-compose/src/main/resources/assets/<set>/<id>.png`. (The community `Vertylo/wakassets` repo was just a
-   PNG mirror of these.) Monster boss **portraits** are refreshed separately by the network-only
-   `bdata-extractor --monster-portraits-only` from Ankama's `static.ankama.com/wakfu/portal/game/monster/200/<gfx>.png`
-   for every rank ≥ 1 boss; 403/404 means no portrait. It removes non-boss and unavailable PNGs, and is wired
-   into `update-game-data.sh`. The client only has narrow banners. The 8 **rarity** badges also stay committed-static
-   (gui.jar has a filled icon only for epic/relic; the rest are border frames).
-5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
-   `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
-   `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
-   `spell-passives.json` (names/descriptions from client i18n namespaces 3/4 in FR/EN/ES/PT;
-   cast-limit names also use namespace 3, with no encyclopedia fallback), `sublimation-stacking.json` (per-sublimation `max_level` + `is_cumulable`),
-   **`sublimations.json`**, **`spell-damage.json`**, **`runes.json`** (itemTypeId 811 shards from the CDN
-   `items.json` — colour/double-bonus + the boosted stat from the equip-effect action; replaces the old
-   hand-maintained file), and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +
-   localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom scrape).
-   **Spell metadata source split (2026-10-07, reviewed in-game):** after the encyclopedia scrape,
-   `buildSpellMetadata` merges Spell (66) AP/MP/WP costs, range min/max, class-resource expenditures
-   (`base_cast_parameters`; characteristic names derived from the client enum) and i18n namespace 3 ES/PT
-   names into `spells.json`. FR changes only for the 13 id-reviewed listing errors; EN must reproduce exactly
-   or extraction fails pending review. 707/710 ids are present; absent ids 5150/5089/5123 keep their original
-   values (never unknown → free). `spell-metadata-only` can regenerate just this merge; the full extractor
-   and `update-game-data.sh` do it after the scrape. `SpellMetadataReproductionTest` locks the full catalog.
-   The encyclopedia retains the roster/category, damage element, max-level base/crit anchors, area, LOS,
-   icons and descriptions. The existing `spell-i18n.json` runtime localization of descriptions is unchanged.
-   **Field 30 is `spell_branch`, not the damage element**: it groups the spellbook (5594 Light Arrow is
-   WATER-branch but LIGHT-damage action 1083). Damage element belongs to StaticEffect's action (917 STASIS,
-   1083 LIGHT, 2–5 standard elements), but direct/descendant effects reproduce only 250/286 damage records;
-   indirect/conditional variants prevent whole-roster replacement. See the comparison and CSV in
-   `docs/official-sources-2/`. Light/Stasis remain outside the engine's four-element domain; the GUI can
-   display their encyclopedia-anchored level-scaled base hit/icon with an explicit no-search note.
-   **0-AP damage spells are excluded**, even when capped or paid in WP/MP/resources: both rotation DP and
-   certificate throughput require AP >= 1. Poursuite 7077 (2 MP, 0 AP) is newly excluded; Activation 6937
-   (unknown → 0 AP) stays excluded. The costs migration bumps CERTIFIER_VERSION 58 → 59 and
-   ENGINE_RESULTS_VERSION 3 → 4. General resource-budget modelling remains separate. `bdata-extractor` adds the
-   piece the encyclopedia lacks: **`spell-damage.json`**, the per-level damage formula `floor(base + inc·level)`
-   from Spell (66) → StaticEffect (68), *anchored* on the encyclopedia value (the bdata effect whose value at
-   max level equals it). `SpellCatalog` joins it so `SpellDamage` scales each hit to the **caster's level**
-   instead of always showing max-level damage (`SpellDamageScalingBuilder`; ~92% of the committed oracle has the exact bdata slope, the
-   rest a linear approximation through the known max-level value — never a regression at max level).
-   **Damage-anchor investigation (2026-10-08):** the committed oracle has 263 matched normal formulas and 23
-   fallbacks. No universal base-hit selector was found: first displayed effect reproduces only 240/263 normal
-   formulas (210/263 including critical), and Obliteration 6476's old formula is absent from the current client.
-   The encyclopedia selection/fallback dependency is therefore a **kept, investigated exception**; no damage
-   resource was regenerated. Max-level-only parity hides slope drift — compare base/inc AND critBase/critInc.
-   Evidence, all mismatches and the opt-in diagnostic: `docs/spell-damage-client/README.md`.
-   **Sublimations** are now fully first-party too: identity/name/rarity/slot-colours from the CDN `items.json`
-   (`itemTypeId` 812, `actionId` 304 → `params[0]` = `stateId`); effects, build-static condition, scenario
-   gates and max level decoded from the State (67) → StaticEffect (68) tables via a small sublimation-local
-   action overlay + criterion-script parser (`SublimationBuilder.kt`) — replacing the retired WakForge /
-   noredlace / hand-curated Python pipeline (`docs/sublimations-research/`, deleted). The solver-choosable
-   set (clean permanent statics only; combat/scripted subs stay forced-input) is locked by
-   `SublimationReproductionTest`. The Spell/State/StaticEffect
-   layouts are hand-written positional schemas in `Tables.kt`; the **Monster** layout is instead
-   **auto-derived from the client's JVM bytecode** by `SchemaGenerator` — a zero-dep, pure-JVM port of
-   `jac3km4/wakfu-bdata-gen` using JDK's `java.lang.classfile`. (A table's wire layout is its binary-data
-   class's `protected` fields in class-file order; the right class for a table id is the one whose derived
-   schema cleanly decodes that `.bin`.) This is because the Monster record's layout **drifts between client
-   versions** — 1.92.x inserted a new `Vec` mid-record — which a hand-written schema can't survive; deriving
-   it from bytecode "just works" each bump. The **only** monster fact not in any client table is boss-tier
-   `rank` (an editorial Ankama taxonomy — npc_rank/family_rank/MonsterType.kind don't reproduce it), carried
-   by the committed `monster-overlay.json` (id → rank, rank ≥ 1); monsters with no entry default to rank 0
-   (regular, hidden from the GUI boss picker). It needs a local Wakfu install (the binaries are **not** on
-   the CDN), so unlike the other extractors it **cannot run in CI** — the JSON it produces stays committed.
-   See `docs/SPELL_CAST_LIMITS_EXTRACTION.md` / `docs/SPELL_PASSIVES_EXTRACTION.md` for the format.
-   It also writes **`item-criteria.json`** (`ItemCriteria.kt` + `ItemCriterionParser.kt`): the EQUIP criteria of the
-   `equipments.json` items (so it runs after `equipments-extractor`), raw expression + typed form (`ItemEquipCriterion`:
-   required / forbidden item ids, classes, never, unique-equipped, stat gates, player-state atoms), sorted by item id.
-   It also writes **`achievement-names.json`**: only achievement ids referenced by those criteria, with FR/EN/ES/PT names.
-   The Achievement table id is read from the table-type enum, the full schema from `SchemaGenerator`, and the name
-   namespace from the achievement UI model’s public field keys + `getName()` lookup. Missing records/locales or ambiguous
-   bytecode shapes fail loudly. See `docs/ACHIEVEMENT_NAMES_EXTRACTION.md`. This is display-only, with no engine change.
-   **`common-lib/src/main/resources/equipment-positions.json`** joins the client raw equipment-position enum
-   (found by constant-name anchors; explicit constructor id, never ordinal) with CDN `equipmentItemTypes.json`
-   occupied positions. Rune doubling reads this common-lib resource, also available to Zenith; socketless
-   domain slots still have no rune placement. `EquipmentPositionsReproductionTest` checks the whole official join,
-   and `EquipmentPositionsTest` locks all 14 previous rune slot domains. Disabled positions are never occupied.
-   **`common-lib/src/main/resources/rune-values.json`** holds all 15 rune value tables, derived from CDN
-   itemTypeId 811 equip-effect `base + increment × level` formulas and the client StaticEffect level bands.
-   The full effect schema is bytecode-derived and checked against the semantic positions; all records pass
-   size/id guards. The shard tooltip renderer is found from its public UI keys and followed structurally:
-   its numeric argument transform must still floor the normal value BEFORE doubling. The XP-cost
-   `shardLevelingCurve` is unrelated to displayed stat values. `RuneValuesReproductionTest` and
-   `RuneValuesTest` lock every normal and doubled value (15 × 11 × 2); drift needs review, never silent adoption.
-   Everything is found STRUCTURALLY in the client bytecode, never by an obfuscated name: the table id from the table-type
-   enum's `ITEM` constant, the record PREFIX from the ITEM binary-data classes' `read(reader)` calls up to the first
-   `String[]` (the alternating (kind, expression) criteria — only that prefix is decoded, each record by its own
-   offset + seed, so a field Ankama appends later never breaks it), the kinds from the enum holding `EQUIP` /
-   `USE_IN_FIGHT` / `PICK_UP`, the breed ids from the class-name enum. Guards that fail the run: a record whose first field
-   is not its index id, an odd criteria list, an unknown kind, two EQUIP entries, and — in the typed parse of a pool
-   item's expression (`Critere.g`: `and`/`et`/`&&`, `or`/`ou`/`||`, `not`/`non`/`!`, comparisons, arithmetic, `#…#`) — an
-   unknown function, an `or`, a negated conjunction or an unmapped characteristic / breed. CI lock on the committed file:
-   `EmbeddedItemCriteriaDataTest`; install-gated reproduction: `ItemCriteriaDecodeTest`.
+**The extractors are NOT in this repository.** They live in a private maintainer repository
+(`wakfu-autobuilder-data`), which builds against a checkout of this one (it reads `common-lib` and
+`WakfuData.VERSION`, and writes the regenerated files here). A game update reaches this repo as a plain commit of
+the regenerated files. Never try to regenerate data from here; treat the committed files as the source of truth
+and their CI locks (`EmbeddedEquipmentsDataTest`, `EmbeddedItemCriteriaDataTest`, `SpellCatalogTest`, …) as the
+contract. Code comments may still name an extractor (`bdata-extractor`, …) as the producer of a field: that
+code is in the private repo.
 
 **The data version is a single source of truth:** `WakfuData.VERSION` in `common-lib`
-(`common-lib/.../WakfuData.kt`). The apps stamp it as `dataVersion`; the extractors fetch CDN assets for
-it. Fixed filenames mean a bump touches only that constant — no renames, no stale `*-v<old>.json`.
-
-**Updating to a new Wakfu version** = update the local game client, then run
-`./scripts/update-game-data.sh [wakfu-install]` (auto-detects the version, bumps `WakfuData.VERSION`,
-regenerates every artifact in order, then prompts to review + test + commit). See `CONTRIBUTING.md`
-"Updating the game data". The untagged binary layout `bdata-extractor` reads can shift between client
-versions; its per-record size guard fails loudly if a table's field schema drifts (re-derive the schema
-in `Tables.kt` if so).
+(`common-lib/.../WakfuData.kt`). The apps stamp it as `dataVersion`. Fixed filenames mean a bump touches only
+that constant — no renames, no stale `*-v<old>.json`.
 
 ---
 
@@ -760,10 +650,6 @@ JDK 25 required. Use the Gradle wrapper.
 
 ./gradlew :gui-compose:run                        # launch the Compose Desktop GUI
 ./gradlew :autobuilder:run --args="--help"        # CLI help
-./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
-./gradlew :spells-extractor:run                   # regenerate the class-spells JSON (scrapes encyclopedia; resumable)
-./gradlew :bdata-extractor:run                    # regenerate spell cast-limits/passives + monsters JSON (decodes the local game binaries)
-./gradlew :gui-compose:generateAssets             # (on demand) extract item/spell icons from the local client's gui.jar
 
 # Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):
 WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
@@ -831,9 +717,6 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
   (`gui-compose/build.gradle.kts`, currently `1.0.0`).
 - Item names in `--forced-items` / `--excluded-items` and in the engine's filtering are matched in
   **French** (`equipment.name.fr`), regardless of UI language.
-- The `gui-compose` `generateAssets` task reads the **local** Wakfu client (`contents/gui_jar/gui.jar`,
-  via `-Pwakfu.install=`) — maintainer-local (like `bdata-extractor`), not part of the normal build, run on
-  demand. It is no longer a network download.
 - Tests use JUnit 5 + AssertJ (`autobuilder` also uses `kotlin-test`).
 - **A tuned solve is reproducible only within one JVM run.** `TargetStats` is a `HashSet` whose order follows the
   `Characteristic` enum's identity hash, which depends on the JVM run (down to which tests ran before in the same JVM); the

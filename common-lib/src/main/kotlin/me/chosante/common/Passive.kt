@@ -6,7 +6,7 @@ import kotlin.math.roundToInt
 
 /**
  * A class passive spell, decoded from the baked `spell-passives-v<VERSION>.json` (produced by
- * `bdata-extractor` from the local game client — see `docs/SPELL_PASSIVES_EXTRACTION.md`). The runtime
+ * `bdata-extractor` from the local game client — see the private data repo's SPELL_PASSIVES_EXTRACTION.md). The runtime
  * intentionally reads only a **subset** of the file's fields (the rest — raw effect ids, declared-effect
  * trees, the `has*` flags — drive the extractor's conservatism, not the solver), so it is decoded with a
  * lenient JSON that ignores the unmodeled keys.
