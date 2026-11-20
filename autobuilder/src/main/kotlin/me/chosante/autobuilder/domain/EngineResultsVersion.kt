@@ -42,5 +42,9 @@ package me.chosante.autobuilder.domain
  * more" (Carnage III, Influence vitale III) is off in a max-damage berserk scenario, so a berserk build no longer counts their
  * mastery / critical hit; Critique tactique III's "target above / below 50 % HP" is the hit target's HP, no longer a flat ±9 %
  * damage. A berserk search may return another build and a saved berserk build re-scores lower.
+ * Still 8 (unreleased): the full-subsolver portfolio of a production search — max-damage at 3 workers runs `max_lp` instead of `fixed` and at 7
+ * workers drops `fixed`; most-masteries at 3 to 5 workers runs `max_lp` instead of `core`
+ * (`WakfuBuildSolver.applyProductionPortfolio`). Search only, the same model, optimum and proofs: a time-limited search may
+ * return a better build (level 245, GUI rows, 3 workers: +14.9 % on the median) and proves most-masteries far more often.
  */
 const val ENGINE_RESULTS_VERSION: Int = 8

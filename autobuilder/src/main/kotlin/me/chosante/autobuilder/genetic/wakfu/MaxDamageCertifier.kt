@@ -267,6 +267,35 @@ internal object CertifierTuning {
     val targetAwareRangeNeedForTest =
         java.util.concurrent.atomic
             .AtomicLong(-1)
+
+    /**
+     * DEAD-LABEL filter (see the block of that name in [certifyMaxPerHitAtApPass]): a DP state whose AP / crit can no
+     * longer reach the band the harvest reads — whatever the stages still to run add — is never created nor carried.
+     * Value-, row- and provenance-identical by construction (a dead state has only dead successors and the harvest
+     * skips every dead state), so it changes no certified value: only the work. `WAKFU_MD_DEAD_LABELS=0` is the A/B
+     * kill switch (read once); tests / harnesses flip the seam to compare both arms in one JVM.
+     */
+    @Volatile
+    var deadLabelFilterEnabled: Boolean = System.getenv("WAKFU_MD_DEAD_LABELS") != "0"
+
+    /** Instrument: DP states the dead-label filter refused to create or carry (flushed once per pass; tests read the delta). */
+    val deadLabelsRefusedForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+
+    /**
+     * Test seam of the dead-label identity lock (null in production). Exact pass only: called once per crit step it runs,
+     * with `(apTarget, c, that step's harvested maximum)` — the per-crit-step row the two arms must agree on.
+     */
+    @Volatile
+    var exactPerCObserverForTest: ((Int, Int, Long) -> Unit)? = null
+
+    /**
+     * Test seam of the dead-label identity lock (null in production): when set, replaces the [certifyLedger] call of the
+     * `certifyLedgerForTest` seam, handing the certificate's own [StatBuilder] to a test that drives the passes itself.
+     */
+    @Volatile
+    var ledgerHookForTest: (StatBuilder.(DamageScenario, LongArray, Long) -> CertLedger)? = null
 }
 
 /**
@@ -1317,6 +1346,9 @@ internal fun StatBuilder.certifyCellsTier15(
                 fastAllCellsOut = out,
                 fastCellCount = cell + 1,
                 fastCSegmentStep = 1,
+                // Only `out[cell]` and the top cell's per-c row are read below: the dead-label filter may drop every
+                // state that cannot be harvested at this cell.
+                fastLowestReadCell = cell,
                 fastPerCOutHolder = perCHolder,
                 fastSegmentSkipUb = if (skipEnabled) skipUbByWorld.getOrNull(wi)?.getOrNull(cell) else null,
                 fastSkipBelowRaw = if (skipEnabled) (skipBelowRawByCell[cell] ?: Long.MIN_VALUE) else Long.MIN_VALUE
@@ -1983,7 +2015,16 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // silently under-harvested — so only the single-cell tier-1.5 caller may pass this.
     fastSegmentSkipUb: LongArray? = null,
     fastSkipBelowRaw: Long = Long.MIN_VALUE,
+    // Dead-label filter (fast mode): the caller reads NO output of a cell below this one ([fastAllCellsOut], the per-c
+    // rows) — the single-cell tier-1.5 caller passes its cell. With the filter on, those cells are neither explored
+    // nor harvested (their outputs stay 0); with it off the parameter is ignored. 0 = every cell is read.
+    fastLowestReadCell: Int = 0,
 ): Long {
+    // Cancellation used to be polled in the exact pass only, so a cancelled certificate ran its whole fast and tier-1.5
+    // passes out (minutes at level 200 / 245, on every core once the search had ended). Polled here (every pass) and in the
+    // fast pass's segment and stage loops: a bail — sound, and a cancelled run is never surfaced nor cached
+    // ([WakfuBuildSolver.maxDamageCertificate] returns null).
+    if (certifierCancelled()) return Long.MAX_VALUE
     // A search model's count classes ([RuneModel.countClasses]) are not mirrored per carrier: never certify one (the
     // certificates build their own per-carrier model; this guard only keeps a misuse sound).
     if (runeModel.countClasses.isNotEmpty()) return Long.MAX_VALUE
@@ -3548,6 +3589,66 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         System.err.println("CERT_DEBUG_RARITY epicItems=$epicItems relicItems=$relicItems")
     }
 
+    // ---- DEAD-LABEL FILTER ([CertifierTuning.deadLabelFilterEnabled]) --------------------------------------------------
+    // The harvest of every pass reads a state only inside an AP band and a crit band (the exact pass: `[apFloor, apCeil]`
+    // × `[critLowBand, critItemHigh]` of its crit step; the fast passes: the union of those bands over the cells and crit
+    // steps the pass harvests). The AP / crit coordinates of a state move in the ITEM and SKILL stages only — every sub
+    // stage keeps both (the staged transitions and the epic / relic subs carry `ap == crit == 0`: any other shape bails
+    // above, and [subsKeepApCrit] re-checks it) — and each of those stages adds one of its cost cells' (ap, crit) or
+    // nothing. So with `sufMax / sufMin[i]` = the sums, over the stages from the i-th on, of the largest / smallest AP
+    // (crit) a stage can add (0 included: the stage skipped), a state at the boundary before stage i whose
+    //   ap + sufApMax[i] < bandLow,  ap + sufApMin[i] > bandHigh,  or the same on crit
+    // is DEAD: no choice of the remaining stages brings it into the band, so the harvest never reads it nor any state
+    // built from it. The test is closed under successors (`sufMax[i] ≥ delta + sufMax[i+1]` for every option of stage
+    // i), hence a state that is NOT dead has no dead ancestor: dropping the dead states — never creating them, never
+    // carrying them — leaves every surviving state's frontier fed by exactly the same `add` calls in the same order.
+    // Every harvested value, per-crit-step row and argmax (state, point) is therefore identical; only the work changes.
+    // It is the RANGE row's suffix-reachability prune ([rangeLeftAfter]) applied to the two cost axes, completing the
+    // upper bounds the exact pass already had (`apUpper` / `critUpper`) with the lower ones and the fast passes' crit
+    // band. Off in explain mode: the provenance backtrack walks stage snapshots, kept byte-for-byte as they were.
+    val subsKeepApCrit = (stagedTransitions.map { it.second } + epicSubs.map { it.second } + relicSubs.map { it.second }).all { it.ap == 0 && it.crit == 0 }
+    val deadFilter = CertifierTuning.deadLabelFilterEnabled && explainC == null && subsKeepApCrit
+    var deadRefused = 0L
+
+    // Suffix reach of a stage list (cost-cell maps keyed like `ckOf` / `ckOfF` on a crit radix [critDimX]), in REAL units.
+    class StageReach(
+        n: Int,
+    ) {
+        val apMax = IntArray(n + 1)
+        val apMin = IntArray(n + 1)
+        val critMax = IntArray(n + 1)
+        val critMin = IntArray(n + 1)
+    }
+
+    fun stageReach(
+        stages: List<Map<Int, Frontier>>,
+        critDimX: Int,
+    ): StageReach {
+        val out = StageReach(stages.size)
+        for (i in stages.indices.reversed()) {
+            // 0 = the stage skipped (a MANDATORY stage cannot skip: counting it anyway only widens the reach — sound).
+            var aMax = 0
+            var aMin = 0
+            var cMax = 0
+            var cMin = 0
+            for (ck in stages[i].keys) {
+                // The very decode the stage loops apply to a cost cell.
+                val ckb = ck / rangeDim
+                val rcrit = (ckb / 4) % critDimX - critOff
+                val rap = (ckb / 4) / critDimX - apOff
+                if (rap > aMax) aMax = rap
+                if (rap < aMin) aMin = rap
+                if (rcrit > cMax) cMax = rcrit
+                if (rcrit < cMin) cMin = rcrit
+            }
+            out.apMax[i] = out.apMax[i + 1] + aMax
+            out.apMin[i] = out.apMin[i + 1] + aMin
+            out.critMax[i] = out.critMax[i + 1] + cMax
+            out.critMin[i] = out.critMin[i + 1] + cMin
+        }
+        return out
+    }
+
     // Perf instrumentation (WAKFU_MAX_DAMAGE_CERT_STATS): aggregate DP size over every stage of every
     // crit step, so this pass's cost is a thermal-noise-free number (states + frontier points visited,
     // total Frontier.add calls). One CERT_STATS line per (world, cell) at the tail. No behavior change.
@@ -3586,6 +3687,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val critHighF = maxItemCrit + maxSkillCrit
         val critDimF = critHighF + 2 * critOff + 1
         val apCeilF = apCeil // apTarget was passed as the loosest cell, so this is the DP's AP ceiling.
+        // Dead-label filter: the lowest cell whose outputs anyone reads — the caller's ([fastLowestReadCell]) and the AP
+        // row's (v52: every cell below the row is zeroed at the tail of this pass, per-c rows included). The harvest
+        // reads a state for cell `a` only when `ap ∈ [a − apConst − maxSubAp, a − apConst − minSubAp]`, so the AP band of
+        // this pass is the union over `a ∈ [lowCellF, maxCell]` (REAL units). Filter off ⇒ cell 0, the historical pass.
+        val lowCellF = if (!deadFilter) 0 else maxOf(fastLowestReadCell.coerceIn(0, maxCell), minOf(apRowTarget, maxCell.toLong()).toInt())
+        val apBandLowF = lowCellF - apConst - maxSubAp
+        val apBandHighF = maxCell - apConst - minSubAp
 
         // v52 RANGE row: the saturated range rides as the LOWEST digit (`rangeDim` = 1 ⇒ keys unchanged).
         fun keyF(
@@ -3767,12 +3875,18 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         maxSubAp = maxSubAp,
                         apPlusSorted = apPlusSorted,
                         apMinusSorted = apMinusSorted
-                    )
+                    ).let { packed ->
+                        // Dead-label filter: the cells below [lowCellF] are read by no one — drop their (ascending) pairs.
+                        var from = 0
+                        while (from < packed.size && packed[from] < lowCellF) from += 2
+                        if (from == 0) packed else packed.copyOfRange(from, packed.size)
+                    }
                 }
             } else {
                 null
             }
         for ((si, cLow) in segmentEdges.withIndex()) {
+            if (certifierCancelled()) return Long.MAX_VALUE // see the function's first lines
             val cHigh = if (si + 1 < segmentEdges.size) segmentEdges[si + 1] - 1 else cEnumMax
             // v52 CC row: every crit step of this segment is below the row ⇒ no targets-met build (the
             // exact pass skips the same steps, so `fast ≥ exact` and the c-loop pruning rows stay consistent).
@@ -3809,13 +3923,27 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // Mirrors the old `nd[k] = fr.copy()` seeding, minus the HashMap.
             // v52 RANGE row: [rangeLeftAfter] = the most range the stages AFTER this one can add; a carried
             // state that cannot reach [rangeNeed] with it is dropped (Int.MAX_VALUE = no pruning).
-            fun beginStageF(rangeLeftAfter: Int = Int.MAX_VALUE) {
+            // Dead-label filter: [band] = the STORED `[apMin, apMax, critMin, critMax]` a state must sit in AFTER this
+            // stage to still reach the harvest band (null = no filter: the sub stages, or the seam off).
+            fun beginStageF(
+                rangeLeftAfter: Int = Int.MAX_VALUE,
+                band: IntArray? = null,
+            ) {
                 ndF.clear()
                 for (i in 0 until dpF.liveCount) {
                     val k = dpF.liveKeys[i]
                     if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && ckRangeF(k) + rangeLeftAfter < rangeNeed) {
                         rangePruned++
                         continue
+                    }
+                    if (band != null) {
+                        val rest = ((k / rangeDim) / (subCap + 1)) / 4
+                        val crit0 = rest % critDimF
+                        val ap0 = rest / critDimF
+                        if (ap0 < band[0] || ap0 > band[1] || crit0 < band[2] || crit0 > band[3]) {
+                            deadRefused++
+                            continue
+                        }
                     }
                     dpF.slots[k]?.let { ndF.put(k, it.copy()) }
                 }
@@ -3843,8 +3971,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             fun applyCellsF(
                 cells: Map<Int, Frontier>,
                 rangeLeftAfter: Int = Int.MAX_VALUE,
+                band: IntArray? = null,
             ) {
-                beginStageF(rangeLeftAfter)
+                beginStageF(rangeLeftAfter, band)
+                val apMinS = band?.get(0) ?: Int.MIN_VALUE
+                val apMaxS = band?.get(1) ?: Int.MAX_VALUE
+                val critMinS = band?.get(2) ?: Int.MIN_VALUE
+                val critMaxS = band?.get(3) ?: Int.MAX_VALUE
                 for (i in 0 until dpF.liveCount) {
                     val k = dpF.liveKeys[i]
                     val fr = dpF.slots[k] ?: continue
@@ -3870,6 +4003,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         val epic1 = epic0 + repic
                         val relic1 = relic0 + rrelic
                         if (ap1 > apCeilF + 2 * apOff || crit1 > critHighF + 2 * critOff || epic1 > 1 || relic1 > 1) continue
+                        // Dead-label filter: the target cannot reach the harvest band any more — never created.
+                        if (ap1 < apMinS || ap1 > apMaxS || crit1 < critMinS || crit1 > critMaxS) {
+                            deadRefused++
+                            continue
+                        }
                         val rng1 = minOf(rangeNeed, rng0 + rrng)
                         if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && rng1 + rangeLeftAfter < rangeNeed) {
                             rangePruned++
@@ -3896,9 +4034,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     slotCellsF.sumOf { maxRangeOfF(it.second) } + (weaponCellsF?.let { maxRangeOfF(it) } ?: 0) + (ringCellsF?.let { maxRangeOfF(it) } ?: 0) + skillsMaxRangeF
                 }
 
-            fun applyItemStageF(cells: Map<Int, Frontier>) {
+            fun applyItemStageF(
+                cells: Map<Int, Frontier>,
+                band: IntArray?,
+            ) {
                 if (rangeDim > 1) rangeLeftF -= maxRangeOfF(cells)
-                applyCellsF(cells, rangeLeftF)
+                applyCellsF(cells, rangeLeftF, band)
             }
             val itemStagesF =
                 slotCellsF.map { (type, cells) -> "slot:${type.name}" to cells } +
@@ -3908,9 +4049,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // every value is unchanged (the four orders tried gave one ledger), only the work moves: CRA 245 GUI-default fast
             // tier 40.6 s → 24.1 s on one thread (21.2 s target-blind). The target-blind order (rangeDim 1) is untouched.
             val orderedStagesF = if (rangeDim == 1) itemStagesF else itemStagesF.sortedByDescending { it.second.size }
-            for ((label, cells) in orderedStagesF) {
-                stageStat(label) { applyItemStageF(cells) }
-            }
+            // (The item stages are applied below, after [branchCellsF]: the dead-label filter needs the skill cells' AP /
+            // crit reach before the first item stage runs. A pure move — the stage order is unchanged.)
 
             // Skills: per branch, enumerate the crit/ap/di/mp/MP+graw point split; the remaining points
             // fill graw greedily by rate at the segment's fold crit — the exact pass's own shape (exact at
@@ -3987,12 +4127,40 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 }
                 return cells
             }
-            for ((pool, infos) in skillBranches) {
-                stageStat("skills") {
-                    val cellsB = branchCellsF(infos, pool)
-                    if (rangeDim > 1) rangeLeftF -= maxRangeOfF(cellsB)
-                    applyCellsF(cellsB, rangeLeftF)
+            val branchCellsListF = skillBranches.map { (pool, infos) -> stageStat("skills") { branchCellsF(infos, pool) } }
+            // Dead-label filter: this segment's harvest reads a state only at crit steps `c ∈ [max(cLow, CC row), cHigh]`,
+            // i.e. with `crit ∈ [c − critConst − maxSubCrit, c − critConst]` — or, at c = 0 (the clamped step), any crit
+            // `≤ −critConst`: no lower bound then. The AP / crit-moving stages are the item stages then the skill
+            // branches, in application order; the band a state must sit in after stage i is the harvest band widened by
+            // what the stages after i can still add ([stageReach]).
+            val reachF = if (deadFilter) stageReach(orderedStagesF.map { it.second } + branchCellsListF, critDimF) else null
+            val cLowReadF = maxOf(cLow.toLong(), ccRowTarget)
+            val critBandHighF = cHigh - critConst
+            val critBandLowF = if (cLowReadF <= 0L) Long.MIN_VALUE else cLowReadF - critConst - maxSubCrit
+
+            fun toStoredF(x: Long): Int = x.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
+
+            fun bandAfterF(stage: Int): IntArray? =
+                reachF?.let { r ->
+                    intArrayOf(
+                        toStoredF(apBandLowF + apOff - r.apMax[stage + 1]),
+                        toStoredF(apBandHighF + apOff - r.apMin[stage + 1]),
+                        if (critBandLowF == Long.MIN_VALUE) Int.MIN_VALUE else toStoredF(critBandLowF + critOff - r.critMax[stage + 1]),
+                        toStoredF(critBandHighF + critOff - r.critMin[stage + 1])
+                    )
                 }
+            var stageIndexF = 0
+            for ((label, cells) in orderedStagesF) {
+                if (certifierCancelled()) return Long.MAX_VALUE // see the function's first lines
+                stageStat(label) { applyItemStageF(cells, bandAfterF(stageIndexF)) }
+                stageIndexF++
+            }
+            for (cellsB in branchCellsListF) {
+                stageStat("skills") {
+                    if (rangeDim > 1) rangeLeftF -= maxRangeOfF(cellsB)
+                    applyCellsF(cellsB, rangeLeftF, bandAfterF(stageIndexF))
+                }
+                stageIndexF++
             }
             // v52 RANGE row: nothing after the skills adds tracked range — drop every state short of the need.
             if (rangeDim > 1) {
@@ -4221,7 +4389,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         ai += 2
                     }
                 } else {
-                    for (a in 0..maxCell) {
+                    for (a in lowCellF..maxCell) {
                         val apHighA = a - apConst
                         if (ap < apHighA - maxSubAp || ap > apHighA - minSubAp) continue
                         val apGapA = apHighA - ap
@@ -4261,6 +4429,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
         }
         if (rangePruned > 0L) CertifierTuning.targetAwareRangePrunedForTest.addAndGet(rangePruned)
+        if (deadRefused > 0L) CertifierTuning.deadLabelsRefusedForTest.addAndGet(deadRefused)
         if (fastTimingEnabled) {
             System.err.println(
                 "CERT_FAST_TIMING conv=${convTaken?.name?.en ?: "-"} critSecret=${critSecret?.name?.en ?: "-"} wr=$weaponsRestricted " +
@@ -4323,6 +4492,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // then ascending. Without bounds this is the plain ascending loop, byte-for-byte.
     val cOrder = if (cPruneUb != null && cSeed >= 0) listOf(cSeed) + (0..cEnumMax).filter { it != cSeed } else (0..cEnumMax).toList()
 
+    val perCObserver = CertifierTuning.exactPerCObserverForTest
     var best = 0L
     var bestDbg = ""
     var bestC = -1
@@ -4381,6 +4551,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
         fun ckRange(ck: Int) = ck % rangeDim
 
+        // Test seam ([CertifierTuning.exactPerCObserverForTest]): this crit step's harvested maximum.
+        var cStepMax = 0L
         // Double-buffered dense stores: dp is the current one; each stage clears the OTHER and fills it.
         var dp = bufA
         dp.clear()
@@ -4449,6 +4621,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // range plus that cannot reach [rangeNeed] can never be harvested — dropping it is sound (and the lever that
             // keeps the extra dimension cheap). Int.MAX_VALUE = no pruning.
             rangeLeftAfter: Int = Int.MAX_VALUE,
+            // Dead-label filter: the STORED `[apMin, apMax, critMin, critMax]` a state must sit in AFTER this stage to
+            // still reach the harvest band — applied to the carried states and to the created ones, on top of the
+            // historical [apUpper] / [critUpper] (which only the created states meet). Null = the historical pass.
+            band: IntArray? = null,
         ) {
             val nd = if (dp === bufA) bufB else bufA
             nd.clear()
@@ -4464,9 +4640,22 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         rangePruned++
                         continue
                     }
+                    if (band != null) {
+                        val rest = ((k / rangeDim) / (subCap + 1)) / 4
+                        val crit0 = rest % critDim
+                        val ap0 = rest / critDim
+                        if (ap0 < band[0] || ap0 > band[1] || crit0 < band[2] || crit0 > band[3]) {
+                            deadRefused++
+                            continue
+                        }
+                    }
                     nd.put(k, (dp.slots[k] ?: continue).copy())
                 }
             }
+            val apMinS = band?.get(0) ?: Int.MIN_VALUE
+            val apMaxS = band?.get(1) ?: Int.MAX_VALUE
+            val critMinS = band?.get(2) ?: Int.MIN_VALUE
+            val critMaxS = band?.get(3) ?: Int.MAX_VALUE
             for (i in 0 until dp.liveCount) {
                 val k = dp.liveKeys[i]
                 val fr = dp.slots[k] ?: continue
@@ -4495,6 +4684,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     val epic1 = epic0 + repic
                     val relic1 = relic0 + rrelic
                     if (ap1 > apUpper || crit1 > critUpper || epic1 > 1 || relic1 > 1) continue
+                    // Dead-label filter: the target cannot reach the harvest band any more — never created.
+                    if (ap1 < apMinS || ap1 > apMaxS || crit1 < critMinS || crit1 > critMaxS) {
+                        deadRefused++
+                        continue
+                    }
                     val rng1 = minOf(rangeNeed, rng0 + rrng)
                     if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && rng1 + rangeLeftAfter < rangeNeed) {
                         rangePruned++
@@ -4702,23 +4896,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         // branches' range-carrying vars); 0 after the skills, when the dead states are dropped outright.
         val skillsMaxRange = if (rangeDim == 1) 0 else skillBranches.sumOf { (pool, infos) -> infos.filter { it.range > 0 }.sumOf { it.range * minOf(it.cap, pool) } }
         var rangeLeft = if (rangeDim == 1) Int.MAX_VALUE else itemStages.sumOf { it.maxRange } + skillsMaxRange
-        for (st in itemStages) {
-            // B8 cooperative cancellation: poll once per DP stage (the coarsest place that still bounds latency
-            // to one stage's work). A bail here returns a SOUND over-count — the fast pass turns it into a
-            // shape-level bail, the exact pass keeps the cell's fast bound — so a cancelled run is never unsound,
-            // only incomplete (the caller then declines to cache it and reports the badge as Unavailable).
-            if (certifierCancelled()) return Long.MAX_VALUE
-            // A MANDATORY (forced) stage with no in-band option would empty the DP into a 0 certificate —
-            // an under-count. Keep-worthless makes a real forced item's stage non-empty; if it is still
-            // empty (e.g. a worthless forced ring dropped by the graw-≤-0 prune), BAIL — sound, badge
-            // honestly absent — rather than certify below a real build.
-            if (st.mandatory && st.cells.isEmpty()) return Long.MAX_VALUE
-            apNegLeft += st.apNeg
-            critNegLeft += st.critNeg
-            if (rangeDim > 1) rangeLeft -= st.maxRange
-            applyCells(st.cells, apCeil + apOff + apNegLeft, critItemHigh + critOff + critNegLeft, mandatory = st.mandatory, rangeLeftAfter = rangeLeft)
-            snap(st.name)
-        }
+        // (The item stages are applied below, after [branchCells]: the dead-label filter needs the skill cells' AP / crit
+        // reach before the first item stage runs. A pure move — the stage order is unchanged.)
 
         // Skill branches as pseudo-slots: enumerate the pool allocation between the single crit var
         // (→ crit dimension) and ap var (→ ap dimension), with the remaining points giving the best
@@ -4801,12 +4980,56 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
             return cells
         }
+        val branchCellsList = skillBranches.map { branchCells(it.second, it.first) }
+        // Dead-label filter: this crit step's harvest reads a state only with `ap ∈ [apFloor, apCeil]` and
+        // `crit ∈ [critLowBand, critItemHigh]` (critLowBand = −critOff at c = 0, the clamped step — the harvest's own
+        // test). The AP / crit-moving stages are the item stages then the skill branches, in application order; after
+        // stage i a state must sit in that band widened by what the stages after i can still add ([stageReach]) — on top
+        // of the historical `apUpper` / `critUpper`, which stay as they were.
+        val reach = if (deadFilter) stageReach(itemStages.map { it.cells } + branchCellsList, critDim) else null
+        val critLowStored = (if (c == 0) -critOff else critItemLow) + critOff
+
+        fun bandAfter(stage: Int): IntArray? =
+            reach?.let { r ->
+                intArrayOf(
+                    apFloor + apOff - r.apMax[stage + 1],
+                    apCeil + apOff - r.apMin[stage + 1],
+                    critLowStored - r.critMax[stage + 1],
+                    critItemHigh + critOff - r.critMin[stage + 1]
+                )
+            }
+        var stageIndex = 0
+        for (st in itemStages) {
+            // B8 cooperative cancellation: poll once per DP stage (the coarsest place that still bounds latency
+            // to one stage's work). A bail here returns a SOUND over-count — the fast pass turns it into a
+            // shape-level bail, the exact pass keeps the cell's fast bound — so a cancelled run is never unsound,
+            // only incomplete (the caller then declines to cache it and reports the badge as Unavailable).
+            if (certifierCancelled()) return Long.MAX_VALUE
+            // A MANDATORY (forced) stage with no in-band option would empty the DP into a 0 certificate —
+            // an under-count. Keep-worthless makes a real forced item's stage non-empty; if it is still
+            // empty (e.g. a worthless forced ring dropped by the graw-≤-0 prune), BAIL — sound, badge
+            // honestly absent — rather than certify below a real build.
+            if (st.mandatory && st.cells.isEmpty()) return Long.MAX_VALUE
+            apNegLeft += st.apNeg
+            critNegLeft += st.critNeg
+            if (rangeDim > 1) rangeLeft -= st.maxRange
+            applyCells(
+                st.cells,
+                apCeil + apOff + apNegLeft,
+                critItemHigh + critOff + critNegLeft,
+                mandatory = st.mandatory,
+                rangeLeftAfter = rangeLeft,
+                band = bandAfter(stageIndex)
+            )
+            stageIndex++
+            snap(st.name)
+        }
         // Skills add AP/crit only (no negative capacity), so they run at the exact band — a skill that
         // pushes AP above apCeil can never be pulled back down and is correctly dropped here.
-        for ((bi, branch) in skillBranches.withIndex()) {
-            val cellsB = branchCells(branch.second, branch.first)
+        for ((bi, cellsB) in branchCellsList.withIndex()) {
             if (rangeDim > 1) rangeLeft -= maxRangeOf(cellsB)
-            applyCells(cellsB, apCeil + apOff, critItemHigh + critOff, rangeLeftAfter = rangeLeft)
+            applyCells(cellsB, apCeil + apOff, critItemHigh + critOff, rangeLeftAfter = rangeLeft, band = bandAfter(stageIndex))
+            stageIndex++
             snap("skills:$bi")
         }
         // v52 RANGE row: nothing after the skills adds tracked range, so every state short of [rangeNeed] is
@@ -5046,6 +5269,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 // the build's actual MP) must reach the row — else no build of this point meets it.
                 if (mpRowTarget > 0 && mpRowFree + fr.mp(i) < mpRowTarget) continue
                 val prod = budgetMax(dConstHere + pd, grawConst + forcedCondGrawHere + pg, freeSlots, gpExact)
+                if (perCObserver != null && prod > cStepMax) cStepMax = prod
                 // The tie clause (`prod == best && c < bestC`) exists for the PRUNED order only: the seed
                 // c runs first, so a smaller c tying its value must still win `bestC` — "smallest
                 // max-achieving c", exactly the plain ascending loop's outcome (where the clause can
@@ -5061,6 +5285,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 }
             }
         }
+
+        perCObserver?.invoke(apTarget, c, cStepMax)
 
         // ---- Provenance backtrack (diagnostics only, explain mode) ----------------------------------
         // Walk the stage snapshots from the winning point backwards: at each stage find the (parent
@@ -5492,6 +5718,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     }
     winningCOut?.set(0, bestC)
     if (rangePruned > 0L) CertifierTuning.targetAwareRangePrunedForTest.addAndGet(rangePruned)
+    if (deadRefused > 0L) CertifierTuning.deadLabelsRefusedForTest.addAndGet(deadRefused)
     if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1") System.err.println("CERT_DEBUG_BEST $bestDbg")
     if (statsEnabled) {
         System.err.println(
